@@ -1,0 +1,56 @@
+
+    @if (!isLoaded) {
+      <div class="p-6 text-slate-500">Loading...</div>
+    } @else {
+      <div class="flex flex-col gap-2 md:gap-3">
+        <app-stats-cards
+          [bankBalanceTrackingEnabled]="bankBalanceTrackingEnabled"
+          [multiProfileMode]="multiProfileMode"
+          [profilesCount]="profiles.length"
+          [currentBankBalance]="currentBankBalance"
+          [balanceStatus]="balanceStatus"
+          [billTotal]="totals.billTotal"
+          [unpaidTotal]="totals.unpaidTotal"
+          [installmentTotal]="totals.installmentTotal"
+          (disableTracking)="disableBankBalanceTracking()"
+          (bankBalanceChange)="onBankBalanceChange($event)"
+        ></app-stats-cards>
+
+        <app-bank-balance-toggle
+          [enabled]="bankBalanceTrackingEnabled"
+          (enable)="enableBankBalanceTracking()"
+        ></app-bank-balance-toggle>
+
+        <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+          <app-bills-table-header
+            [viewDate]="viewDate"
+            [bulkSelectMode]="bulkSelectMode"
+            [selectedCardsCount]="selectedCards.size"
+            [batchCopied]="batchCopied"
+            [columnVisibility]="columnVisibility"
+            (setBulkSelectMode)="setBulkSelectMode($event)"
+            (copySelected)="copySelectedCards()"
+            (exportCSV)="handleExportMonthCSV()"
+            (columnVisibilityChange)="setColumnVisibility($event)"
+          ></app-bills-table-header>
+
+          <app-bills-table
+            [sortedData]="sortedDashboardData"
+            [bulkSelectMode]="bulkSelectMode"
+            [selectedCards]="selectedCards"
+            [dashboardSort]="dashboardSort"
+            [columnVisibility]="columnVisibility"
+            [onCopyCardInfo]="copyCardInfo"
+            (toggleCardSelection)="toggleCardSelection($event)"
+            (toggleAllCards)="toggleAllCards()"
+            (togglePaid)="handleTogglePaid($event)"
+            (toggleCashInstallmentPaid)="handleToggleCashInstallmentPaid($event)"
+            (toggleOneTimeBillPaid)="handleToggleOneTimeBillPaid($event)"
+            (toggleBilled)="handleToggleBilled($event)"
+            (copied)="setCopiedId($event)"
+            (sortChange)="handleSort($event)"
+          ></app-bills-table>
+        </div>
+      </div>
+    }
+  

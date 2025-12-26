@@ -1,0 +1,27 @@
+
+    @if (!isLoaded) {
+      <div class="p-6 text-slate-500">Loading...</div>
+    } @else {
+      <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 sm:p-6">
+        <app-calendar-header [days]="daysOfWeek"></app-calendar-header>
+
+        <div class="overflow-x-auto -mx-4 sm:mx-0 px-4 sm:px-0">
+          <div class="min-w-max grid grid-cols-7 gap-2">
+            @for (filler of startFillers; track filler) {
+              <div class="aspect-square"></div>
+            }
+
+            @for (day of calendarDays; track day.key) {
+              <app-calendar-day
+                [dayNum]="day.dayNum"
+                [isToday]="day.isToday"
+                [cardsDue]="day.cardsDue"
+                [cashInstsDue]="day.cashInstsDue"
+                [billsDue]="day.billsDue"
+              ></app-calendar-day>
+            }
+          </div>
+        </div>
+      </div>
+    }
+  

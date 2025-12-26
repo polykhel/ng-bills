@@ -20,48 +20,7 @@ import type { SortConfig, CreditCard, Installment, OneTimeBill } from '../../sha
   selector: 'app-manage',
   standalone: true,
   imports: [CommonModule, DataManagementComponent, ManageCardsComponent, ManageInstallmentsComponent, ManageOneTimeBillsComponent],
-  template: `
-    <div class="flex flex-col gap-2 md:gap-3">
-      <app-data-management
-        (importClick)="triggerImport()"
-        (exportClick)="exportProfile()"
-      ></app-data-management>
-
-      <input type="file" accept=".json" class="hidden" #fileRef (change)="handleImportProfile($event)" />
-
-      <app-manage-cards
-        [cards]="sortedManageCards"
-        [multiProfileMode]="multiProfileMode"
-        [profileName]="activeProfileName"
-        [currentSort]="manageCardSort"
-        (addCard)="openAddCard()"
-        (editCard)="openEditCard($event)"
-        (transferCard)="openTransferCard($event)"
-        (deleteCard)="handleDeleteCard($event)"
-        (changeSort)="handleCardSort($event)"
-      ></app-manage-cards>
-
-      <app-manage-installments
-        [installments]="sortedManageInstallments"
-        [cards]="cardOptions"
-        [viewDate]="viewDate"
-        (sort)="handleInstSort($event)"
-        (addInstallment)="openAddInstallment()"
-        (editInstallment)="openEditInstallment($event)"
-        (deleteInstallment)="handleDeleteInstallment($event)"
-      ></app-manage-installments>
-
-      <app-manage-one-time-bills
-        [bills]="sortedManageOneTimeBills"
-        [cards]="cardOptions"
-        [viewDate]="viewDate"
-        (sort)="handleOneTimeBillSort($event)"
-        (addBill)="openAddBill()"
-        (editBill)="openEditBill($event)"
-        (deleteBill)="handleDeleteOneTimeBill($event)"
-      ></app-manage-one-time-bills>
-    </div>
-  `,
+  templateUrl: './manage.component.html',
 })
 export class ManageComponent {
   manageCardSort: SortConfig = { key: 'bankName', direction: 'asc' };
