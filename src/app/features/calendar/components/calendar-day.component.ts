@@ -1,0 +1,130 @@
+import { Component, Input } from '@angular/core';
+import { CommonModule } from '@angular/common';
+import { UtilsService } from '../../../core/services';
+
+export interface CardDueItem {
+  cardId: string;
+  bankName: string;
+  cardName: string;
+  amount: number;
+  isPaid: boolean;
+  profileName?: string;
+  multiProfileMode: boolean;
+}
+
+export interface CashInstallmentDueItem {
+  id: string;
+  name: string;
+  term: number | string;
+  amount: number;
+  isPaid: boolean;
+  bankName: string;
+  cardName: string;
+  profileName?: string;
+  multiProfileMode: boolean;
+}
+
+export interface OneTimeBillDueItem {
+  id: string;
+  name: string;
+  amount: number;
+  isPaid: boolean;
+  bankName: string;
+  cardName: string;
+  profileName?: string;
+  multiProfileMode: boolean;
+}
+
+@Component({
+  selector: 'app-calendar-day',
+  standalone: true,
+  imports: [CommonModule],
+  template: `
+    <div
+      class="aspect-square min-h-[100px] border rounded-xl p-2 flex flex-col gap-1 transition-all hover:border-blue-300 hover:shadow-md"
+      [ngClass]="isToday ? 'bg-blue-50/50 border-blue-200' : 'bg-white border-slate-100'"
+    >
+      <span
+        class="text-xs font-semibold w-6 h-6 flex items-center justify-center rounded-full mb-1"
+        [ngClass]="isToday ? 'bg-blue-600 text-white' : 'text-slate-400'"
+      >
+        {{ dayNum }}
+      </span>
+
+      <div class="flex flex-col gap-1 overflow-y-auto no-scrollbar">
+        @for (card of cardsDue; track card.cardId) {
+          <div
+            class="text-[10px] px-1.5 py-1 rounded border-l-2 flex flex-col"
+            [ngClass]="card.isPaid
+              ? 'bg-green-50 text-green-700 border-green-500 opacity-60'
+              : 'bg-slate-100 text-slate-700 border-slate-500'"
+            [title]="formatTitle(card.bankName, card.cardName, card.profileName, card.multiProfileMode)"
+          >
+            <span class="font-semibold truncate">{{ card.bankName }}</span>
+            <span class="font-mono">{{ card.amount > 0 ? '₱' + formatCurrency(card.amount) : '₱-' }}</span>
+            @if (card.multiProfileMode && card.profileName) {
+              <span class="text-[8px] text-purple-600 font-medium truncate">{{ card.profileName }}</span>
+            }
+          </div>
+        }
+
+        @for (cash of cashInstsDue; track cash.id) {
+          <div
+            class="text-[10px] px-1.5 py-1 rounded border-l-2 flex flex-col"
+            [ngClass]="cash.isPaid
+              ? 'bg-green-50 text-green-700 border-green-500 opacity-60'
+              : 'bg-amber-50 text-amber-700 border-amber-500'"
+            [title]="formatCashTitle(cash)"
+          >
+            <span class="font-semibold truncate">{{ cash.name }}</span>
+            <span class="font-mono">{{ cash.amount > 0 ? '₱' + formatCurrency(cash.amount) : '₱-' }}</span>
+            <span class="text-[8px] text-amber-600 font-medium">Cash - Term {{ cash.term }}</span>
+            @if (cash.multiProfileMode && cash.profileName) {
+              <span class="text-[8px] text-purple-600 font-medium truncate">{{ cash.profileName }}</span>
+            }
+          </div>
+        }
+
+        @for (bill of billsDue; track bill.id) {
+          <div
+            class="text-[10px] px-1.5 py-1 rounded border-l-2 flex flex-col"
+            [ngClass]="bill.isPaid
+              ? 'bg-green-50 text-green-700 border-green-500 opacity-60'
+              : 'bg-blue-50 text-blue-700 border-blue-500'"
+            [title]="formatTitle(bill.bankName, bill.name, bill.profileName, bill.multiProfileMode)"
+          >
+            <span class="font-semibold truncate">{{ bill.name }}</span>
+            <span class="font-mono">{{ bill.amount > 0 ? '₱' + formatCurrency(bill.amount) : '₱-' }}</span>
+            <span class="text-[8px] text-blue-600 font-medium">One-Time Bill</span>
+            @if (bill.multiProfileMode && bill.profileName) {
+              <span class="text-[8px] text-purple-600 font-medium truncate">{{ bill.profileName }}</span>
+            }
+          </div>
+        }
+      </div>
+    </div>
+  `,
+})
+export class CalendarDayComponent {
+  @Input() dayNum = 1;
+  @Input() isToday = false;
+  @Input() cardsDue: CardDueItem[] = [];
+  @Input() cashInstsDue: CashInstallmentDueItem[] = [];
+  @Input() billsDue: OneTimeBillDueItem[] = [];
+
+  constructor(private utils: UtilsService) {}
+
+  formatCurrency(amount: number): string {
+    return this.utils.formatCurrency(amount);
+  }
+
+  formatTitle(bank: string, name: string, profileName?: string, multiProfileMode?: boolean): string {
+    const profileSuffix = multiProfileMode && profileName ? ` (${profileName})` : '';
+    return `${bank} - ${name}${profileSuffix}`;
+  }
+
+  formatCashTitle(cash: CashInstallmentDueItem): string {
+    const profileSuffix = cash.multiProfileMode && cash.profileName ? ` (${cash.profileName})` : '';
+    return `${cash.bankName} - ${cash.name} (${cash.term})${profileSuffix}`;
+  }
+}
