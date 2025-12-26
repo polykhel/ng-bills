@@ -2,7 +2,7 @@ import { Component, EventEmitter, Input, Output } from '@angular/core';
 import { format } from 'date-fns';
 import { CheckCircle2, Circle, Copy, LucideAngularModule } from 'lucide-angular';
 import { UtilsService } from '@services';
-import type { CashInstallment, CreditCard, SortConfig, Statement } from '@shared/types';
+import type { CreditCard, SortConfig, Statement } from '@shared/types';
 
 export interface ColumnVisibilityState {
   dueDate: boolean;
@@ -12,8 +12,7 @@ export interface ColumnVisibilityState {
   copy: boolean;
 }
 
-export type DashboardRow =
-  | {
+export interface DashboardRow {
   type: 'card';
   card: CreditCard;
   stmt?: Statement;
@@ -23,15 +22,6 @@ export type DashboardRow =
   cardInstTotal?: number;
   profileName?: string;
 }
-  | {
-  type: 'cashInstallment';
-  card: CreditCard;
-  cashInstallment: CashInstallment;
-  displayDate: Date;
-  displayAmount: number;
-  isPaid: boolean;
-  profileName?: string;
-};
 
 @Component({
   selector: 'app-bills-table',
@@ -54,7 +44,6 @@ export class BillsTableComponent {
   @Output() toggleCardSelection = new EventEmitter<string>();
   @Output() toggleAllCards = new EventEmitter<void>();
   @Output() togglePaid = new EventEmitter<string>();
-  @Output() toggleCashInstallmentPaid = new EventEmitter<string>();
   @Output() toggleBilled = new EventEmitter<string>();
   @Output() copied = new EventEmitter<string | null>();
   @Output() sortChange = new EventEmitter<string>();
@@ -84,8 +73,6 @@ export class BillsTableComponent {
   @Input() onCopyCardInfo: (cardName: string, bankName: string, amount: number) => Promise<string> = async () => '';
 
   rowAmount(row: DashboardRow): string {
-    if (row.type === 'card') return this.utils.formatCurrency(row.displayAmount);
-    if (row.type === 'cashInstallment') return this.utils.formatCurrency(row.displayAmount);
     return this.utils.formatCurrency(row.displayAmount);
   }
 
@@ -98,8 +85,7 @@ export class BillsTableComponent {
   }
 
   rowId(row: DashboardRow): string {
-    if (row.type === 'card') return row.card.id;
-    return row.cashInstallment.id;
+    return row.card.id;
   }
 
   isSelected(row: DashboardRow): boolean {
@@ -111,17 +97,11 @@ export class BillsTableComponent {
   }
 
   toggleStatus(row: DashboardRow): void {
-    if (row.type === 'card') {
-      this.togglePaid.emit(row.card.id);
-    } else if (row.type === 'cashInstallment') {
-      this.toggleCashInstallmentPaid.emit(row.cashInstallment.id);
-    }
+    this.togglePaid.emit(row.card.id);
   }
 
   toggleBilledStatus(row: DashboardRow): void {
-    if (row.type === 'card') {
-      this.toggleBilled.emit(row.card.id);
-    }
+    this.toggleBilled.emit(row.card.id);
   }
 
   async copyRow(row: DashboardRow): Promise<void> {

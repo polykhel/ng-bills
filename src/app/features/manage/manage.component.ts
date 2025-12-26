@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { Component, ElementRef, ViewChild } from '@angular/core';
+import { Component } from '@angular/core';
 import { ManageCardsComponent } from './components/manage-cards.component';
 import { ManageInstallmentsComponent } from './components/manage-installments.component';
 import {

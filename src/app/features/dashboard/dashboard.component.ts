@@ -148,25 +148,8 @@ export class DashboardComponent {
         } satisfies DashboardRow & { stmt?: Statement; cardInstTotal: number };
       });
 
-    const cashInstallments = this.activeCashInstallments
-      .filter(ci => this.visibleCards.some(c => c.id === ci.cardId))
-      .map(ci => {
-        const card = this.visibleCards.find(c => c.id === ci.cardId)!;
-        const profile = this.profiles.find(p => p.id === card.profileId);
-        return {
-          type: 'cashInstallment' as const,
-          card,
-          cashInstallment: ci,
-          displayDate: parseISO(ci.dueDate),
-          displayAmount: ci.amount,
-          isPaid: ci.isPaid,
-          profileName: profile?.name,
-        } satisfies DashboardRow;
-      });
-
-    const combined = [...regularCards, ...cashInstallments];
     const dir = this.dashboardSort.direction === 'asc' ? 1 : -1;
-    return combined.sort((a, b) => {
+    return regularCards.sort((a, b) => {
       switch (this.dashboardSort.key) {
         case 'bankName':
           return a.card.bankName.localeCompare(b.card.bankName) * dir;
@@ -254,17 +237,10 @@ export class DashboardComponent {
     const lines = this.sortedDashboardData
       .filter(row => this.selectedCards.has(row.card.id))
       .map(row => {
-        if (row.type === 'card') {
-          const stmt = this.monthlyStatements.find(s => s.cardId === row.card.id);
-          const effectiveAmount = stmt ? stmt.amount : row.displayAmount;
-          const amountDue = stmt?.adjustedAmount !== undefined ? stmt.adjustedAmount : effectiveAmount;
-          return `${row.card.bankName} ${row.card.cardName}\t ${this.utils.formatCurrency(amountDue)}`;
-        }
-        if (row.type === 'cashInstallment') {
-          const ci = row.cashInstallment;
-          return `${row.card.bankName} ${row.card.cardName} - ${ci.name} (${ci.term}/${ci.term})\t ${this.utils.formatCurrency(row.displayAmount)}`;
-        }
-        return '';
+        const stmt = this.monthlyStatements.find(s => s.cardId === row.card.id);
+        const effectiveAmount = stmt ? stmt.amount : row.displayAmount;
+        const amountDue = stmt?.adjustedAmount !== undefined ? stmt.adjustedAmount : effectiveAmount;
+        return `${row.card.bankName} ${row.card.cardName}\t ${this.utils.formatCurrency(amountDue)}`;
       })
       .filter(line => line !== '');
 
