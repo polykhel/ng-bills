@@ -53,15 +53,6 @@ export interface BankBalance {
   balance: number;
 }
 
-export interface OneTimeBill {
-  id: string;
-  cardId: string;
-  name: string;
-  amount: number;
-  dueDate: string;
-  isPaid: boolean;
-}
-
 export interface InstallmentStatus {
   currentTerm: number;
   totalTerms: number;

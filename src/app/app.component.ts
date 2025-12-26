@@ -8,7 +8,6 @@ import {
   InstallmentFormModalComponent,
   MonthNavigatorComponent,
   MultiProfileSelectorComponent,
-  OneTimeBillModalComponent,
   ProfileFormModalComponent,
   ProfileSelectorComponent,
   TransferCardModalComponent
@@ -28,7 +27,6 @@ import {
     ProfileFormModalComponent,
     CardFormModalComponent,
     InstallmentFormModalComponent,
-    OneTimeBillModalComponent,
     TransferCardModalComponent
   ],
   templateUrl: './app.component.html',

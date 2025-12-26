@@ -40,15 +40,13 @@ export class SyncUtilsService {
     const statements = this.storage.getStatements();
     const installments = this.storage.getInstallments();
     const cashInstallments = this.storage.getCashInstallments();
-    const oneTimeBills = this.storage.getOneTimeBills();
 
     return (
       profiles.length > 0 ||
       cards.length > 0 ||
       statements.length > 0 ||
       installments.length > 0 ||
-      cashInstallments.length > 0 ||
-      oneTimeBills.length > 0
+      cashInstallments.length > 0
     );
   }
 
@@ -62,7 +60,6 @@ export class SyncUtilsService {
       statements: this.storage.getStatements(),
       installments: this.storage.getInstallments(),
       cashInstallments: this.storage.getCashInstallments(),
-      oneTimeBills: this.storage.getOneTimeBills(),
     };
 
     return new Blob([JSON.stringify(data)]).size;

@@ -12,7 +12,6 @@
 
         @for (day of calendarDays; track day.key) {
           <app-calendar-day
-            [billsDue]="day.billsDue"
             [cardsDue]="day.cardsDue"
             [cashInstsDue]="day.cashInstsDue"
             [dayNum]="day.dayNum"

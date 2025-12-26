@@ -2,7 +2,7 @@ import { Component, EventEmitter, Input, Output } from '@angular/core';
 import { format } from 'date-fns';
 import { CheckCircle2, Circle, Copy, LucideAngularModule } from 'lucide-angular';
 import { UtilsService } from '@services';
-import type { CashInstallment, CreditCard, OneTimeBill, SortConfig, Statement } from '@shared/types';
+import type { CashInstallment, CreditCard, SortConfig, Statement } from '@shared/types';
 
 export interface ColumnVisibilityState {
   dueDate: boolean;
@@ -31,15 +31,6 @@ export type DashboardRow =
   displayAmount: number;
   isPaid: boolean;
   profileName?: string;
-}
-  | {
-  type: 'oneTimeBill';
-  card: CreditCard;
-  oneTimeBill: OneTimeBill;
-  displayDate: Date;
-  displayAmount: number;
-  isPaid: boolean;
-  profileName?: string;
 };
 
 @Component({
@@ -64,7 +55,6 @@ export class BillsTableComponent {
   @Output() toggleAllCards = new EventEmitter<void>();
   @Output() togglePaid = new EventEmitter<string>();
   @Output() toggleCashInstallmentPaid = new EventEmitter<string>();
-  @Output() toggleOneTimeBillPaid = new EventEmitter<string>();
   @Output() toggleBilled = new EventEmitter<string>();
   @Output() copied = new EventEmitter<string | null>();
   @Output() sortChange = new EventEmitter<string>();
@@ -109,8 +99,7 @@ export class BillsTableComponent {
 
   rowId(row: DashboardRow): string {
     if (row.type === 'card') return row.card.id;
-    if (row.type === 'cashInstallment') return row.cashInstallment.id;
-    return row.oneTimeBill.id;
+    return row.cashInstallment.id;
   }
 
   isSelected(row: DashboardRow): boolean {
@@ -126,8 +115,6 @@ export class BillsTableComponent {
       this.togglePaid.emit(row.card.id);
     } else if (row.type === 'cashInstallment') {
       this.toggleCashInstallmentPaid.emit(row.cashInstallment.id);
-    } else {
-      this.toggleOneTimeBillPaid.emit(row.oneTimeBill.id);
     }
   }
 

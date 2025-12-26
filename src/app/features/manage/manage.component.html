@@ -20,14 +20,4 @@
     [installments]="sortedManageInstallments"
     [viewDate]="viewDate"
   ></app-manage-installments>
-
-  <app-manage-one-time-bills
-    (addBill)="openAddBill()"
-    (deleteBill)="handleDeleteOneTimeBill($event)"
-    (editBill)="openEditBill($event)"
-    (sort)="handleOneTimeBillSort($event)"
-    [bills]="sortedManageOneTimeBills"
-    [cards]="cardOptions"
-    [viewDate]="viewDate"
-  ></app-manage-one-time-bills>
 </div>

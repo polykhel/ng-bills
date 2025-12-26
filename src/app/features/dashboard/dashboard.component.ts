@@ -7,7 +7,6 @@ import {
   CardService,
   CashInstallmentService,
   InstallmentService,
-  OneTimeBillService,
   ProfileService,
   StatementService,
   UtilsService,
@@ -44,7 +43,6 @@ export class DashboardComponent {
     private statementService: StatementService,
     private installmentService: InstallmentService,
     private cashInstallmentService: CashInstallmentService,
-    private oneTimeBillService: OneTimeBillService,
     private bankBalanceService: BankBalanceService,
     public utils: UtilsService,
   ) {
@@ -127,18 +125,6 @@ export class DashboardComponent {
     });
   }
 
-  get oneTimeBills() {
-    return this.oneTimeBillService.oneTimeBills();
-  }
-
-  get activeOneTimeBills() {
-    return this.oneTimeBills.filter(bill => {
-      const dueDate = parseISO(bill.dueDate);
-      if (!isValid(dueDate)) return false;
-      return format(dueDate, 'yyyy-MM') === this.monthKey;
-    });
-  }
-
   get sortedDashboardData(): DashboardRow[] {
     const regularCards = this.visibleCards
       .filter(card => !card.isCashCard)
@@ -178,23 +164,7 @@ export class DashboardComponent {
         } satisfies DashboardRow;
       });
 
-    const oneTimeBills = this.activeOneTimeBills
-      .filter(bill => this.visibleCards.some(c => c.id === bill.cardId))
-      .map(bill => {
-        const card = this.visibleCards.find(c => c.id === bill.cardId)!;
-        const profile = this.profiles.find(p => p.id === card.profileId);
-        return {
-          type: 'oneTimeBill' as const,
-          card,
-          oneTimeBill: bill,
-          displayDate: parseISO(bill.dueDate),
-          displayAmount: bill.amount,
-          isPaid: bill.isPaid,
-          profileName: profile?.name,
-        } satisfies DashboardRow;
-      });
-
-    const combined = [...regularCards, ...cashInstallments, ...oneTimeBills];
+    const combined = [...regularCards, ...cashInstallments];
     const dir = this.dashboardSort.direction === 'asc' ? 1 : -1;
     return combined.sort((a, b) => {
       switch (this.dashboardSort.key) {
@@ -236,12 +206,6 @@ export class DashboardComponent {
     const unpaidCash = visibleCash.filter(ci => !ci.isPaid).reduce((acc, ci) => acc + ci.amount, 0);
     billTotal += cashTotal;
     unpaidTotal += unpaidCash;
-
-    const visibleBills = this.activeOneTimeBills.filter(bill => visibleCardIds.has(bill.cardId));
-    const billsTotal = visibleBills.reduce((acc, bill) => acc + bill.amount, 0);
-    const unpaidBills = visibleBills.filter(bill => !bill.isPaid).reduce((acc, bill) => acc + bill.amount, 0);
-    billTotal += billsTotal;
-    unpaidTotal += unpaidBills;
 
     return {billTotal, unpaidTotal, installmentTotal: installmentTotal + cashTotal};
   }
@@ -300,9 +264,9 @@ export class DashboardComponent {
           const ci = row.cashInstallment;
           return `${row.card.bankName} ${row.card.cardName} - ${ci.name} (${ci.term}/${ci.term})\t ${this.utils.formatCurrency(row.displayAmount)}`;
         }
-        const bill = row.oneTimeBill;
-        return `${row.card.bankName} ${row.card.cardName} - ${bill.name}\t ${this.utils.formatCurrency(row.displayAmount)}`;
-      });
+        return '';
+      })
+      .filter(line => line !== '');
 
     await navigator.clipboard.writeText(lines.join('\n'));
     this.batchCopied = true;
@@ -346,18 +310,6 @@ export class DashboardComponent {
     this.cashInstallmentService.updateCashInstallment(cashInstallmentId, {
       isPaid: !cashInst.isPaid,
     });
-  }
-
-  handleToggleOneTimeBillPaid(oneTimeBillId: string): void {
-    const bill = this.oneTimeBills.find(b => b.id === oneTimeBillId);
-    if (!bill) return;
-
-    if (this.bankBalanceTrackingEnabled) {
-      const delta = bill.isPaid ? bill.amount : -bill.amount;
-      this.updateBankBalance(this.currentBankBalance + delta);
-    }
-
-    this.oneTimeBillService.updateOneTimeBill(oneTimeBillId, {isPaid: !bill.isPaid});
   }
 
   handleExportMonthCSV(): void {

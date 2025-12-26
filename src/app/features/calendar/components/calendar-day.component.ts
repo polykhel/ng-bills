@@ -24,17 +24,6 @@ export interface CashInstallmentDueItem {
   multiProfileMode: boolean;
 }
 
-export interface OneTimeBillDueItem {
-  id: string;
-  name: string;
-  amount: number;
-  isPaid: boolean;
-  bankName: string;
-  cardName: string;
-  profileName?: string;
-  multiProfileMode: boolean;
-}
-
 @Component({
   selector: 'app-calendar-day',
   standalone: true,
@@ -46,7 +35,6 @@ export class CalendarDayComponent {
   @Input() isToday = false;
   @Input() cardsDue: CardDueItem[] = [];
   @Input() cashInstsDue: CashInstallmentDueItem[] = [];
-  @Input() billsDue: OneTimeBillDueItem[] = [];
 
   constructor(private utils: UtilsService) {
   }

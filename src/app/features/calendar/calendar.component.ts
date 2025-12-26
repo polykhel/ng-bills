@@ -17,7 +17,6 @@ import {
   CardService,
   CashInstallmentService,
   InstallmentService,
-  OneTimeBillService,
   ProfileService,
   StatementService,
   UtilsService,
@@ -28,7 +27,6 @@ import {
   CalendarDayComponent,
   CardDueItem,
   CashInstallmentDueItem,
-  OneTimeBillDueItem,
 } from './components/calendar-day.component';
 
 interface CalendarDayView {
@@ -37,7 +35,6 @@ interface CalendarDayView {
   isToday: boolean;
   cardsDue: CardDueItem[];
   cashInstsDue: CashInstallmentDueItem[];
-  billsDue: OneTimeBillDueItem[];
 }
 
 @Component({
@@ -56,7 +53,6 @@ export class CalendarComponent {
     private statementService: StatementService,
     private installmentService: InstallmentService,
     private cashInstallmentService: CashInstallmentService,
-    private oneTimeBillService: OneTimeBillService,
     private utils: UtilsService,
   ) {
   }
@@ -121,18 +117,6 @@ export class CalendarComponent {
   get activeCashInstallments() {
     return this.cashInstallments.filter(ci => {
       const dueDate = parseISO(ci.dueDate);
-      if (!isValid(dueDate)) return false;
-      return format(dueDate, 'yyyy-MM') === this.monthKey;
-    });
-  }
-
-  get oneTimeBills() {
-    return this.oneTimeBillService.oneTimeBills();
-  }
-
-  get activeOneTimeBills() {
-    return this.oneTimeBills.filter(bill => {
-      const dueDate = parseISO(bill.dueDate);
       if (!isValid(dueDate)) return false;
       return format(dueDate, 'yyyy-MM') === this.monthKey;
     });
@@ -206,35 +190,12 @@ export class CalendarComponent {
           } satisfies CashInstallmentDueItem;
         });
 
-      const billsDue = this.activeOneTimeBills
-        .filter(bill => {
-          const card = this.visibleCards.find(c => c.id === bill.cardId);
-          if (!card) return false;
-          const dueDate = parseISO(bill.dueDate);
-          return isValid(dueDate) && isSameDay(dueDate, day);
-        })
-        .map(bill => {
-          const card = this.visibleCards.find(c => c.id === bill.cardId)!;
-          const profile = this.profiles.find(p => p.id === card.profileId);
-          return {
-            id: bill.id,
-            name: bill.name,
-            amount: bill.amount,
-            isPaid: bill.isPaid,
-            bankName: card.bankName,
-            cardName: card.cardName,
-            profileName: profile?.name,
-            multiProfileMode: this.multiProfileMode,
-          } satisfies OneTimeBillDueItem;
-        });
-
       return {
         key: day.toISOString(),
         dayNum,
         isToday,
         cardsDue,
         cashInstsDue,
-        billsDue,
       } satisfies CalendarDayView;
     });
   }

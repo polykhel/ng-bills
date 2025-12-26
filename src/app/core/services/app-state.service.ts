@@ -4,7 +4,6 @@ import { format, startOfMonth } from 'date-fns';
 export type ModalType =
   | 'card-form'
   | 'installment-form'
-  | 'one-time-bill'
   | 'profile-form'
   | 'transfer-card'
   | 'confirm'
@@ -172,13 +171,6 @@ export class AppStateService {
    */
   openInstallmentForm(installmentId?: string): void {
     this.openModal('installment-form', {installmentId});
-  }
-
-  /**
-   * Open one-time bill modal (add or edit)
-   */
-  openOneTimeBillModal(billId?: string): void {
-    this.openModal('one-time-bill', {billId});
   }
 
   /**

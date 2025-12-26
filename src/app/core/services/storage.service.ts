@@ -4,7 +4,6 @@ import type {
   CashInstallment,
   CreditCard,
   Installment,
-  OneTimeBill,
   Profile,
   Statement
 } from '@shared/types';
@@ -15,7 +14,6 @@ const KEYS = {
   STATEMENTS: 'bt_statements',
   INSTALLMENTS: 'bt_installments',
   CASH_INSTALLMENTS: 'bt_cash_installments',
-  ONE_TIME_BILLS: 'bt_one_time_bills',
   BANK_BALANCES: 'bt_bank_balances',
   BANK_BALANCE_TRACKING_ENABLED: 'bt_bank_balance_tracking_enabled',
   ACTIVE_PROFILE_ID: 'bt_active_profile_id',
@@ -165,14 +163,6 @@ export class StorageService {
 
   saveCashInstallments(data: CashInstallment[]): void {
     saveData(KEYS.CASH_INSTALLMENTS, data);
-  }
-
-  getOneTimeBills(): OneTimeBill[] {
-    return loadData<OneTimeBill>(KEYS.ONE_TIME_BILLS);
-  }
-
-  saveOneTimeBills(data: OneTimeBill[]): void {
-    saveData(KEYS.ONE_TIME_BILLS, data);
   }
 
   getBankBalances(): BankBalance[] {

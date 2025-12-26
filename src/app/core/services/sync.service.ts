@@ -1,7 +1,7 @@
 import { Injectable } from '@angular/core';
 import { EncryptionService } from './encryption.service';
 import { StorageService } from './storage.service';
-import type { CashInstallment, CreditCard, Installment, OneTimeBill, Profile, Statement } from '@shared/types';
+import type { CashInstallment, CreditCard, Installment, Profile, Statement } from '@shared/types';
 
 export interface SyncData {
   version: string;
@@ -11,7 +11,6 @@ export interface SyncData {
   statements: Statement[];
   installments: Installment[];
   cashInstallments: CashInstallment[];
-  oneTimeBills: OneTimeBill[];
   activeProfileId: string | null;
   activeMonth: string | null;
 }
@@ -45,7 +44,6 @@ export class SyncService {
       statements: this.storage.getStatements(),
       installments: this.storage.getInstallments(),
       cashInstallments: this.storage.getCashInstallments(),
-      oneTimeBills: this.storage.getOneTimeBills(),
       activeProfileId: this.storage.getActiveProfileId(),
       activeMonth: this.storage.getActiveMonthStr(),
     };
@@ -99,7 +97,6 @@ export class SyncService {
       if (data.statements) this.storage.saveStatements(data.statements);
       if (data.installments) this.storage.saveInstallments(data.installments);
       if (data.cashInstallments) this.storage.saveCashInstallments(data.cashInstallments);
-      if (data.oneTimeBills) this.storage.saveOneTimeBills(data.oneTimeBills);
       if (data.activeProfileId) this.storage.saveActiveProfileId(data.activeProfileId);
       if (data.activeMonth) this.storage.saveActiveMonthStr(data.activeMonth);
 
@@ -213,16 +210,6 @@ export class SyncService {
         }
       }
       this.storage.saveCashInstallments(newCashInstallments);
-
-      // Merge one-time bills
-      const existingOneTimeBills = this.storage.getOneTimeBills();
-      const newOneTimeBills = [...existingOneTimeBills];
-      for (const bill of importedData.oneTimeBills || []) {
-        if (!existingOneTimeBills.find(b => b.id === bill.id)) {
-          newOneTimeBills.push(bill);
-        }
-      }
-      this.storage.saveOneTimeBills(newOneTimeBills);
 
     } catch (error) {
       console.error('Merge failed:', error);

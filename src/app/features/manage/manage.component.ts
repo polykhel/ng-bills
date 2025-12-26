@@ -2,29 +2,26 @@ import { CommonModule } from '@angular/common';
 import { Component, ElementRef, ViewChild } from '@angular/core';
 import { ManageCardsComponent } from './components/manage-cards.component';
 import { ManageInstallmentsComponent } from './components/manage-installments.component';
-import { ManageOneTimeBillsComponent } from './components/manage-one-time-bills.component';
 import {
   AppStateService,
   CardService,
   CashInstallmentService,
   InstallmentService,
-  OneTimeBillService,
   ProfileService,
   StatementService,
   UtilsService,
 } from '@services';
-import type { CreditCard, Installment, OneTimeBill, SortConfig } from '@shared/types';
+import type { CreditCard, Installment, SortConfig } from '@shared/types';
 
 @Component({
   selector: 'app-manage',
   standalone: true,
-  imports: [CommonModule, ManageCardsComponent, ManageInstallmentsComponent, ManageOneTimeBillsComponent],
+  imports: [CommonModule, ManageCardsComponent, ManageInstallmentsComponent],
   templateUrl: './manage.component.html',
 })
 export class ManageComponent {
   manageCardSort: SortConfig = {key: 'bankName', direction: 'asc'};
   manageInstSort: SortConfig = {key: 'name', direction: 'asc'};
-  manageOneTimeBillSort: SortConfig = {key: 'dueDate', direction: 'asc'};
 
   constructor(
     private appState: AppStateService,
@@ -33,7 +30,6 @@ export class ManageComponent {
     private statementService: StatementService,
     private installmentService: InstallmentService,
     private cashInstallmentService: CashInstallmentService,
-    private oneTimeBillService: OneTimeBillService,
     private utils: UtilsService,
   ) {
   }
@@ -75,10 +71,6 @@ export class ManageComponent {
 
   get installments(): Installment[] {
     return this.installmentService.installments();
-  }
-
-  get oneTimeBills(): OneTimeBill[] {
-    return this.oneTimeBillService.oneTimeBills();
   }
 
   get sortedManageCards(): CreditCard[] {
@@ -130,30 +122,6 @@ export class ManageComponent {
     return this.visibleCards.map(c => ({id: c.id, bankName: c.bankName, cardName: c.cardName}));
   }
 
-  get sortedManageOneTimeBills(): OneTimeBill[] {
-    const visibleCardIds = new Set(this.visibleCards.map(c => c.id));
-    const filtered = this.oneTimeBills.filter(bill => visibleCardIds.has(bill.cardId));
-    const dir = this.manageOneTimeBillSort.direction === 'asc' ? 1 : -1;
-    return filtered.sort((a, b) => {
-      const cardA = this.visibleCards.find(c => c.id === a.cardId)?.bankName || '';
-      const cardB = this.visibleCards.find(c => c.id === b.cardId)?.bankName || '';
-      switch (this.manageOneTimeBillSort.key) {
-        case 'name':
-          return a.name.localeCompare(b.name) * dir;
-        case 'card':
-          return cardA.localeCompare(cardB) * dir;
-        case 'dueDate':
-          return a.dueDate.localeCompare(b.dueDate) * dir;
-        case 'amount':
-          return (a.amount - b.amount) * dir;
-        case 'isPaid':
-          return ((a.isPaid ? 1 : 0) - (b.isPaid ? 1 : 0)) * dir;
-        default:
-          return 0;
-      }
-    });
-  }
-
   handleCardSort(key: string): void {
     this.manageCardSort = {
       key,
@@ -165,13 +133,6 @@ export class ManageComponent {
     this.manageInstSort = {
       key,
       direction: this.manageInstSort.key === key && this.manageInstSort.direction === 'asc' ? 'desc' : 'asc',
-    };
-  }
-
-  handleOneTimeBillSort(key: string): void {
-    this.manageOneTimeBillSort = {
-      key,
-      direction: this.manageOneTimeBillSort.key === key && this.manageOneTimeBillSort.direction === 'asc' ? 'desc' : 'asc',
     };
   }
 
@@ -192,7 +153,6 @@ export class ManageComponent {
       this.statementService.deleteStatementsForCard(cardId);
       this.installmentService.deleteInstallmentsForCard(cardId);
       this.cashInstallmentService.deleteCashInstallmentsForCard(cardId);
-      this.oneTimeBillService.deleteOneTimeBillsForCard(cardId);
     }
   }
 
@@ -208,17 +168,5 @@ export class ManageComponent {
     if (this.installmentService.deleteInstallment(installmentId)) {
       this.cashInstallmentService.deleteCashInstallmentsForInstallment(installmentId);
     }
-  }
-
-  openAddBill(): void {
-    this.appState.openOneTimeBillModal();
-  }
-
-  openEditBill(bill: OneTimeBill): void {
-    this.appState.openOneTimeBillModal(bill.id);
-  }
-
-  handleDeleteOneTimeBill(billId: string): void {
-    this.oneTimeBillService.deleteOneTimeBill(billId);
   }
 }
