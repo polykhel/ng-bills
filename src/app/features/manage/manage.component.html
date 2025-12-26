@@ -1,11 +1,4 @@
 <div class="flex flex-col gap-2 md:gap-3">
-  <app-data-management
-    (exportClick)="exportProfile()"
-    (importClick)="triggerImport()"
-  ></app-data-management>
-
-  <input #fileRef (change)="handleImportProfile($event)" accept=".json" class="hidden" type="file"/>
-
   <app-manage-cards
     (addCard)="openAddCard()"
     (changeSort)="handleCardSort($event)"
