@@ -13,65 +13,61 @@
           />
         </th>
       }
+      <!-- Card Column -->
       <th class="px-4 py-3">
         <button (click)="onSortClick('bankName')" class="flex items-center gap-1">
           Card
           @if (dashboardSort.key === 'bankName') {
             <span class="text-[10px] text-blue-600">
-                    {{ dashboardSort.direction === 'asc' ? '▲' : '▼' }}
-                  </span>
+              {{ dashboardSort.direction === 'asc' ? '▲' : '▼' }}
+            </span>
           }
         </button>
       </th>
-      @if (columnVisibility.dueDate) {
-        <th class="px-4 py-3">
-          <button (click)="onSortClick('dueDate')" class="flex items-center gap-1">
-            Due Date
-            @if (dashboardSort.key === 'dueDate') {
-              <span class="text-[10px] text-blue-600">
-                      {{ dashboardSort.direction === 'asc' ? '▲' : '▼' }}
-                    </span>
-            }
-          </button>
-        </th>
-      }
-      @if (columnVisibility.amount) {
-        <th class="px-4 py-3">
-          <button (click)="onSortClick('amount')" class="flex items-center gap-1">
-            Amount
-            @if (dashboardSort.key === 'amount') {
-              <span class="text-[10px] text-blue-600">
-                      {{ dashboardSort.direction === 'asc' ? '▲' : '▼' }}
-                    </span>
-            }
-          </button>
-        </th>
-      }
-      @if (columnVisibility.status) {
-        <th class="px-4 py-3">
-          <button (click)="onSortClick('status')" class="flex items-center gap-1">
-            Status
-            @if (dashboardSort.key === 'status') {
-              <span class="text-[10px] text-blue-600">
-                      {{ dashboardSort.direction === 'asc' ? '▲' : '▼' }}
-                    </span>
-            }
-          </button>
-        </th>
-      }
-      @if (columnVisibility.billed) {
-        <th class="px-4 py-3">
-          <span class="text-xs font-bold text-slate-700 uppercase">Billed</span>
-        </th>
-      }
-      @if (columnVisibility.copy) {
-        <th class="px-4 py-3 w-16 text-right">Copy</th>
-      }
+      <!-- Due Date Column -->
+      <th class="px-4 py-3">
+        <button (click)="onSortClick('dueDate')" class="flex items-center gap-1">
+          Due Date
+          @if (dashboardSort.key === 'dueDate') {
+            <span class="text-[10px] text-blue-600">
+              {{ dashboardSort.direction === 'asc' ? '▲' : '▼' }}
+            </span>
+          }
+        </button>
+      </th>
+      <!-- Statement Balance Column -->
+      <th class="px-4 py-3">
+        <button (click)="onSortClick('amount')" class="flex items-center gap-1">
+          Statement Balance
+          @if (dashboardSort.key === 'amount') {
+            <span class="text-[10px] text-blue-600">
+              {{ dashboardSort.direction === 'asc' ? '▲' : '▼' }}
+            </span>
+          }
+        </button>
+      </th>
+      <!-- Amount Due Column -->
+      <th class="px-4 py-3">Amount Due</th>
+      <!-- Active Installments Column -->
+      <th class="px-4 py-3">Installments</th>
+      <!-- Status Column -->
+      <th class="px-4 py-3">
+        <button (click)="onSortClick('status')" class="flex items-center gap-1">
+          Status
+          @if (dashboardSort.key === 'status') {
+            <span class="text-[10px] text-blue-600">
+              {{ dashboardSort.direction === 'asc' ? '▲' : '▼' }}
+            </span>
+          }
+        </button>
+      </th>
+      <!-- Actions Column -->
+      <th class="px-4 py-3 text-right">Actions</th>
     </tr>
     </thead>
     <tbody class="divide-y divide-slate-100 bg-white">
       @for (row of sortedData; track trackRow($index, row)) {
-        <tr class="text-sm">
+        <tr class="text-sm hover:bg-slate-50 transition-colors">
           @if (bulkSelectMode) {
             <td class="px-4 py-3">
               <input
@@ -83,69 +79,187 @@
               />
             </td>
           }
+          <!-- Card Info -->
           <td class="px-4 py-3">
             <div class="flex items-center gap-3">
               <div
                 [style.backgroundColor]="row.card.color || '#334155'"
-                class="w-10 h-7 rounded-md shadow-sm flex items-center justify-center text-[10px] text-white font-bold">
-                {{ row.card.bankName.substring(0, 3) }}
+                class="w-10 h-7 rounded-md shadow-sm flex items-center justify-center text-[10px] text-white font-bold flex-shrink-0">
+                {{ row.card.bankName.substring(0, 3).toUpperCase() }}
               </div>
-              <div>
-                <p class="font-semibold text-slate-800">
-                  {{ row.card.bankName }} {{ row.card.cardName }}
+              <div class="min-w-0">
+                <p class="font-semibold text-slate-800 truncate">
+                  {{ row.card.cardName }}
                 </p>
-                <div class="flex flex-wrap gap-2 text-xs text-slate-500">
-                  <span>{{ row.card.bankName }} {{ row.card.cardName }}</span>
-                  @if (row.profileName) {
-                    <span
-                      class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-purple-100 text-purple-700 border border-purple-200">{{ row.profileName }}</span>
-                  }
-                </div>
+                <p class="text-xs text-slate-500 truncate">
+                  {{ row.card.bankName }}
+                </p>
+                @if (row.profileName) {
+                  <span class="inline-flex items-center px-1.5 py-0.5 mt-1 rounded text-[10px] font-medium bg-purple-100 text-purple-700 border border-purple-200">
+                    {{ row.profileName }}
+                  </span>
+                }
+                @if (row.tags && row.tags.length > 0) {
+                  <div class="flex flex-wrap gap-1 mt-1">
+                    @for (tag of row.tags; track tag) {
+                      <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-100 text-amber-700 border border-amber-200">
+                        {{ tag }}
+                      </span>
+                    }
+                  </div>
+                }
               </div>
             </div>
           </td>
-          @if (columnVisibility.dueDate) {
-            <td class="px-4 py-3 text-slate-700">{{ formatDate(row.displayDate) }}</td>
-          }
-          @if (columnVisibility.amount) {
-            <td class="px-4 py-3 font-semibold text-slate-800">
-              ₱{{ rowAmount(row) }}
-            </td>
-          }
-          @if (columnVisibility.status) {
-            <td class="px-4 py-3">
+          <!-- Due Date -->
+          <td class="px-4 py-3">
+            @if (editingDueDate === row.card.id) {
+              <div class="flex gap-2">
+                <input
+                  [(ngModel)]="tempDueDate"
+                  class="px-2 py-1 border border-slate-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  type="date"
+                />
+                <button
+                  (click)="saveDueDate(row)"
+                  class="px-2 py-1 bg-green-600 text-white text-xs rounded hover:bg-green-700"
+                  title="Save">
+                  ✓
+                </button>
+                <button
+                  (click)="cancelEditDueDate()"
+                  class="px-2 py-1 bg-slate-300 text-slate-700 text-xs rounded hover:bg-slate-400"
+                  title="Cancel">
+                  ✕
+                </button>
+              </div>
+            } @else {
+              <button
+                (click)="startEditDueDate(row)"
+                class="text-slate-700 hover:text-blue-600 hover:underline font-medium"
+                title="Click to edit">
+                {{ formatDate(row.displayDate) }}
+              </button>
+            }
+          </td>
+          <!-- Statement Balance (Editable) -->
+          <td class="px-4 py-3">
+            @if (editingBalance === row.card.id) {
+              <div class="flex gap-2">
+                <input
+                  [(ngModel)]="tempBalance"
+                  class="px-2 py-1 border border-slate-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 w-20"
+                  type="number"
+                  step="0.01"
+                />
+                <button
+                  (click)="saveBalance(row)"
+                  class="px-2 py-1 bg-green-600 text-white text-xs rounded hover:bg-green-700"
+                  title="Save">
+                  ✓
+                </button>
+                <button
+                  (click)="cancelEditBalance()"
+                  class="px-2 py-1 bg-slate-300 text-slate-700 text-xs rounded hover:bg-slate-400"
+                  title="Cancel">
+                  ✕
+                </button>
+              </div>
+            } @else {
+              <button
+                (click)="startEditBalance(row)"
+                class="text-slate-700 hover:text-blue-600 hover:underline font-semibold"
+                title="Click to edit">
+                {{ rowAmount(row) }}
+              </button>
+            }
+          </td>
+          <!-- Amount Due -->
+          <td class="px-4 py-3">
+            @if (editingAmountDue === row.card.id) {
+              <div class="flex gap-2">
+                <input
+                  [(ngModel)]="tempAmountDue"
+                  class="px-2 py-1 border border-slate-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 w-20"
+                  type="number"
+                  step="0.01"
+                />
+                <button
+                  (click)="saveAmountDue(row)"
+                  class="px-2 py-1 bg-green-600 text-white text-xs rounded hover:bg-green-700"
+                  title="Save">
+                  ✓
+                </button>
+                <button
+                  (click)="cancelEditAmountDue()"
+                  class="px-2 py-1 bg-slate-300 text-slate-700 text-xs rounded hover:bg-slate-400"
+                  title="Cancel">
+                  ✕
+                </button>
+              </div>
+            } @else {
+              <button
+                (click)="startEditAmountDue(row)"
+                class="text-slate-700 hover:text-blue-600 hover:underline font-semibold"
+                title="Click to edit">
+                {{ rowAmountDue(row) }}
+              </button>
+            }
+          </td>
+          <!-- Active Installments -->
+          <td class="px-4 py-3">
+            @if (getActiveInstallmentCount(row) > 0) {
+              <div class="flex flex-col gap-1">
+                @for (installment of row.activeInstallments; track installment.id) {
+                  <div class="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-blue-100 text-blue-700 border border-blue-300 gap-1">
+                    <span class="font-semibold">{{ installment.name }}</span>
+                    <span class="text-blue-600">{{ utils.formatCurrency(installment.monthlyAmortization) }}</span>
+                    <span class="text-blue-600">{{ utils.getInstallmentStatus(installment, row.displayDate).currentTerm }} / {{ installment.terms }}</span>
+                  </div>
+                }
+              </div>
+            } @else {
+              <span class="text-xs text-slate-500">—</span>
+            }
+          </td>
+          <!-- Status -->
+          <td class="px-4 py-3">
+            <div class="flex justify-center gap-2">
+              <button
+                (click)="toggleBilledStatus(row)"
+                [class]="(row.stmt?.isUnbilled === false) ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'"
+                class="px-2 py-1 rounded text-xs font-semibold hover:shadow-md transition-shadow"
+                title="Toggle billed/unbilled status">
+                {{ row.stmt?.isUnbilled === false ? 'Billed' : 'Unbilled' }}
+              </button>
               <button
                 (click)="toggleStatus(row)"
                 [class]="row.isPaid ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-600'"
-                class="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold">
+                class="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold hover:shadow-md transition-shadow"
+                title="Toggle paid/unpaid status">
                 <lucide-icon [img]="row.isPaid ? CheckCircle2 : Circle" class="w-4 h-4"></lucide-icon>
                 {{ row.isPaid ? 'Paid' : 'Unpaid' }}
               </button>
-            </td>
-          }
-          @if (columnVisibility.billed) {
-            <td class="px-4 py-3">
-              <button
-                (click)="toggleBilledStatus(row)"
-                [class]="(row.stmt?.isUnbilled === false) ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'"
-                class="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold"
-                title="Toggle billed status">
-                {{ row.stmt?.isUnbilled === false ? 'Billed' : 'Unbilled' }}
-              </button>
-            </td>
-          }
-          @if (columnVisibility.copy) {
-            <td class="px-4 py-3 text-right">
+            </div>
+          </td>
+          <!-- Actions -->
+          <td class="px-4 py-3 text-right">
+            <div class="flex justify-end gap-2">
               <button
                 (click)="copyRow(row)"
                 [attr.aria-label]="'Copy info for ' + row.card.bankName + ' ' + row.card.cardName"
                 [disabled]="isCopying === rowId(row)"
-                class="text-blue-600 hover:text-blue-800"
+                class="text-blue-600 hover:text-blue-800 hover:bg-blue-50 p-1 rounded transition-colors"
                 title="Copy card info">
                 <lucide-icon [img]="Copy" class="w-4 h-4"></lucide-icon>
               </button>
-            </td>
-          }
+              <button
+                class="text-slate-600 hover:text-slate-800 hover:bg-slate-100 p-1 rounded transition-colors"
+                title="More options">
+                <lucide-icon [img]="MoreVertical" class="w-4 h-4"></lucide-icon>
+              </button>
+            </div>
+          </td>
         </tr>
       }
       @if (sortedData.length === 0) {

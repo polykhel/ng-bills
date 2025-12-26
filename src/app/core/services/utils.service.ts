@@ -35,7 +35,9 @@ export class UtilsService {
    * Format a number as currency
    */
   formatCurrency(amount: number): string {
-    return amount.toLocaleString(undefined, {
+    return amount.toLocaleString('en-PH', {
+      style: 'currency',
+      currency: 'PHP',
       minimumFractionDigits: 2,
       maximumFractionDigits: 2,
     });

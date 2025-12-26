@@ -134,17 +134,22 @@ export class DashboardComponent {
         const displayDate = stmt?.customDueDate ? parseISO(stmt.customDueDate) : defaultDate;
         const cardInstTotal = this.getCardInstallmentTotal(card.id);
         const displayAmount = stmt ? stmt.amount : cardInstTotal;
+        const amountDue = stmt?.adjustedAmount !== undefined ? stmt.adjustedAmount : displayAmount;
         const isPaid = stmt?.isPaid || false;
         const profile = this.profiles.find(p => p.id === card.profileId);
+        const activeInstallments = this.activeInstallments.filter(i => i.cardId === card.id);
         return {
           type: 'card' as const,
           card,
           stmt,
           displayDate,
           displayAmount,
+          amountDue,
           isPaid,
           cardInstTotal,
           profileName: profile?.name,
+          activeInstallments,
+          tags: this.getCardTags(card.id),
         } satisfies DashboardRow & { stmt?: Statement; cardInstTotal: number };
       });
 
@@ -357,6 +362,18 @@ export class DashboardComponent {
     }
   }
 
+  handleDueDateChange(event: { cardId: string; dueDate: string }): void {
+    this.statementService.updateStatement(event.cardId, this.monthKey, {customDueDate: event.dueDate});
+  }
+
+  handleStatementBalanceChange(event: { cardId: string; amount: number }): void {
+    this.statementService.updateStatement(event.cardId, this.monthKey, {amount: event.amount});
+  }
+
+  handleAmountDueChange(event: { cardId: string; amount: number }): void {
+    this.statementService.updateStatement(event.cardId, this.monthKey, {adjustedAmount: event.amount});
+  }
+
   private updateBankBalance(balance: number): void {
     if (this.multiProfileMode && this.selectedProfileIds.length > 0) {
       this.bankBalanceService.updateBankBalance(this.selectedProfileIds[0], this.monthKey, balance);
@@ -374,5 +391,14 @@ export class DashboardComponent {
   private rowAmountNumber(row: DashboardRow): number {
     if (row.type === 'card') return row.displayAmount;
     return row.displayAmount;
+  }
+
+  private getCardTags(cardId: string): string[] {
+    const tags: string[] = [];
+    const activeInsts = this.activeInstallments.filter(i => i.cardId === cardId);
+    if (activeInsts.length > 0) {
+      // Could add installation tags here if needed
+    }
+    return tags;
   }
 }

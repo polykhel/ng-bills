@@ -1,8 +1,10 @@
 import { Component, EventEmitter, Input, Output } from '@angular/core';
+import { CommonModule } from '@angular/common';
+import { FormsModule } from '@angular/forms';
 import { format } from 'date-fns';
-import { CheckCircle2, Circle, Copy, LucideAngularModule } from 'lucide-angular';
+import { CheckCircle2, Circle, Copy, LucideAngularModule, MoreVertical } from 'lucide-angular';
 import { UtilsService } from '@services';
-import type { CreditCard, SortConfig, Statement } from '@shared/types';
+import type { CreditCard, SortConfig, Statement, Installment } from '@shared/types';
 
 export interface ColumnVisibilityState {
   dueDate: boolean;
@@ -21,12 +23,15 @@ export interface DashboardRow {
   isPaid: boolean;
   cardInstTotal?: number;
   profileName?: string;
+  activeInstallments?: Installment[];
+  amountDue?: number;
+  tags?: string[];
 }
 
 @Component({
   selector: 'app-bills-table',
   standalone: true,
-  imports: [LucideAngularModule],
+  imports: [CommonModule, FormsModule, LucideAngularModule],
   templateUrl: './bills-table.component.html',
 })
 export class BillsTableComponent {
@@ -47,10 +52,20 @@ export class BillsTableComponent {
   @Output() toggleBilled = new EventEmitter<string>();
   @Output() copied = new EventEmitter<string | null>();
   @Output() sortChange = new EventEmitter<string>();
+  @Output() dueDateChanged = new EventEmitter<{ cardId: string; dueDate: string }>();
+  @Output() statementBalanceChanged = new EventEmitter<{ cardId: string; amount: number }>();
+  @Output() amountDueChanged = new EventEmitter<{ cardId: string; amount: number }>();
   readonly Copy = Copy;
   readonly Circle = Circle;
   readonly CheckCircle2 = CheckCircle2;
+  readonly MoreVertical = MoreVertical;
   isCopying: string | null = null;
+  editingDueDate: string | null = null;
+  editingBalance: string | null = null;
+  editingAmountDue: string | null = null;
+  tempDueDate = '';
+  tempBalance = '';
+  tempAmountDue = '';
 
   constructor(public utils: UtilsService) {
   }
@@ -63,10 +78,11 @@ export class BillsTableComponent {
     let count = 1; // Card column
     if (this.bulkSelectMode) count += 1;
     if (this.columnVisibility.dueDate) count += 1;
-    if (this.columnVisibility.amount) count += 1;
+    if (this.columnVisibility.amount) count += 1; // Statement Balance
+    count += 1; // Amount Due
+    count += 1; // Active Installments
     if (this.columnVisibility.status) count += 1;
-    if (this.columnVisibility.billed) count += 1;
-    if (this.columnVisibility.copy) count += 1;
+    count += 1; // Actions
     return count;
   }
 
@@ -74,6 +90,10 @@ export class BillsTableComponent {
 
   rowAmount(row: DashboardRow): string {
     return this.utils.formatCurrency(row.displayAmount);
+  }
+
+  rowAmountDue(row: DashboardRow): string {
+    return this.utils.formatCurrency(row.amountDue ?? row.displayAmount);
   }
 
   formatDate(date: Date): string {
@@ -105,13 +125,81 @@ export class BillsTableComponent {
   }
 
   async copyRow(row: DashboardRow): Promise<void> {
-    const amount = row.displayAmount;
+    const amount = row.amountDue ?? row.displayAmount;
     this.isCopying = this.rowId(row);
     await this.onCopyCardInfo(row.card.cardName, row.card.bankName, amount);
     this.copied.emit(this.rowId(row));
     setTimeout(() => {
       this.isCopying = null;
     }, 1200);
+  }
+
+  startEditDueDate(row: DashboardRow): void {
+    this.editingDueDate = row.card.id;
+    this.tempDueDate = format(row.displayDate, 'yyyy-MM-dd');
+  }
+
+  saveDueDate(row: DashboardRow): void {
+    if (this.tempDueDate && this.editingDueDate === row.card.id) {
+      this.dueDateChanged.emit({ cardId: row.card.id, dueDate: this.tempDueDate });
+      this.editingDueDate = null;
+    }
+  }
+
+  cancelEditDueDate(): void {
+    this.editingDueDate = null;
+    this.tempDueDate = '';
+  }
+
+  startEditBalance(row: DashboardRow): void {
+    this.editingBalance = row.card.id;
+    this.tempBalance = row.displayAmount.toString();
+  }
+
+  saveBalance(row: DashboardRow): void {
+    if (this.tempBalance !== '' && this.editingBalance === row.card.id) {
+      const amount = parseFloat(this.tempBalance);
+      if (!isNaN(amount) && amount >= 0) {
+        this.statementBalanceChanged.emit({ cardId: row.card.id, amount });
+        this.editingBalance = null;
+      }
+    }
+  }
+
+  cancelEditBalance(): void {
+    this.editingBalance = null;
+    this.tempBalance = '';
+  }
+
+  startEditAmountDue(row: DashboardRow): void {
+    this.editingAmountDue = row.card.id;
+    this.tempAmountDue = (row.amountDue ?? row.displayAmount).toString();
+  }
+
+  saveAmountDue(row: DashboardRow): void {
+    if (this.tempAmountDue !== '' && this.editingAmountDue === row.card.id) {
+      const amount = parseFloat(this.tempAmountDue);
+      if (!isNaN(amount) && amount >= 0) {
+        this.amountDueChanged.emit({ cardId: row.card.id, amount });
+        this.editingAmountDue = null;
+      }
+    }
+  }
+
+  cancelEditAmountDue(): void {
+    this.editingAmountDue = null;
+    this.tempAmountDue = '';
+  }
+
+  getActiveInstallmentCount(row: DashboardRow): number {
+    return row.activeInstallments?.length ?? 0;
+  }
+
+  getInstallmentSummary(row: DashboardRow): string {
+    if (!row.activeInstallments || row.activeInstallments.length === 0) {
+      return 'None';
+    }
+    return `${row.activeInstallments.length} active`;
   }
 
   trackRow = (_: number, row: DashboardRow) => this.rowId(row);

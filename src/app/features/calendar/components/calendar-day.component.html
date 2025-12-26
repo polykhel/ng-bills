@@ -19,7 +19,7 @@
         class="text-[10px] px-1.5 py-1 rounded border-l-2 flex flex-col"
       >
         <span class="font-semibold truncate">{{ card.bankName }}</span>
-        <span class="font-mono">{{ card.amount > 0 ? '₱' + formatCurrency(card.amount) : '₱-' }}</span>
+        <span class="font-mono">{{ card.amount > 0 ? formatCurrency(card.amount) : '₱-' }}</span>
         @if (card.multiProfileMode && card.profileName) {
           <span class="text-[8px] text-purple-600 font-medium truncate">{{ card.profileName }}</span>
         }
@@ -35,7 +35,7 @@
         class="text-[10px] px-1.5 py-1 rounded border-l-2 flex flex-col"
       >
         <span class="font-semibold truncate">{{ cash.name }}</span>
-        <span class="font-mono">{{ cash.amount > 0 ? '₱' + formatCurrency(cash.amount) : '₱-' }}</span>
+        <span class="font-mono">{{ cash.amount > 0 ? formatCurrency(cash.amount) : '₱-' }}</span>
         <span class="text-[8px] text-amber-600 font-medium">Cash - Term {{ cash.term }}</span>
         @if (cash.multiProfileMode && cash.profileName) {
           <span class="text-[8px] text-purple-600 font-medium truncate">{{ cash.profileName }}</span>

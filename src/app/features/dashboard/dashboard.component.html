@@ -35,11 +35,13 @@
 
       <app-bills-table
         (copied)="setCopiedId($event)"
+        (amountDueChanged)="handleAmountDueChange($event)"
+        (dueDateChanged)="handleDueDateChange($event)"
         (sortChange)="handleSort($event)"
+        (statementBalanceChanged)="handleStatementBalanceChange($event)"
         (toggleAllCards)="toggleAllCards()"
         (toggleBilled)="handleToggleBilled($event)"
         (toggleCardSelection)="toggleCardSelection($event)"
-        (toggleCashInstallmentPaid)="handleToggleCashInstallmentPaid($event)"
         (togglePaid)="handleTogglePaid($event)"
         [bulkSelectMode]="bulkSelectMode"
         [columnVisibility]="columnVisibility"
