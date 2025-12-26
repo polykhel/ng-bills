@@ -2,7 +2,7 @@ import { Component, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { LucideAngularModule, User, UserPlus, CheckCircle2, Pencil } from 'lucide-angular';
-import { ProfileService, AppStateService } from '../../core/services';
+import { ProfileService, AppStateService } from '@services';
 
 @Component({
   selector: 'app-profile-selector',

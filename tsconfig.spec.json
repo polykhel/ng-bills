@@ -6,7 +6,18 @@
     "outDir": "./out-tsc/spec",
     "types": [
       "jasmine"
-    ]
+    ],
+    "baseUrl": ".",
+    "paths": {
+      "@app/*": ["src/app/*"],
+      "@core/*": ["src/app/core/*"],
+      "@services": ["src/app/core/services"],
+      "@services/*": ["src/app/core/services/*"],
+      "@features/*": ["src/app/features/*"],
+      "@shared/*": ["src/app/shared/*"],
+      "@components": ["src/app/shared/components"],
+      "@components/*": ["src/app/shared/components/*"]
+    }
   },
   "include": [
     "src/**/*.ts"

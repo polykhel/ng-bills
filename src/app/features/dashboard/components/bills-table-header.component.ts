@@ -3,7 +3,7 @@ import { Component, EventEmitter, Input, Output } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { LucideAngularModule, FileSpreadsheet, CheckCircle2, Copy } from 'lucide-angular';
 import { format } from 'date-fns';
-import { ColumnVisibilityMenuComponent, type ColumnVisibilityOption } from '../../../shared/components/column-visibility-menu.component';
+import { ColumnVisibilityMenuComponent, type ColumnVisibilityOption } from '@components/column-visibility-menu.component';
 import type { ColumnVisibilityState } from './bills-table.component';
 
 @Component({

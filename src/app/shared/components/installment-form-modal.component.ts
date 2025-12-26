@@ -3,7 +3,7 @@ import { CommonModule } from '@angular/common';
 import { FormBuilder, FormGroup, Validators, ReactiveFormsModule } from '@angular/forms';
 import { format, subMonths } from 'date-fns';
 import { LucideAngularModule, Calendar, Calculator } from 'lucide-angular';
-import { InstallmentService, CardService, AppStateService } from '../../core/services';
+import { InstallmentService, CardService, AppStateService } from '@services';
 import { ModalComponent } from './modal.component';
 import type { Installment } from '../types';
 

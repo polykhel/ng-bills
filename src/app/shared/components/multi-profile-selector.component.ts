@@ -1,7 +1,7 @@
 import { Component } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { LucideAngularModule, Users, CheckCircle2, Circle } from 'lucide-angular';
-import { ProfileService, AppStateService } from '../../core/services';
+import { ProfileService, AppStateService } from '@services';
 
 @Component({
   selector: 'app-multi-profile-selector',

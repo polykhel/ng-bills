@@ -1,7 +1,7 @@
 
 import { Component, EventEmitter, Input, Output } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { UtilsService } from '../../../core/services';
+import { UtilsService } from '@services';
 
 @Component({
   selector: 'app-stats-cards',

@@ -11,8 +11,8 @@ import {
   ProfileService,
   StatementService,
   UtilsService,
-} from '../../core/services';
-import type { Statement } from '../../shared/types';
+} from '@services';
+import type { Statement } from '@shared/types';
 import { CalendarHeaderComponent } from './components/calendar-header.component';
 import {
   CalendarDayComponent,

@@ -1,7 +1,7 @@
 import { Component, OnInit } from '@angular/core';
 
 import { FormBuilder, FormGroup, Validators, ReactiveFormsModule } from '@angular/forms';
-import { ProfileService, AppStateService } from '../../core/services';
+import { ProfileService, AppStateService } from '@services';
 import { ModalComponent } from './modal.component';
 
 @Component({

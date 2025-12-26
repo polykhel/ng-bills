@@ -1,5 +1,5 @@
 import { Injectable } from '@angular/core';
-import type { Profile, CreditCard, Statement, Installment, BankBalance, CashInstallment, OneTimeBill } from '../../shared/types';
+import type { Profile, CreditCard, Statement, Installment, BankBalance, CashInstallment, OneTimeBill } from '@shared/types';
 
 const KEYS = {
   PROFILES: 'bt_profiles',

@@ -1,7 +1,7 @@
 import { Injectable } from '@angular/core';
 import { EncryptionService } from './encryption.service';
 import { StorageService } from './storage.service';
-import type { Profile, CreditCard, Statement, Installment, CashInstallment, OneTimeBill } from '../../shared/types';
+import type { Profile, CreditCard, Statement, Installment, CashInstallment, OneTimeBill } from '@shared/types';
 
 export interface SyncData {
   version: string;

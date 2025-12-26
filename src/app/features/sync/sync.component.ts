@@ -2,7 +2,7 @@ import { CommonModule } from '@angular/common';
 import { Component, OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { LucideAngularModule, Download, Upload, Cloud, FileDown, Lock, AlertCircle } from 'lucide-angular';
-import { SyncService, SyncUtilsService } from '../../core/services';
+import { SyncService, SyncUtilsService } from '@services';
 
 @Component({
   selector: 'app-sync',

@@ -11,12 +11,12 @@ import {
   ProfileService,
   StatementService,
   UtilsService,
-} from '../../core/services';
+} from '@services';
 import { StatsCardsComponent } from './components/stats-cards.component';
 import { BankBalanceToggleComponent } from './components/bank-balance-toggle.component';
 import { BillsTableHeaderComponent } from './components/bills-table-header.component';
 import { BillsTableComponent, type DashboardRow, type ColumnVisibilityState } from './components/bills-table.component';
-import type { SortConfig, Statement } from '../../shared/types';
+import type { SortConfig, Statement } from '@shared/types';
 
 interface BalanceStatus {
   difference: number;

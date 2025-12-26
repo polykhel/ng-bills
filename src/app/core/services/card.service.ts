@@ -1,7 +1,7 @@
 import { Injectable, signal, computed, effect } from '@angular/core';
 import { StorageService } from './storage.service';
 import { ProfileService } from './profile.service';
-import type { CreditCard } from '../../shared/types';
+import type { CreditCard } from '@shared/types';
 
 @Injectable({
   providedIn: 'root',

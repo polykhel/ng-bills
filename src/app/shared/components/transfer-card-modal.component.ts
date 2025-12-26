@@ -1,7 +1,7 @@
 import { Component, signal, effect } from '@angular/core';
 
 import { FormsModule } from '@angular/forms';
-import { CardService, ProfileService, AppStateService } from '../../core/services';
+import { CardService, ProfileService, AppStateService } from '@services';
 import { ModalComponent } from './modal.component';
 import type { CreditCard } from '../types';
 

@@ -2,7 +2,7 @@ import { Component, Input, Output, EventEmitter } from '@angular/core';
 
 import { format } from 'date-fns';
 import { LucideAngularModule, ChevronLeft, ChevronRight } from 'lucide-angular';
-import { AppStateService } from '../../core/services';
+import { AppStateService } from '@services';
 
 @Component({
   selector: 'app-month-navigator',

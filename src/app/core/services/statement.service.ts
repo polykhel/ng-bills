@@ -1,7 +1,7 @@
 import { Injectable, signal, effect } from '@angular/core';
 import { StorageService } from './storage.service';
 import { ProfileService } from './profile.service';
-import type { Statement } from '../../shared/types';
+import type { Statement } from '@shared/types';
 
 @Injectable({
   providedIn: 'root',

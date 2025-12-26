@@ -2,8 +2,8 @@
 import { Component, EventEmitter, Input, Output } from '@angular/core';
 import { format } from 'date-fns';
 import { LucideAngularModule, Copy, CheckCircle2, Circle } from 'lucide-angular';
-import { UtilsService } from '../../../core/services';
-import type { CreditCard, CashInstallment, OneTimeBill, SortConfig, Statement } from '../../../shared/types';
+import { UtilsService } from '@services';
+import type { CreditCard, CashInstallment, OneTimeBill, SortConfig, Statement } from '@shared/types';
 
 export interface ColumnVisibilityState {
   dueDate: boolean;

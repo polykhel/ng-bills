@@ -1,7 +1,7 @@
 import { CommonModule } from '@angular/common';
 import { Component, EventEmitter, Input, Output } from '@angular/core';
 import { LucideAngularModule, Plus, Pencil, ArrowRightLeft, Trash2, CreditCard as RawCardIcon } from 'lucide-angular';
-import type { CreditCard } from '../../../shared/types';
+import type { CreditCard } from '@shared/types';
 
 const CardIcon = RawCardIcon;
 

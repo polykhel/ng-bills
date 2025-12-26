@@ -1,6 +1,6 @@
 import { Injectable } from '@angular/core';
 import { differenceInCalendarMonths, parseISO, startOfMonth } from 'date-fns';
-import type { Installment, InstallmentStatus } from '../../shared/types';
+import type { Installment, InstallmentStatus } from '@shared/types';
 
 @Injectable({
   providedIn: 'root'

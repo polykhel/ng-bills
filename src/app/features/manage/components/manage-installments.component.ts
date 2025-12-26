@@ -1,8 +1,8 @@
 import { CommonModule } from '@angular/common';
 import { Component, EventEmitter, Input, Output } from '@angular/core';
 import { LucideAngularModule, Plus, Trash2, Pencil, List } from 'lucide-angular';
-import type { Installment } from '../../../shared/types';
-import { UtilsService } from '../../../core/services';
+import type { Installment } from '@shared/types';
+import { UtilsService } from '@services';
 
 interface CardInfo {
   id: string;

@@ -1,7 +1,7 @@
 import { Component, OnInit, signal, effect } from '@angular/core';
 
 import { FormBuilder, FormGroup, Validators, ReactiveFormsModule } from '@angular/forms';
-import { OneTimeBillService, CardService, AppStateService } from '../../core/services';
+import { OneTimeBillService, CardService, AppStateService } from '@services';
 import { ModalComponent } from './modal.component';
 import type { OneTimeBill } from '../types';
 

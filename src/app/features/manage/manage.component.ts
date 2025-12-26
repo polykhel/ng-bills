@@ -13,8 +13,8 @@ import {
   CashInstallmentService,
   OneTimeBillService,
   UtilsService,
-} from '../../core/services';
-import type { SortConfig, CreditCard, Installment, OneTimeBill } from '../../shared/types';
+} from '@services';
+import type { SortConfig, CreditCard, Installment, OneTimeBill } from '@shared/types';
 
 @Component({
   selector: 'app-manage',

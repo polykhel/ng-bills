@@ -1,6 +1,6 @@
 import { Injectable, signal, computed, effect } from '@angular/core';
 import { StorageService } from './storage.service';
-import type { Profile } from '../../shared/types';
+import type { Profile } from '@shared/types';
 
 @Injectable({
   providedIn: 'root',

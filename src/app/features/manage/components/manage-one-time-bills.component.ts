@@ -1,8 +1,8 @@
 import { CommonModule } from '@angular/common';
 import { Component, EventEmitter, Input, Output } from '@angular/core';
 import { LucideAngularModule, Plus, Trash2, Pencil, DollarSign } from 'lucide-angular';
-import type { OneTimeBill } from '../../../shared/types';
-import { UtilsService } from '../../../core/services';
+import type { OneTimeBill } from '@shared/types';
+import { UtilsService } from '@services';
 
 interface CardInfo {
   id: string;
