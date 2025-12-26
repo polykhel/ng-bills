@@ -1,14 +1,16 @@
 
 import { Component, EventEmitter, Input, Output } from '@angular/core';
+import { CommonModule } from '@angular/common';
 import { UtilsService } from '../../../core/services';
 
 @Component({
   selector: 'app-stats-cards',
   standalone: true,
-  imports: [],
+  imports: [CommonModule],
   template: `
     <div
-      [class]="utils.cn('grid gap-4', bankBalanceTrackingEnabled ? 'grid-cols-1 md:grid-cols-2 lg:grid-cols-4' : 'grid-cols-1 md:grid-cols-3')">
+      class="grid gap-4"
+      [ngClass]="bankBalanceTrackingEnabled ? ['grid-cols-1','md:grid-cols-2','lg:grid-cols-4'] : ['grid-cols-1','md:grid-cols-3']">
       @if (bankBalanceTrackingEnabled) {
         <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-100">
           <div class="flex items-center justify-between mb-2">
@@ -40,7 +42,8 @@ import { UtilsService } from '../../../core/services';
             />
           </div>
           <div
-            [class]="utils.cn('text-xs mt-2 font-medium flex items-center gap-1', balanceStatus.isEnough ? 'text-green-600' : 'text-rose-600')">
+            class="text-xs mt-2 font-medium flex items-center gap-1"
+            [ngClass]="balanceStatus.isEnough ? 'text-green-600' : 'text-rose-600'">
             @if (balanceStatus.isEnough) {
               <span class="flex items-center gap-1">
                 <span>✓</span>

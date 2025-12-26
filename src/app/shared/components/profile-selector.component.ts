@@ -1,13 +1,13 @@
 import { Component, signal } from '@angular/core';
-
+import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { LucideAngularModule, User, UserPlus, CheckCircle2, Pencil } from 'lucide-angular';
-import { ProfileService, AppStateService, UtilsService } from '../../core/services';
+import { ProfileService, AppStateService } from '../../core/services';
 
 @Component({
   selector: 'app-profile-selector',
   standalone: true,
-  imports: [FormsModule, LucideAngularModule],
+  imports: [CommonModule, FormsModule, LucideAngularModule],
   template: `
     <div class="relative group">
       <button class="flex items-center gap-2 p-1.5 rounded-lg hover:bg-slate-100 transition">
@@ -40,12 +40,8 @@ import { ProfileService, AppStateService, UtilsService } from '../../core/servic
                 <div class="flex items-center gap-1">
                   <button
                     (click)="selectProfile(profile.id)"
-                    [class]="cn(
-                      'flex-1 text-left px-3 py-2 text-sm rounded-lg flex items-center justify-between',
-                      profileService.activeProfileId() === profile.id
-                        ? 'bg-blue-50 text-blue-700'
-                        : 'hover:bg-slate-50 text-slate-700'
-                    )">
+                    class="flex-1 text-left px-3 py-2 text-sm rounded-lg flex items-center justify-between"
+                    [ngClass]="profileService.activeProfileId() === profile.id ? ['bg-blue-50','text-blue-700'] : ['hover:bg-slate-50','text-slate-700']">
                     {{ profile.name }}
                     @if (profileService.activeProfileId() === profile.id) {
                       <lucide-icon [img]="CheckCircle2" class="w-3 h-3"></lucide-icon>
@@ -83,13 +79,8 @@ export class ProfileSelectorComponent {
 
   constructor(
     public profileService: ProfileService,
-    private appState: AppStateService,
-    private utils: UtilsService
+    private appState: AppStateService
   ) {}
-
-  cn(...inputs: any[]): string {
-    return this.utils.cn(...inputs);
-  }
 
   selectProfile(profileId: string): void {
     this.profileService.setActiveProfile(profileId);

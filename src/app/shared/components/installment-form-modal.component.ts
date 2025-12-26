@@ -1,16 +1,16 @@
 import { Component, OnInit, signal, effect, computed } from '@angular/core';
-
+import { CommonModule } from '@angular/common';
 import { FormBuilder, FormGroup, Validators, ReactiveFormsModule } from '@angular/forms';
 import { format, subMonths } from 'date-fns';
 import { LucideAngularModule, Calendar, Calculator } from 'lucide-angular';
-import { InstallmentService, CardService, AppStateService, UtilsService } from '../../core/services';
+import { InstallmentService, CardService, AppStateService } from '../../core/services';
 import { ModalComponent } from './modal.component';
 import type { Installment } from '../types';
 
 @Component({
   selector: 'app-installment-form-modal',
   standalone: true,
-  imports: [ReactiveFormsModule, LucideAngularModule, ModalComponent],
+  imports: [CommonModule, ReactiveFormsModule, LucideAngularModule, ModalComponent],
   template: `
     <app-modal 
       [isOpen]="isOpen" 
@@ -100,23 +100,15 @@ import type { Installment } from '../types';
             <button
               type="button"
               (click)="setInstMode('date')"
-              [class]="cn(
-                'flex-1 flex items-center justify-center gap-2 p-2 rounded-lg text-sm transition-colors',
-                instMode() === 'date'
-                  ? 'bg-blue-600 text-white shadow-md'
-                  : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-              )">
+              class="flex-1 flex items-center justify-center gap-2 p-2 rounded-lg text-sm transition-colors"
+              [ngClass]="instMode() === 'date' ? ['bg-blue-600','text-white','shadow-md'] : ['bg-slate-100','text-slate-700','hover:bg-slate-200']">
               <lucide-icon [img]="Calendar" class="w-4 h-4"></lucide-icon> Set Start Date
             </button>
             <button
               type="button"
               (click)="setInstMode('term')"
-              [class]="cn(
-                'flex-1 flex items-center justify-center gap-2 p-2 rounded-lg text-sm transition-colors',
-                instMode() === 'term'
-                  ? 'bg-blue-600 text-white shadow-md'
-                  : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-              )">
+              class="flex-1 flex items-center justify-center gap-2 p-2 rounded-lg text-sm transition-colors"
+              [ngClass]="instMode() === 'term' ? ['bg-blue-600','text-white','shadow-md'] : ['bg-slate-100','text-slate-700','hover:bg-slate-200']">
               <lucide-icon [img]="Calculator" class="w-4 h-4"></lucide-icon> Set Current Term
             </button>
           </div>
@@ -185,8 +177,7 @@ export class InstallmentFormModalComponent implements OnInit {
     private fb: FormBuilder,
     private installmentService: InstallmentService,
     public cardService: CardService,
-    public appState: AppStateService,
-    private utils: UtilsService
+    public appState: AppStateService
   ) {
     effect(() => {
       const modalState = this.appState.modalState();
@@ -241,9 +232,7 @@ export class InstallmentFormModalComponent implements OnInit {
     return format(backDate, 'MMMM yyyy');
   }
 
-  cn(...inputs: any[]): string {
-    return this.utils.cn(...inputs);
-  }
+  
 
   setInstMode(mode: 'date' | 'term'): void {
     this.instMode.set(mode);

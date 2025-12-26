@@ -2,7 +2,6 @@ import { CommonModule } from '@angular/common';
 import { Component, EventEmitter, Input, Output } from '@angular/core';
 import { LucideAngularModule, Plus, Pencil, ArrowRightLeft, Trash2, CreditCard as RawCardIcon } from 'lucide-angular';
 import type { CreditCard } from '../../../shared/types';
-import { UtilsService } from '../../../core/services';
 
 const CardIcon = RawCardIcon;
 
@@ -22,13 +21,17 @@ const CardIcon = RawCardIcon;
             <button
               type="button"
               (click)="changeSort.emit('bankName')"
-              [class]="utils.cn('hover:text-blue-600', currentSort.key === 'bankName' && 'text-blue-600 font-bold')">
+              class="hover:text-blue-600"
+              [class.text-blue-600]="currentSort.key === 'bankName'"
+              [class.font-bold]="currentSort.key === 'bankName'">
               Name
             </button>
             <button
               type="button"
               (click)="changeSort.emit('dueDay')"
-              [class]="utils.cn('hover:text-blue-600', currentSort.key === 'dueDay' && 'text-blue-600 font-bold')">
+              class="hover:text-blue-600"
+              [class.text-blue-600]="currentSort.key === 'dueDay'"
+              [class.font-bold]="currentSort.key === 'dueDay'">
               Due Day
             </button>
           </div>
@@ -100,7 +103,7 @@ export class ManageCardsComponent {
   readonly Trash2 = Trash2;
   readonly CardIcon = CardIcon;
 
-  constructor(public utils: UtilsService) {}
+  constructor() {}
 
   trackCard = (_: number, card: CreditCard) => card.id;
 }

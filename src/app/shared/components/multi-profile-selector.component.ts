@@ -1,25 +1,20 @@
 import { Component } from '@angular/core';
-
+import { CommonModule } from '@angular/common';
 import { LucideAngularModule, Users, CheckCircle2, Circle } from 'lucide-angular';
-import { ProfileService, AppStateService, UtilsService } from '../../core/services';
+import { ProfileService, AppStateService } from '../../core/services';
 
 @Component({
   selector: 'app-multi-profile-selector',
   standalone: true,
-  imports: [LucideAngularModule],
+  imports: [CommonModule, LucideAngularModule],
   template: `
     <div class="relative group">
       <button 
         (click)="toggleMode()"
-        [class]="cn(
-          'flex items-center gap-2 p-1.5 rounded-lg transition',
-          appState.multiProfileMode() ? 'bg-blue-100' : 'hover:bg-slate-100'
-        )"
+        class="flex items-center gap-2 p-1.5 rounded-lg transition"
+        [ngClass]="appState.multiProfileMode() ? 'bg-blue-100' : 'hover:bg-slate-100'"
         [title]="appState.multiProfileMode() ? 'Multi-profile mode active' : 'Enable multi-profile view'">
-        <div [class]="cn(
-          'w-8 h-8 rounded-full flex items-center justify-center',
-          appState.multiProfileMode() ? 'bg-blue-600 text-white' : 'bg-slate-800 text-white'
-        )">
+        <div class="w-8 h-8 rounded-full flex items-center justify-center text-white" [ngClass]="appState.multiProfileMode() ? 'bg-blue-600' : 'bg-slate-800'">
           <lucide-icon [img]="Users" class="w-4 h-4"></lucide-icon>
         </div>
         <div class="text-left hidden md:block">
@@ -45,12 +40,8 @@ import { ProfileService, AppStateService, UtilsService } from '../../core/servic
               @for (profile of profileService.profiles(); track profile.id) {
                 <button
                   (click)="toggleProfile(profile.id)"
-                  [class]="cn(
-                    'w-full text-left px-3 py-2 text-sm rounded-lg flex items-center justify-between transition-colors',
-                    isSelected(profile.id)
-                      ? 'bg-blue-50 text-blue-700 hover:bg-blue-100'
-                      : 'hover:bg-slate-50 text-slate-700'
-                  )">
+                  class="w-full text-left px-3 py-2 text-sm rounded-lg flex items-center justify-between transition-colors"
+                  [ngClass]="isSelected(profile.id) ? ['bg-blue-50','text-blue-700','hover:bg-blue-100'] : ['hover:bg-slate-50','text-slate-700']">
                   <span class="font-medium">{{ profile.name }}</span>
                   @if (isSelected(profile.id)) {
                     <lucide-icon [img]="CheckCircle2" class="w-4 h-4 text-blue-600"></lucide-icon>
@@ -80,17 +71,14 @@ export class MultiProfileSelectorComponent {
 
   constructor(
     public profileService: ProfileService,
-    public appState: AppStateService,
-    private utils: UtilsService
+    public appState: AppStateService
   ) {}
 
   get selectedCount(): number {
     return this.appState.selectedProfileIds().length;
   }
 
-  cn(...inputs: any[]): string {
-    return this.utils.cn(...inputs);
-  }
+  
 
   toggleMode(): void {
     this.appState.toggleMultiProfileMode();

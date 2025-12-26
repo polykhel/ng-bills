@@ -1,15 +1,15 @@
 
 import { Component, EventEmitter, Input, Output } from '@angular/core';
+import { CommonModule } from '@angular/common';
 import { LucideAngularModule, FileSpreadsheet, CheckCircle2, Copy } from 'lucide-angular';
 import { format } from 'date-fns';
-import { UtilsService } from '../../../core/services';
 import { ColumnVisibilityMenuComponent, type ColumnVisibilityOption } from '../../../shared/components/column-visibility-menu.component';
 import type { ColumnVisibilityState } from './bills-table.component';
 
 @Component({
   selector: 'app-bills-table-header',
   standalone: true,
-  imports: [LucideAngularModule, ColumnVisibilityMenuComponent],
+  imports: [CommonModule, LucideAngularModule, ColumnVisibilityMenuComponent],
   template: `
     <div class="flex flex-wrap gap-2 justify-between items-center px-4 sm:px-6 py-3 sm:py-4 border-b border-slate-100 bg-slate-50/50">
       <h3 class="font-bold text-slate-700 text-sm sm:text-base">Bills for {{ formattedDate }}</h3>
@@ -22,7 +22,8 @@ import type { ColumnVisibilityState } from './bills-table.component';
         @if (bulkSelectMode && selectedCardsCount > 0) {
           <button
             (click)="copySelected.emit()"
-            [class]="utils.cn('flex items-center gap-2 text-xs font-medium px-3 py-1.5 rounded-lg transition', batchCopied ? 'bg-green-100 text-green-700 border border-green-200' : 'bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-100')">
+            class="flex items-center gap-2 text-xs font-medium px-3 py-1.5 rounded-lg transition border"
+            [ngClass]="batchCopied ? ['bg-green-100','text-green-700','border-green-200'] : ['bg-blue-50','text-blue-600','border-blue-200','hover:bg-blue-100']">
             @if (batchCopied) {
               <span class="flex items-center gap-2">
                 <lucide-icon [img]="CheckCircle2" class="w-4 h-4"></lucide-icon>
@@ -75,7 +76,7 @@ export class BillsTableHeaderComponent {
   readonly CheckCircle2 = CheckCircle2;
   readonly Copy = Copy;
   readonly FileSpreadsheet = FileSpreadsheet;
-  constructor(public utils: UtilsService) {}
+  constructor() {}
 
   get formattedDate(): string {
     return format(this.viewDate, 'MMMM yyyy');

@@ -1,6 +1,4 @@
 import { Injectable } from '@angular/core';
-import { clsx, type ClassValue } from 'clsx';
-import { twMerge } from 'tailwind-merge';
 import { differenceInCalendarMonths, parseISO, startOfMonth } from 'date-fns';
 import type { Installment, InstallmentStatus } from '../../shared/types';
 
@@ -8,13 +6,6 @@ import type { Installment, InstallmentStatus } from '../../shared/types';
   providedIn: 'root'
 })
 export class UtilsService {
-  /**
-   * Merge Tailwind CSS classes with clsx
-   */
-  cn(...inputs: ClassValue[]): string {
-    return twMerge(clsx(inputs));
-  }
-
   /**
    * Get installment status for a given date
    */
