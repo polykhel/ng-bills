@@ -1,7 +1,7 @@
 import { CommonModule } from '@angular/common';
 import { Component, OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { LucideAngularModule, Download, Upload, Cloud, FileDown, Lock, AlertCircle } from 'lucide-angular';
+import { AlertCircle, Cloud, Download, FileDown, Lock, LucideAngularModule, Upload } from 'lucide-angular';
 import { SyncService, SyncUtilsService } from '@services';
 
 @Component({
@@ -25,10 +25,7 @@ export class SyncComponent implements OnInit {
   readonly Lock = Lock;
   readonly AlertCircle = AlertCircle;
 
-  constructor(private syncService: SyncService, private syncUtils: SyncUtilsService) {}
-
-  ngOnInit(): void {
-    this.dataSize = this.syncUtils.getDataSize();
+  constructor(private syncService: SyncService, private syncUtils: SyncUtilsService) {
   }
 
   get passwordStrength(): 'weak' | 'medium' | 'strong' {
@@ -43,6 +40,10 @@ export class SyncComponent implements OnInit {
 
   get formattedDataSize(): string {
     return this.syncUtils.formatBytes(this.dataSize);
+  }
+
+  ngOnInit(): void {
+    this.dataSize = this.syncUtils.getDataSize();
   }
 
   async handleExport(): Promise<void> {

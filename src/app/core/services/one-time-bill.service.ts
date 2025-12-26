@@ -1,4 +1,4 @@
-import { Injectable, signal, effect } from '@angular/core';
+import { effect, Injectable, signal } from '@angular/core';
 import { StorageService } from './storage.service';
 import { ProfileService } from './profile.service';
 import type { OneTimeBill } from '@shared/types';
@@ -20,26 +20,14 @@ export class OneTimeBillService {
     this.setupAutoSave();
   }
 
-  private initializeOneTimeBills(): void {
-    this.oneTimeBillsSignal.set(this.storageService.getOneTimeBills());
-  }
-
-  private setupAutoSave(): void {
-    effect(() => {
-      if (this.profileService.isLoaded()) {
-        this.storageService.saveOneTimeBills(this.oneTimeBillsSignal());
-      }
-    });
-  }
-
   addOneTimeBill(bill: Omit<OneTimeBill, 'id'>): void {
-    const newBill: OneTimeBill = { ...bill, id: this.generateId() };
+    const newBill: OneTimeBill = {...bill, id: this.generateId()};
     this.oneTimeBillsSignal.update(bills => [...bills, newBill]);
   }
 
   updateOneTimeBill(id: string, updates: Partial<OneTimeBill>): void {
     this.oneTimeBillsSignal.update(bills =>
-      bills.map(b => (b.id === id ? { ...b, ...updates } : b))
+      bills.map(b => (b.id === id ? {...b, ...updates} : b))
     );
   }
 
@@ -59,6 +47,18 @@ export class OneTimeBillService {
 
   getOneTimeBillsForCard(cardId: string): OneTimeBill[] {
     return this.oneTimeBillsSignal().filter(b => b.cardId === cardId);
+  }
+
+  private initializeOneTimeBills(): void {
+    this.oneTimeBillsSignal.set(this.storageService.getOneTimeBills());
+  }
+
+  private setupAutoSave(): void {
+    effect(() => {
+      if (this.profileService.isLoaded()) {
+        this.storageService.saveOneTimeBills(this.oneTimeBillsSignal());
+      }
+    });
   }
 
   private generateId(): string {

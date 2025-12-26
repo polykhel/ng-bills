@@ -1,6 +1,6 @@
-import { Component, Input, Output, EventEmitter, forwardRef } from '@angular/core';
+import { Component, EventEmitter, forwardRef, Input, Output } from '@angular/core';
 
-import { FormsModule, ControlValueAccessor, NG_VALUE_ACCESSOR } from '@angular/forms';
+import { ControlValueAccessor, FormsModule, NG_VALUE_ACCESSOR } from '@angular/forms';
 
 @Component({
   selector: 'app-editable-field',
@@ -13,21 +13,7 @@ import { FormsModule, ControlValueAccessor, NG_VALUE_ACCESSOR } from '@angular/f
       multi: true
     }
   ],
-  template: `
-    <input
-      [type]="type"
-      [(ngModel)]="localValue"
-      (focus)="handleFocus()"
-      (blur)="handleBlur()"
-      (ngModelChange)="handleChange()"
-      [class]="className"
-      [placeholder]="placeholder"
-      [step]="step"
-      [min]="min"
-      [max]="max"
-      [id]="id"
-    />
-  `
+  templateUrl: './editable-field.component.html',
 })
 export class EditableFieldComponent implements ControlValueAccessor {
   @Input() type: 'text' | 'number' | 'date' = 'text';
@@ -37,16 +23,12 @@ export class EditableFieldComponent implements ControlValueAccessor {
   @Input() min?: string;
   @Input() max?: string;
   @Input() id?: string;
-  
+
   @Output() onUpdate = new EventEmitter<string | number>();
 
   localValue: string | number = '';
   isEditing = false;
   private originalValue: string | number = '';
-
-  // ControlValueAccessor implementation
-  private onChange: (value: any) => void = () => {};
-  private onTouched: () => void = () => {};
 
   writeValue(value: any): void {
     this.localValue = value ?? '';
@@ -69,7 +51,7 @@ export class EditableFieldComponent implements ControlValueAccessor {
   handleBlur(): void {
     this.isEditing = false;
     this.onTouched();
-    
+
     // Only update if value has changed
     if (this.localValue !== this.originalValue) {
       this.onChange(this.localValue);
@@ -82,4 +64,11 @@ export class EditableFieldComponent implements ControlValueAccessor {
       // Keep as is for number inputs
     }
   }
+
+  // ControlValueAccessor implementation
+  private onChange: (value: any) => void = () => {
+  };
+
+  private onTouched: () => void = () => {
+  };
 }

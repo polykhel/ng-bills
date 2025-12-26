@@ -1,4 +1,4 @@
-import { Injectable, signal, effect } from '@angular/core';
+import { effect, Injectable, signal } from '@angular/core';
 import { StorageService } from './storage.service';
 import { ProfileService } from './profile.service';
 import type { Installment } from '@shared/types';
@@ -20,20 +20,8 @@ export class InstallmentService {
     this.setupAutoSave();
   }
 
-  private initializeInstallments(): void {
-    this.installmentsSignal.set(this.storageService.getInstallments());
-  }
-
-  private setupAutoSave(): void {
-    effect(() => {
-      if (this.profileService.isLoaded()) {
-        this.storageService.saveInstallments(this.installmentsSignal());
-      }
-    });
-  }
-
   addInstallment(installment: Omit<Installment, 'id'>): void {
-    const newInstallment: Installment = { ...installment, id: this.generateId() };
+    const newInstallment: Installment = {...installment, id: this.generateId()};
     this.installmentsSignal.update(installments => [
       ...installments,
       newInstallment,
@@ -42,7 +30,7 @@ export class InstallmentService {
 
   updateInstallment(id: string, updates: Partial<Installment>): void {
     this.installmentsSignal.update(installments =>
-      installments.map(i => (i.id === id ? { ...i, ...updates } : i))
+      installments.map(i => (i.id === id ? {...i, ...updates} : i))
     );
   }
 
@@ -64,6 +52,18 @@ export class InstallmentService {
 
   getInstallmentsForCard(cardId: string): Installment[] {
     return this.installmentsSignal().filter(i => i.cardId === cardId);
+  }
+
+  private initializeInstallments(): void {
+    this.installmentsSignal.set(this.storageService.getInstallments());
+  }
+
+  private setupAutoSave(): void {
+    effect(() => {
+      if (this.profileService.isLoaded()) {
+        this.storageService.saveInstallments(this.installmentsSignal());
+      }
+    });
   }
 
   private generateId(): string {

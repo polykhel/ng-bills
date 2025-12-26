@@ -1,6 +1,6 @@
 import { Component } from '@angular/core';
 
-import { format, setDate, parseISO, isValid } from 'date-fns';
+import { format, isValid, parseISO, setDate } from 'date-fns';
 import {
   AppStateService,
   BankBalanceService,
@@ -15,7 +15,7 @@ import {
 import { StatsCardsComponent } from './components/stats-cards.component';
 import { BankBalanceToggleComponent } from './components/bank-balance-toggle.component';
 import { BillsTableHeaderComponent } from './components/bills-table-header.component';
-import { BillsTableComponent, type DashboardRow, type ColumnVisibilityState } from './components/bills-table.component';
+import { BillsTableComponent, type ColumnVisibilityState, type DashboardRow } from './components/bills-table.component';
 import type { SortConfig, Statement } from '@shared/types';
 
 interface BalanceStatus {
@@ -30,12 +30,12 @@ interface BalanceStatus {
   templateUrl: './dashboard.component.html',
 })
 export class DashboardComponent {
-  dashboardSort: SortConfig = { key: 'dueDate', direction: 'asc' };
+  dashboardSort: SortConfig = {key: 'dueDate', direction: 'asc'};
   selectedCards = new Set<string>();
   copiedId: string | null = null;
   batchCopied = false;
   bulkSelectMode = false;
-  columnVisibility: ColumnVisibilityState = { dueDate: true, amount: true, status: true, billed: true, copy: true };
+  columnVisibility: ColumnVisibilityState = {dueDate: true, amount: true, status: true, billed: true, copy: true};
 
   constructor(
     private appState: AppStateService,
@@ -47,7 +47,8 @@ export class DashboardComponent {
     private oneTimeBillService: OneTimeBillService,
     private bankBalanceService: BankBalanceService,
     public utils: UtilsService,
-  ) {}
+  ) {
+  }
 
   get isLoaded(): boolean {
     return this.profileService.isLoaded();
@@ -110,7 +111,7 @@ export class DashboardComponent {
 
   get activeInstallments() {
     return this.installments
-      .map(inst => ({ ...inst, status: this.utils.getInstallmentStatus(inst, this.viewDate) }))
+      .map(inst => ({...inst, status: this.utils.getInstallmentStatus(inst, this.viewDate)}))
       .filter(inst => inst.status.isActive);
   }
 
@@ -242,7 +243,7 @@ export class DashboardComponent {
     billTotal += billsTotal;
     unpaidTotal += unpaidBills;
 
-    return { billTotal, unpaidTotal, installmentTotal: installmentTotal + cashTotal };
+    return {billTotal, unpaidTotal, installmentTotal: installmentTotal + cashTotal};
   }
 
   get currentBankBalance(): number {
@@ -258,7 +259,7 @@ export class DashboardComponent {
 
   get balanceStatus(): BalanceStatus {
     const difference = this.currentBankBalance - this.totals.unpaidTotal;
-    return { difference, isEnough: difference >= 0 };
+    return {difference, isEnough: difference >= 0};
   }
 
   copyCardInfo = async (cardName: string, bankName: string, amountDue: number) => {
@@ -356,7 +357,7 @@ export class DashboardComponent {
       this.updateBankBalance(this.currentBankBalance + delta);
     }
 
-    this.oneTimeBillService.updateOneTimeBill(oneTimeBillId, { isPaid: !bill.isPaid });
+    this.oneTimeBillService.updateOneTimeBill(oneTimeBillId, {isPaid: !bill.isPaid});
   }
 
   handleExportMonthCSV(): void {
@@ -382,7 +383,7 @@ export class DashboardComponent {
     });
 
     const csvContent = [headers.join(','), ...rows].join('\n');
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const blob = new Blob([csvContent], {type: 'text/csv;charset=utf-8;'});
     const url = URL.createObjectURL(blob);
     const anchor = document.createElement('a');
     anchor.href = url;
@@ -420,6 +421,14 @@ export class DashboardComponent {
     this.copiedId = id;
   }
 
+  handleToggleBilled(cardId: string): void {
+    const stmt = this.monthlyStatements.find(s => s.cardId === cardId);
+    if (stmt) {
+      const newIsUnbilled = stmt.isUnbilled === false ? true : false;
+      this.statementService.updateStatement(cardId, this.monthKey, {isUnbilled: newIsUnbilled});
+    }
+  }
+
   private updateBankBalance(balance: number): void {
     if (this.multiProfileMode && this.selectedProfileIds.length > 0) {
       this.bankBalanceService.updateBankBalance(this.selectedProfileIds[0], this.monthKey, balance);
@@ -437,13 +446,5 @@ export class DashboardComponent {
   private rowAmountNumber(row: DashboardRow): number {
     if (row.type === 'card') return row.displayAmount;
     return row.displayAmount;
-  }
-
-  handleToggleBilled(cardId: string): void {
-    const stmt = this.monthlyStatements.find(s => s.cardId === cardId);
-    if (stmt) {
-      const newIsUnbilled = stmt.isUnbilled === false ? true : false;
-      this.statementService.updateStatement(cardId, this.monthKey, { isUnbilled: newIsUnbilled });
-    }
   }
 }

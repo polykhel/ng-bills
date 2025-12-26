@@ -48,7 +48,8 @@ export class CalendarDayComponent {
   @Input() cashInstsDue: CashInstallmentDueItem[] = [];
   @Input() billsDue: OneTimeBillDueItem[] = [];
 
-  constructor(private utils: UtilsService) {}
+  constructor(private utils: UtilsService) {
+  }
 
   formatCurrency(amount: number): string {
     return this.utils.formatCurrency(amount);

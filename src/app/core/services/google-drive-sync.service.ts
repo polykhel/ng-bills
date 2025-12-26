@@ -4,7 +4,7 @@ import { EncryptionService } from './encryption.service';
 /**
  * Google Drive sync service for automatic backup and sync
  * Uses Google Drive API with OAuth2 authentication (Google Identity Services)
- * 
+ *
  * Note: Requires gapi-script and Google Identity Services to be loaded via script tag
  */
 
@@ -39,12 +39,6 @@ export class GoogleDriveSyncService {
     'https://www.googleapis.com/discovery/v1/apis/drive/v3/rest',
   ];
   private static readonly BACKUP_FILENAME = 'bills-sync.json';
-
-  private config: DriveConfig | null = null;
-  private isInitialized = false;
-  private accessToken: string | null = null;
-  private tokenClient: any = null;
-
   // Sync status signal
   syncStatus = signal<SyncStatus>({
     isSignedIn: false,
@@ -52,8 +46,13 @@ export class GoogleDriveSyncService {
     isSyncing: false,
     error: null,
   });
+  private config: DriveConfig | null = null;
+  private isInitialized = false;
+  private accessToken: string | null = null;
+  private tokenClient: any = null;
 
-  constructor(private encryptionService: EncryptionService) {}
+  constructor(private encryptionService: EncryptionService) {
+  }
 
   /**
    * Initialize Google Drive API with Google Identity Services
@@ -116,7 +115,7 @@ export class GoogleDriveSyncService {
             return;
           }
           this.accessToken = response.access_token;
-          gapi.client.setToken({ access_token: response.access_token });
+          gapi.client.setToken({access_token: response.access_token});
           this.syncStatus.update(status => ({
             ...status,
             isSignedIn: true,
@@ -126,10 +125,10 @@ export class GoogleDriveSyncService {
         };
 
         if (gapi.client.getToken() !== null) {
-          this.syncStatus.update(status => ({ ...status, isSignedIn: true }));
+          this.syncStatus.update(status => ({...status, isSignedIn: true}));
           resolve();
         } else {
-          this.tokenClient.requestAccessToken({ prompt: 'consent' });
+          this.tokenClient.requestAccessToken({prompt: 'consent'});
         }
       } catch (err) {
         reject(err);
@@ -162,14 +161,14 @@ export class GoogleDriveSyncService {
       throw new Error('GoogleDriveSync not initialized');
     }
 
-    this.syncStatus.update(status => ({ ...status, isSyncing: true }));
+    this.syncStatus.update(status => ({...status, isSyncing: true}));
 
     try {
       const content = encrypted ? data : await this.encryptionService.encrypt(data, 'default-password');
-      
+
       // Upload logic would go here using gapi.client.drive.files.create()
       // Simplified for now
-      
+
       this.syncStatus.update(status => ({
         ...status,
         isSyncing: false,

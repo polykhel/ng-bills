@@ -1,5 +1,13 @@
 import { Injectable } from '@angular/core';
-import type { Profile, CreditCard, Statement, Installment, BankBalance, CashInstallment, OneTimeBill } from '@shared/types';
+import type {
+  BankBalance,
+  CashInstallment,
+  CreditCard,
+  Installment,
+  OneTimeBill,
+  Profile,
+  Statement
+} from '@shared/types';
 
 const KEYS = {
   PROFILES: 'bt_profiles',
@@ -18,7 +26,7 @@ const KEYS = {
 };
 
 // Generic JSON helpers for objects (not just arrays)
-const loadJSON = <T,>(key: string, fallback: T): T => {
+const loadJSON = <T, >(key: string, fallback: T): T => {
   if (typeof window === 'undefined') return fallback;
   try {
     const item = localStorage.getItem(key);
@@ -29,7 +37,7 @@ const loadJSON = <T,>(key: string, fallback: T): T => {
   }
 };
 
-const saveJSON = <T,>(key: string, value: T) => {
+const saveJSON = <T, >(key: string, value: T) => {
   if (typeof window === 'undefined') return;
   try {
     localStorage.setItem(key, JSON.stringify(value));
@@ -38,7 +46,7 @@ const saveJSON = <T,>(key: string, value: T) => {
   }
 };
 
-const loadData = <T,>(key: string): T[] => {
+const loadData = <T, >(key: string): T[] => {
   if (typeof window === 'undefined') return [];
   try {
     const item = localStorage.getItem(key);
@@ -49,7 +57,7 @@ const loadData = <T,>(key: string): T[] => {
   }
 };
 
-const saveData = <T,>(key: string, data: T[]) => {
+const saveData = <T, >(key: string, data: T[]) => {
   if (typeof window === 'undefined') return;
   localStorage.setItem(key, JSON.stringify(data));
 };
@@ -232,6 +240,6 @@ export class StorageService {
     const allLayouts = this.getColumnLayouts();
     const profileLayouts = allLayouts[profileId] ?? {};
     profileLayouts[tableId] = layout;
-    this.saveColumnLayouts({ ...allLayouts, [profileId]: profileLayouts });
+    this.saveColumnLayouts({...allLayouts, [profileId]: profileLayouts});
   }
 }

@@ -1,12 +1,12 @@
-import { Injectable, signal, computed } from '@angular/core';
-import { startOfMonth, format } from 'date-fns';
+import { computed, Injectable, signal } from '@angular/core';
+import { format, startOfMonth } from 'date-fns';
 
-export type ModalType = 
-  | 'card-form' 
-  | 'installment-form' 
-  | 'one-time-bill' 
-  | 'profile-form' 
-  | 'transfer-card' 
+export type ModalType =
+  | 'card-form'
+  | 'installment-form'
+  | 'one-time-bill'
+  | 'profile-form'
+  | 'transfer-card'
   | 'confirm'
   | null;
 
@@ -46,7 +46,7 @@ export class AppStateService {
   readonly selectedProfileIds = this._selectedProfileIds.asReadonly();
 
   // Modal management
-  private _modalState = signal<ModalState>({ type: null });
+  private _modalState = signal<ModalState>({type: null});
   readonly modalState = this._modalState.asReadonly();
 
   constructor() {
@@ -103,7 +103,7 @@ export class AppStateService {
     const newValue = !this._multiProfileMode();
     this._multiProfileMode.set(newValue);
     localStorage.setItem('bt_multi_profile_mode', String(newValue));
-    
+
     // Clear selected profiles when disabling
     if (!newValue) {
       this._selectedProfileIds.set([]);
@@ -117,7 +117,7 @@ export class AppStateService {
   setMultiProfileMode(enabled: boolean): void {
     this._multiProfileMode.set(enabled);
     localStorage.setItem('bt_multi_profile_mode', String(enabled));
-    
+
     if (!enabled) {
       this._selectedProfileIds.set([]);
       localStorage.removeItem('bt_selected_profile_ids');
@@ -138,7 +138,7 @@ export class AppStateService {
   toggleProfileSelection(profileId: string): void {
     const current = this._selectedProfileIds();
     const index = current.indexOf(profileId);
-    
+
     if (index === -1) {
       this.setSelectedProfileIds([...current, profileId]);
     } else {
@@ -150,35 +150,35 @@ export class AppStateService {
    * Open a modal
    */
   openModal(type: ModalType, data?: any): void {
-    this._modalState.set({ type, data });
+    this._modalState.set({type, data});
   }
 
   /**
    * Close the current modal
    */
   closeModal(): void {
-    this._modalState.set({ type: null });
+    this._modalState.set({type: null});
   }
 
   /**
    * Open card form modal (add or edit)
    */
   openCardForm(cardId?: string): void {
-    this.openModal('card-form', { cardId });
+    this.openModal('card-form', {cardId});
   }
 
   /**
    * Open installment form modal (add or edit)
    */
   openInstallmentForm(installmentId?: string): void {
-    this.openModal('installment-form', { installmentId });
+    this.openModal('installment-form', {installmentId});
   }
 
   /**
    * Open one-time bill modal (add or edit)
    */
   openOneTimeBillModal(billId?: string): void {
-    this.openModal('one-time-bill', { billId });
+    this.openModal('one-time-bill', {billId});
   }
 
   /**
@@ -192,7 +192,7 @@ export class AppStateService {
    * Open transfer card modal
    */
   openTransferCardModal(cardId: string): void {
-    this.openModal('transfer-card', { cardId });
+    this.openModal('transfer-card', {cardId});
   }
 
   /**

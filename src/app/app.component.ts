@@ -1,16 +1,16 @@
 import { Component } from '@angular/core';
 
 import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
-import { LucideAngularModule, CreditCard } from 'lucide-angular';
-import { ProfileService, AppStateService } from './core/services';
-import { 
-  MonthNavigatorComponent, 
-  ProfileSelectorComponent, 
-  MultiProfileSelectorComponent,
-  ProfileFormModalComponent,
+import { CreditCard, LucideAngularModule } from 'lucide-angular';
+import { AppStateService, ProfileService } from './core/services';
+import {
   CardFormModalComponent,
   InstallmentFormModalComponent,
+  MonthNavigatorComponent,
+  MultiProfileSelectorComponent,
   OneTimeBillModalComponent,
+  ProfileFormModalComponent,
+  ProfileSelectorComponent,
   TransferCardModalComponent
 } from './shared/components';
 
@@ -30,7 +30,7 @@ import {
     InstallmentFormModalComponent,
     OneTimeBillModalComponent,
     TransferCardModalComponent
-],
+  ],
   templateUrl: './app.component.html',
   styles: [`
     .active-link {
@@ -46,5 +46,6 @@ export class AppComponent {
   constructor(
     protected profileService: ProfileService,
     protected appState: AppStateService
-  ) {}
+  ) {
+  }
 }

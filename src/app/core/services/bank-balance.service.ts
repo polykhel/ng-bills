@@ -1,4 +1,4 @@
-import { Injectable, signal, effect } from '@angular/core';
+import { effect, Injectable, signal } from '@angular/core';
 import { StorageService } from './storage.service';
 import { ProfileService } from './profile.service';
 import type { BankBalance } from '@shared/types';
@@ -8,10 +8,9 @@ import type { BankBalance } from '@shared/types';
 })
 export class BankBalanceService {
   private bankBalancesSignal = signal<BankBalance[]>([]);
-  private bankBalanceTrackingEnabledSignal = signal<boolean>(false);
-
   // Public signals
   bankBalances = this.bankBalancesSignal.asReadonly();
+  private bankBalanceTrackingEnabledSignal = signal<boolean>(false);
   bankBalanceTrackingEnabled = this.bankBalanceTrackingEnabledSignal.asReadonly();
 
   constructor(
@@ -20,6 +19,41 @@ export class BankBalanceService {
   ) {
     this.initializeBankBalances();
     this.setupAutoSave();
+  }
+
+  setBankBalanceTracking(enabled: boolean): void {
+    this.bankBalanceTrackingEnabledSignal.set(enabled);
+  }
+
+  updateBankBalance(profileId: string, monthStr: string, balance: number): void {
+    this.bankBalancesSignal.update(balances => {
+      const existing = balances.find(
+        b => b.profileId === profileId && b.monthStr === monthStr
+      );
+
+      if (existing) {
+        return balances.map(b =>
+          b.id === existing.id ? {...b, balance} : b
+        );
+      }
+
+      return [
+        ...balances,
+        {
+          id: this.generateId(),
+          profileId,
+          monthStr,
+          balance,
+        },
+      ];
+    });
+  }
+
+  getBankBalance(profileId: string, monthStr: string): number | null {
+    const balance = this.bankBalancesSignal().find(
+      b => b.profileId === profileId && b.monthStr === monthStr
+    );
+    return balance ? balance.balance : null;
   }
 
   private initializeBankBalances(): void {
@@ -43,41 +77,6 @@ export class BankBalanceService {
         );
       }
     });
-  }
-
-  setBankBalanceTracking(enabled: boolean): void {
-    this.bankBalanceTrackingEnabledSignal.set(enabled);
-  }
-
-  updateBankBalance(profileId: string, monthStr: string, balance: number): void {
-    this.bankBalancesSignal.update(balances => {
-      const existing = balances.find(
-        b => b.profileId === profileId && b.monthStr === monthStr
-      );
-
-      if (existing) {
-        return balances.map(b =>
-          b.id === existing.id ? { ...b, balance } : b
-        );
-      }
-
-      return [
-        ...balances,
-        {
-          id: this.generateId(),
-          profileId,
-          monthStr,
-          balance,
-        },
-      ];
-    });
-  }
-
-  getBankBalance(profileId: string, monthStr: string): number | null {
-    const balance = this.bankBalancesSignal().find(
-      b => b.profileId === profileId && b.monthStr === monthStr
-    );
-    return balance ? balance.balance : null;
   }
 
   private generateId(): string {

@@ -1,0 +1,76 @@
+<div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
+  <div class="flex justify-between items-center mb-6">
+    <div class="flex items-center gap-4">
+      <h2 class="text-lg font-bold text-slate-800 flex items-center gap-2">
+        <lucide-icon [img]="CardIcon" class="w-5 h-5"></lucide-icon>
+        Cards {{ multiProfileMode ? '(Multi-Profile)' : profileName ? '(' + profileName + ')' : '' }}
+      </h2>
+      <div class="flex gap-2 text-xs text-slate-500">
+        <button
+          (click)="changeSort.emit('bankName')"
+          [class.font-bold]="currentSort.key === 'bankName'"
+          [class.text-blue-600]="currentSort.key === 'bankName'"
+          class="hover:text-blue-600"
+          type="button">
+          Name
+        </button>
+        <button
+          (click)="changeSort.emit('dueDay')"
+          [class.font-bold]="currentSort.key === 'dueDay'"
+          [class.text-blue-600]="currentSort.key === 'dueDay'"
+          class="hover:text-blue-600"
+          type="button">
+          Due Day
+        </button>
+      </div>
+    </div>
+    <button
+      (click)="addCard.emit()"
+      class="flex items-center gap-2 bg-slate-900 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-slate-800 transition"
+      type="button">
+      <lucide-icon [img]="Plus" class="w-4 h-4"></lucide-icon>
+      Add Card
+    </button>
+  </div>
+
+  <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+    <div
+      *ngFor="let card of cards; trackBy: trackCard"
+      class="relative group bg-slate-50 rounded-xl p-5 border border-slate-200 hover:border-slate-300 transition-all">
+      <div class="absolute top-3 right-3 flex gap-2 opacity-0 group-hover:opacity-100 transition">
+        <button (click)="editCard.emit(card)" class="text-slate-400 hover:text-blue-500" title="Edit Card"
+                type="button">
+          <lucide-icon [img]="Pencil" class="w-4 h-4"></lucide-icon>
+        </button>
+        <button (click)="transferCard.emit(card)" class="text-slate-400 hover:text-purple-500" title="Transfer to Another Profile"
+                type="button">
+          <lucide-icon [img]="ArrowRightLeft" class="w-4 h-4"></lucide-icon>
+        </button>
+        <button (click)="deleteCard.emit(card.id)" class="text-slate-400 hover:text-rose-500" title="Delete Card"
+                type="button">
+          <lucide-icon [img]="Trash2" class="w-4 h-4"></lucide-icon>
+        </button>
+      </div>
+      <div class="flex items-center gap-3 mb-4">
+        <div [style.backgroundColor]="card.color || '#334155'" class="w-12 h-8 rounded-md shadow-sm"></div>
+        <div>
+          <h3 class="font-bold text-slate-800">{{ card.bankName }}</h3>
+          <p class="text-xs text-slate-500">{{ card.cardName }}</p>
+        </div>
+      </div>
+      <div class="flex justify-between text-sm text-slate-600 border-t border-slate-200 pt-3">
+        <div class="flex flex-col">
+          <span class="text-[10px] text-slate-400 uppercase tracking-wider">Due Day</span>
+          <span class="font-semibold">{{ card.dueDay }}th</span>
+        </div>
+        <div class="flex flex-col text-right">
+          <span class="text-[10px] text-slate-400 uppercase tracking-wider">Cut-off</span>
+          <span class="font-semibold">{{ card.cutoffDay }}th</span>
+        </div>
+      </div>
+    </div>
+    <p *ngIf="cards.length === 0" class="col-span-3 text-center text-slate-400 py-4">
+      {{ multiProfileMode ? 'No cards found. Select profiles to view.' : 'No cards found for this profile.' }}
+    </p>
+  </div>
+</div>

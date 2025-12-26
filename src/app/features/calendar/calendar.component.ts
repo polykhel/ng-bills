@@ -1,6 +1,16 @@
 import { Component } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { eachDayOfInterval, endOfMonth, getDay, isSameDay, parseISO, setDate, startOfMonth, format, isValid } from 'date-fns';
+import {
+  eachDayOfInterval,
+  endOfMonth,
+  format,
+  getDay,
+  isSameDay,
+  isValid,
+  parseISO,
+  setDate,
+  startOfMonth
+} from 'date-fns';
 
 import {
   AppStateService,
@@ -48,7 +58,8 @@ export class CalendarComponent {
     private cashInstallmentService: CashInstallmentService,
     private oneTimeBillService: OneTimeBillService,
     private utils: UtilsService,
-  ) {}
+  ) {
+  }
 
   get isLoaded(): boolean {
     return this.profileService.isLoaded();
@@ -99,7 +110,7 @@ export class CalendarComponent {
 
   get activeInstallments() {
     return this.installments
-      .map(inst => ({ ...inst, status: this.utils.getInstallmentStatus(inst, this.viewDate) }))
+      .map(inst => ({...inst, status: this.utils.getInstallmentStatus(inst, this.viewDate)}))
       .filter(inst => inst.status.isActive);
   }
 
@@ -133,13 +144,13 @@ export class CalendarComponent {
   }
 
   get startFillers(): number[] {
-    return Array.from({ length: this.startDayIndex }).map((_, idx) => idx);
+    return Array.from({length: this.startDayIndex}).map((_, idx) => idx);
   }
 
   get calendarDays(): CalendarDayView[] {
     const start = startOfMonth(this.viewDate);
     const end = endOfMonth(this.viewDate);
-    const days = eachDayOfInterval({ start, end });
+    const days = eachDayOfInterval({start, end});
 
     return days.map(day => {
       const dayNum = day.getDate();
@@ -154,11 +165,11 @@ export class CalendarComponent {
             const parsed = parseISO(stmt.customDueDate);
             if (isValid(parsed)) targetDate = parsed;
           }
-          return { card, stmt, targetDate } as const;
+          return {card, stmt, targetDate} as const;
         })
         .filter(entry => isSameDay(entry.targetDate, day))
         .map(entry => {
-          const { card, stmt } = entry;
+          const {card, stmt} = entry;
           const amount = stmt ? stmt.amount : this.getCardInstallmentTotal(card.id);
           const profile = this.profiles.find(p => p.id === card.profileId);
           return {

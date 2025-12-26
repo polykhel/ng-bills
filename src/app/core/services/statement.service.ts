@@ -1,4 +1,4 @@
-import { Injectable, signal, effect } from '@angular/core';
+import { effect, Injectable, signal } from '@angular/core';
 import { StorageService } from './storage.service';
 import { ProfileService } from './profile.service';
 import type { Statement } from '@shared/types';
@@ -20,18 +20,6 @@ export class StatementService {
     this.setupAutoSave();
   }
 
-  private initializeStatements(): void {
-    this.statementsSignal.set(this.storageService.getStatements());
-  }
-
-  private setupAutoSave(): void {
-    effect(() => {
-      if (this.profileService.isLoaded()) {
-        this.storageService.saveStatements(this.statementsSignal());
-      }
-    });
-  }
-
   updateStatement(
     cardId: string,
     monthStr: string,
@@ -43,7 +31,7 @@ export class StatementService {
       );
 
       if (existing) {
-        return prev.map(s => (s.id === existing.id ? { ...s, ...updates } : s));
+        return prev.map(s => (s.id === existing.id ? {...s, ...updates} : s));
       }
 
       return [
@@ -70,9 +58,9 @@ export class StatementService {
       if (existing) {
         const newIsPaid = !existing.isPaid;
         const updates = newIsPaid
-          ? { isPaid: newIsPaid, isUnbilled: false }
-          : { isPaid: newIsPaid };
-        return prev.map(s => (s.id === existing.id ? { ...s, ...updates } : s));
+          ? {isPaid: newIsPaid, isUnbilled: false}
+          : {isPaid: newIsPaid};
+        return prev.map(s => (s.id === existing.id ? {...s, ...updates} : s));
       }
 
       return [
@@ -101,6 +89,18 @@ export class StatementService {
     return this.statementsSignal().find(
       s => s.cardId === cardId && s.monthStr === monthStr
     );
+  }
+
+  private initializeStatements(): void {
+    this.statementsSignal.set(this.storageService.getStatements());
+  }
+
+  private setupAutoSave(): void {
+    effect(() => {
+      if (this.profileService.isLoaded()) {
+        this.storageService.saveStatements(this.statementsSignal());
+      }
+    });
   }
 
   private generateId(): string {

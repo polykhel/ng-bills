@@ -1,0 +1,49 @@
+<div
+  class="flex flex-wrap gap-2 justify-between items-center px-4 sm:px-6 py-3 sm:py-4 border-b border-slate-100 bg-slate-50/50">
+  <h3 class="font-bold text-slate-700 text-sm sm:text-base">Bills for {{ formattedDate }}</h3>
+  <div class="flex items-center gap-2 w-full sm:w-auto justify-end">
+    <app-column-visibility-menu
+      (reset)="onResetColumns()"
+      (toggle)="onToggleColumn($event.key, $event.visible)"
+      [options]="visibilityOptions"
+    ></app-column-visibility-menu>
+    @if (bulkSelectMode && selectedCardsCount > 0) {
+      <button
+        (click)="copySelected.emit()"
+        [ngClass]="batchCopied ? ['bg-green-100','text-green-700','border-green-200'] : ['bg-blue-50','text-blue-600','border-blue-200','hover:bg-blue-100']"
+        class="flex items-center gap-2 text-xs font-medium px-3 py-1.5 rounded-lg transition border">
+        @if (batchCopied) {
+          <span class="flex items-center gap-2">
+                <lucide-icon [img]="CheckCircle2" class="w-4 h-4"></lucide-icon>
+                Copied {{ selectedCardsCount }}!
+              </span>
+        } @else {
+          <span class="flex items-center gap-2">
+                <lucide-icon [img]="Copy" class="w-4 h-4"></lucide-icon>
+                Copy {{ selectedCardsCount }} Selected
+              </span>
+        }
+      </button>
+    }
+    @if (bulkSelectMode) {
+      <button
+        (click)="setBulkSelectMode.emit(false)"
+        class="flex items-center gap-2 text-xs font-medium text-slate-600 hover:text-slate-900 bg-white border border-slate-200 hover:border-slate-300 px-3 py-1.5 rounded-lg transition">
+        Cancel Select
+      </button>
+    } @else {
+      <button
+        (click)="setBulkSelectMode.emit(true)"
+        class="flex items-center gap-2 text-xs font-medium text-blue-600 hover:text-blue-800 bg-blue-50 border border-blue-200 hover:border-blue-300 px-3 py-1.5 rounded-lg transition">
+        <lucide-icon [img]="Copy" class="w-4 h-4"></lucide-icon>
+        Bulk Copy
+      </button>
+    }
+    <button
+      (click)="exportCSV.emit()"
+      class="flex items-center gap-2 text-xs font-medium text-slate-600 hover:text-slate-900 bg-white border border-slate-200 hover:border-slate-300 px-3 py-1.5 rounded-lg transition">
+      <lucide-icon [img]="FileSpreadsheet" class="w-4 h-4 text-green-600"></lucide-icon>
+      Export CSV
+    </button>
+  </div>
+</div>

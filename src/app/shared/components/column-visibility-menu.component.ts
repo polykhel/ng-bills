@@ -26,6 +26,6 @@ export class ColumnVisibilityMenuComponent {
   }
 
   onToggle(col: ColumnVisibilityOption, visible: boolean): void {
-    this.toggle.emit({ key: col.key, visible });
+    this.toggle.emit({key: col.key, visible});
   }
 }

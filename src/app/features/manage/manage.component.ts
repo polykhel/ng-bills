@@ -6,15 +6,15 @@ import { ManageInstallmentsComponent } from './components/manage-installments.co
 import { ManageOneTimeBillsComponent } from './components/manage-one-time-bills.component';
 import {
   AppStateService,
-  ProfileService,
   CardService,
-  StatementService,
-  InstallmentService,
   CashInstallmentService,
+  InstallmentService,
   OneTimeBillService,
+  ProfileService,
+  StatementService,
   UtilsService,
 } from '@services';
-import type { SortConfig, CreditCard, Installment, OneTimeBill } from '@shared/types';
+import type { CreditCard, Installment, OneTimeBill, SortConfig } from '@shared/types';
 
 @Component({
   selector: 'app-manage',
@@ -23,9 +23,9 @@ import type { SortConfig, CreditCard, Installment, OneTimeBill } from '@shared/t
   templateUrl: './manage.component.html',
 })
 export class ManageComponent {
-  manageCardSort: SortConfig = { key: 'bankName', direction: 'asc' };
-  manageInstSort: SortConfig = { key: 'name', direction: 'asc' };
-  manageOneTimeBillSort: SortConfig = { key: 'dueDate', direction: 'asc' };
+  manageCardSort: SortConfig = {key: 'bankName', direction: 'asc'};
+  manageInstSort: SortConfig = {key: 'name', direction: 'asc'};
+  manageOneTimeBillSort: SortConfig = {key: 'dueDate', direction: 'asc'};
 
   @ViewChild('fileRef') fileInput?: ElementRef<HTMLInputElement>;
 
@@ -38,7 +38,8 @@ export class ManageComponent {
     private cashInstallmentService: CashInstallmentService,
     private oneTimeBillService: OneTimeBillService,
     private utils: UtilsService,
-  ) {}
+  ) {
+  }
 
   get viewDate(): Date {
     return this.appState.viewDate();
@@ -129,7 +130,7 @@ export class ManageComponent {
   }
 
   get cardOptions() {
-    return this.visibleCards.map(c => ({ id: c.id, bankName: c.bankName, cardName: c.cardName }));
+    return this.visibleCards.map(c => ({id: c.id, bankName: c.bankName, cardName: c.cardName}));
   }
 
   get sortedManageOneTimeBills(): OneTimeBill[] {
@@ -253,7 +254,7 @@ export class ManageComponent {
       oneTimeBills,
     };
 
-    const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+    const blob = new Blob([JSON.stringify(exportData, null, 2)], {type: 'application/json'});
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;

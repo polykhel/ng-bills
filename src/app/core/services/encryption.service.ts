@@ -31,7 +31,7 @@ export class EncryptionService {
         hash: 'SHA-256',
       },
       passwordKey,
-      { name: 'AES-GCM', length: 256 },
+      {name: 'AES-GCM', length: 256},
       false,
       ['encrypt', 'decrypt']
     );
@@ -47,7 +47,7 @@ export class EncryptionService {
     const key = await this.deriveKey(password, salt);
 
     const encrypted = await crypto.subtle.encrypt(
-      { name: 'AES-GCM', iv },
+      {name: 'AES-GCM', iv},
       key,
       this.encoder.encode(data)
     );
@@ -76,7 +76,7 @@ export class EncryptionService {
     const key = await this.deriveKey(password, salt);
 
     const decrypted = await crypto.subtle.decrypt(
-      { name: 'AES-GCM', iv },
+      {name: 'AES-GCM', iv},
       key,
       data
     );

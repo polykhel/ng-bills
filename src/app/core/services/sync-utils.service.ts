@@ -5,7 +5,8 @@ import { StorageService } from './storage.service';
   providedIn: 'root'
 })
 export class SyncUtilsService {
-  constructor(private storage: StorageService) {}
+  constructor(private storage: StorageService) {
+  }
 
   /**
    * Get a timestamp of the last local data modification

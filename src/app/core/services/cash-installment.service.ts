@@ -1,4 +1,4 @@
-import { Injectable, signal, effect } from '@angular/core';
+import { effect, Injectable, signal } from '@angular/core';
 import { StorageService } from './storage.service';
 import { ProfileService } from './profile.service';
 import type { CashInstallment } from '@shared/types';
@@ -20,18 +20,6 @@ export class CashInstallmentService {
     this.setupAutoSave();
   }
 
-  private initializeCashInstallments(): void {
-    this.cashInstallmentsSignal.set(this.storageService.getCashInstallments());
-  }
-
-  private setupAutoSave(): void {
-    effect(() => {
-      if (this.profileService.isLoaded()) {
-        this.storageService.saveCashInstallments(this.cashInstallmentsSignal());
-      }
-    });
-  }
-
   addCashInstallment(cashInstallment: Omit<CashInstallment, 'id'>): void {
     const newCashInstallment: CashInstallment = {
       ...cashInstallment,
@@ -45,7 +33,7 @@ export class CashInstallmentService {
 
   updateCashInstallment(id: string, updates: Partial<CashInstallment>): void {
     this.cashInstallmentsSignal.update(cashInstallments =>
-      cashInstallments.map(ci => (ci.id === id ? { ...ci, ...updates } : ci))
+      cashInstallments.map(ci => (ci.id === id ? {...ci, ...updates} : ci))
     );
   }
 
@@ -75,6 +63,18 @@ export class CashInstallmentService {
     return this.cashInstallmentsSignal().filter(
       ci => ci.installmentId === installmentId
     );
+  }
+
+  private initializeCashInstallments(): void {
+    this.cashInstallmentsSignal.set(this.storageService.getCashInstallments());
+  }
+
+  private setupAutoSave(): void {
+    effect(() => {
+      if (this.profileService.isLoaded()) {
+        this.storageService.saveCashInstallments(this.cashInstallmentsSignal());
+      }
+    });
   }
 
   private generateId(): string {

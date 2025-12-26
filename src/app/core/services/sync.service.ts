@@ -1,7 +1,7 @@
 import { Injectable } from '@angular/core';
 import { EncryptionService } from './encryption.service';
 import { StorageService } from './storage.service';
-import type { Profile, CreditCard, Statement, Installment, CashInstallment, OneTimeBill } from '@shared/types';
+import type { CashInstallment, CreditCard, Installment, OneTimeBill, Profile, Statement } from '@shared/types';
 
 export interface SyncData {
   version: string;
@@ -30,7 +30,8 @@ export class SyncService {
   constructor(
     private encryption: EncryptionService,
     private storage: StorageService
-  ) {}
+  ) {
+  }
 
   /**
    * Export all data to a JSON string
@@ -123,7 +124,7 @@ export class SyncService {
       filename = `bills-backup-${Date.now()}.json`;
     }
 
-    const blob = new Blob([content], { type: 'application/json' });
+    const blob = new Blob([content], {type: 'application/json'});
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;

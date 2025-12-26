@@ -1,0 +1,174 @@
+<div class="overflow-x-auto">
+  <table class="min-w-full divide-y divide-slate-200">
+    <thead class="bg-slate-50">
+    <tr class="text-left text-xs font-semibold text-slate-600 uppercase">
+      @if (bulkSelectMode) {
+        <th class="px-4 py-3 w-10">
+          <input
+            (change)="toggleAllCards.emit()"
+            [checked]="allSelected"
+            aria-label="Select all cards"
+            class="w-4 h-4 text-blue-600"
+            type="checkbox"
+          />
+        </th>
+      }
+      <th class="px-4 py-3">
+        <button (click)="onSortClick('bankName')" class="flex items-center gap-1">
+          Card
+          @if (dashboardSort.key === 'bankName') {
+            <span class="text-[10px] text-blue-600">
+                    {{ dashboardSort.direction === 'asc' ? '▲' : '▼' }}
+                  </span>
+          }
+        </button>
+      </th>
+      @if (columnVisibility.dueDate) {
+        <th class="px-4 py-3">
+          <button (click)="onSortClick('dueDate')" class="flex items-center gap-1">
+            Due Date
+            @if (dashboardSort.key === 'dueDate') {
+              <span class="text-[10px] text-blue-600">
+                      {{ dashboardSort.direction === 'asc' ? '▲' : '▼' }}
+                    </span>
+            }
+          </button>
+        </th>
+      }
+      @if (columnVisibility.amount) {
+        <th class="px-4 py-3">
+          <button (click)="onSortClick('amount')" class="flex items-center gap-1">
+            Amount
+            @if (dashboardSort.key === 'amount') {
+              <span class="text-[10px] text-blue-600">
+                      {{ dashboardSort.direction === 'asc' ? '▲' : '▼' }}
+                    </span>
+            }
+          </button>
+        </th>
+      }
+      @if (columnVisibility.status) {
+        <th class="px-4 py-3">
+          <button (click)="onSortClick('status')" class="flex items-center gap-1">
+            Status
+            @if (dashboardSort.key === 'status') {
+              <span class="text-[10px] text-blue-600">
+                      {{ dashboardSort.direction === 'asc' ? '▲' : '▼' }}
+                    </span>
+            }
+          </button>
+        </th>
+      }
+      @if (columnVisibility.billed) {
+        <th class="px-4 py-3">
+          <span class="text-xs font-bold text-slate-700 uppercase">Billed</span>
+        </th>
+      }
+      @if (columnVisibility.copy) {
+        <th class="px-4 py-3 w-16 text-right">Copy</th>
+      }
+    </tr>
+    </thead>
+    <tbody class="divide-y divide-slate-100 bg-white">
+      @for (row of sortedData; track trackRow($index, row)) {
+        <tr class="text-sm">
+          @if (bulkSelectMode) {
+            <td class="px-4 py-3">
+              <input
+                (change)="toggleSelection(row)"
+                [attr.aria-label]="'Select ' + row.card.bankName + ' ' + row.card.cardName"
+                [checked]="isSelected(row)"
+                class="w-4 h-4 text-blue-600"
+                type="checkbox"
+              />
+            </td>
+          }
+          <td class="px-4 py-3">
+            <div class="flex items-center gap-3">
+              <div
+                [style.backgroundColor]="row.card.color || '#334155'"
+                class="w-10 h-7 rounded-md shadow-sm flex items-center justify-center text-[10px] text-white font-bold">
+                {{ row.card.bankName.substring(0, 3) }}
+              </div>
+              <div>
+                <p class="font-semibold text-slate-800">
+                  @if (row.type === 'card') {
+                    {{ row.card.bankName }} {{ row.card.cardName }}
+                  } @else if (row.type === 'cashInstallment') {
+                    {{ row.cashInstallment.name }}
+                  } @else {
+                    {{ row.oneTimeBill.name }}
+                  }
+                </p>
+                <div class="flex flex-wrap gap-2 text-xs text-slate-500">
+                  <span>{{ row.card.bankName }} {{ row.card.cardName }}</span>
+                  @if (row.type === 'cashInstallment') {
+                    <span
+                      class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-green-100 text-green-700 border border-green-200">Cash</span>
+                  }
+                  @if (row.profileName) {
+                    <span
+                      class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-purple-100 text-purple-700 border border-purple-200">{{ row.profileName }}</span>
+                  }
+                </div>
+              </div>
+            </div>
+          </td>
+          @if (columnVisibility.dueDate) {
+            <td class="px-4 py-3 text-slate-700">{{ formatDate(row.displayDate) }}</td>
+          }
+          @if (columnVisibility.amount) {
+            <td class="px-4 py-3 font-semibold text-slate-800">
+              ₱{{ rowAmount(row) }}
+            </td>
+          }
+          @if (columnVisibility.status) {
+            <td class="px-4 py-3">
+              <button
+                (click)="toggleStatus(row)"
+                [class]="row.isPaid ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-600'"
+                class="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold">
+                <lucide-icon [img]="row.isPaid ? CheckCircle2 : Circle" class="w-4 h-4"></lucide-icon>
+                {{ row.isPaid ? 'Paid' : 'Unpaid' }}
+              </button>
+            </td>
+          }
+          @if (columnVisibility.billed) {
+            @if (row.type === 'card') {
+              <td class="px-4 py-3">
+                <button
+                  (click)="toggleBilledStatus(row)"
+                  [class]="(row.stmt?.isUnbilled === false) ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'"
+                  class="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold"
+                  title="Toggle billed status">
+                  {{ row.stmt?.isUnbilled === false ? 'Billed' : 'Unbilled' }}
+                </button>
+              </td>
+            } @else {
+              <td class="px-4 py-3 text-slate-400 text-xs italic">-</td>
+            }
+          }
+          @if (columnVisibility.copy) {
+            <td class="px-4 py-3 text-right">
+              <button
+                (click)="copyRow(row)"
+                [attr.aria-label]="'Copy info for ' + row.card.bankName + ' ' + row.card.cardName"
+                [disabled]="isCopying === rowId(row)"
+                class="text-blue-600 hover:text-blue-800"
+                title="Copy card info">
+                <lucide-icon [img]="Copy" class="w-4 h-4"></lucide-icon>
+              </button>
+            </td>
+          }
+        </tr>
+      }
+      @if (sortedData.length === 0) {
+        <tr>
+          <td [attr.colspan]="visibleColumnsCount" class="text-center text-slate-500 text-sm py-6">
+            No bills for this month.
+          </td>
+        </tr>
+      }
+    </tbody>
+  </table>
+</div>
