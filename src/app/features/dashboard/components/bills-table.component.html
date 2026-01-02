@@ -166,12 +166,19 @@
                 </button>
               </div>
             } @else {
-              <button
-                (click)="startEditBalance(row)"
-                class="text-slate-700 hover:text-blue-600 hover:underline font-semibold"
-                title="Click to edit">
-                {{ rowAmount(row) }}
-              </button>
+              <div class="flex items-center gap-2">
+                <button
+                  (click)="startEditBalance(row)"
+                  class="text-slate-700 hover:text-blue-600 hover:underline font-semibold"
+                  title="Click to edit">
+                  {{ rowAmount(row) }}
+                </button>
+                @if (row.isEstimated) {
+                  <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-orange-100 text-orange-700 border border-orange-300" title="Estimated from installments">
+                    EST
+                  </span>
+                }
+              </div>
             }
           </td>
           <!-- Amount Due -->
@@ -229,7 +236,7 @@
                 (click)="toggleBilledStatus(row)"
                 [class]="(row.stmt?.isUnbilled === false) ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'"
                 class="px-2 py-1 rounded text-xs font-semibold hover:shadow-md transition-shadow"
-                title="Toggle billed/unbilled status">
+                [title]="row.isEstimated ? 'Toggle billed/unbilled status (using estimated amount)' : 'Toggle billed/unbilled status'">
                 {{ row.stmt?.isUnbilled === false ? 'Billed' : 'Unbilled' }}
               </button>
               <button

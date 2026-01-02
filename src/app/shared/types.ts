@@ -23,6 +23,7 @@ export interface Statement {
   customDueDate?: string;
   isUnbilled?: boolean;
   adjustedAmount?: number;
+  isEstimated?: boolean;
 }
 
 export interface Installment {

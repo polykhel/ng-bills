@@ -21,6 +21,7 @@ export interface DashboardRow {
   displayAmount: number;
   displayDate: Date;
   isPaid: boolean;
+  isEstimated?: boolean;
   cardInstTotal?: number;
   profileName?: string;
   activeInstallments?: Installment[];

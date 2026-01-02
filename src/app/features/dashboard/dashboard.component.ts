@@ -134,6 +134,7 @@ export class DashboardComponent {
       const displayAmount = stmt ? stmt.amount : cardInstTotal;
       const amountDue = stmt?.adjustedAmount !== undefined ? stmt.adjustedAmount : displayAmount;
       const isPaid = stmt?.isPaid || false;
+      const isEstimated = stmt?.isEstimated ?? !stmt;
       const profile = this.profiles.find(p => p.id === card.profileId);
       const activeInstallments = this.activeInstallments.filter(i => i.cardId === card.id);
       const tags = this.getCardTags(card.id);
@@ -147,11 +148,12 @@ export class DashboardComponent {
         displayAmount,
         amountDue,
         isPaid,
+        isEstimated,
         cardInstTotal,
         profileName: profile?.name,
         activeInstallments,
         tags,
-      } satisfies DashboardRow & { stmt?: Statement; cardInstTotal: number };
+      } satisfies DashboardRow & { stmt?: Statement; cardInstTotal: number; isEstimated: boolean };
     });
 
     const dir = this.dashboardSort.direction === 'asc' ? 1 : -1;
@@ -360,9 +362,22 @@ export class DashboardComponent {
 
   handleToggleBilled(cardId: string): void {
     const stmt = this.monthlyStatements.find(s => s.cardId === cardId);
+    const cardInstTotal = this.getCardInstallmentTotal(cardId);
+    
     if (stmt) {
       const newIsUnbilled = stmt.isUnbilled === false ? true : false;
-      this.statementService.updateStatement(cardId, this.monthKey, {isUnbilled: newIsUnbilled});
+      // Remove estimated flag when marking as billed
+      this.statementService.updateStatement(cardId, this.monthKey, {
+        isUnbilled: newIsUnbilled,
+        isEstimated: newIsUnbilled === false ? false : stmt.isEstimated,
+      });
+    } else {
+      // Create statement when toggling billed for cards without statements
+      this.statementService.updateStatement(cardId, this.monthKey, {
+        amount: cardInstTotal,
+        isUnbilled: false,
+        isEstimated: false,
+      });
     }
   }
 
@@ -371,7 +386,10 @@ export class DashboardComponent {
   }
 
   handleStatementBalanceChange(event: { cardId: string; amount: number }): void {
-    this.statementService.updateStatement(event.cardId, this.monthKey, {amount: event.amount});
+    this.statementService.updateStatement(event.cardId, this.monthKey, {
+      amount: event.amount,
+      isEstimated: false,
+    });
   }
 
   handleAmountDueChange(event: { cardId: string; amount: number }): void {
