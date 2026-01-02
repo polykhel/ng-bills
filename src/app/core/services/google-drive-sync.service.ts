@@ -1,5 +1,6 @@
 import { Injectable, signal } from '@angular/core';
 import { EncryptionService } from './encryption.service';
+import { googleDriveConfig } from '../../../environments/google-drive';
 
 /**
  * Google Drive sync service for automatic backup and sync
@@ -66,6 +67,11 @@ export class GoogleDriveSyncService {
     return new Promise((resolve, reject) => {
       if (typeof window === 'undefined') {
         reject(new Error('Not in browser environment'));
+        return;
+      }
+
+      if (typeof gapi === 'undefined') {
+        reject(new Error('Google API script not loaded'));
         return;
       }
 
@@ -157,17 +163,47 @@ export class GoogleDriveSyncService {
    * Upload data to Google Drive
    */
   async uploadBackup(data: string, encrypted: boolean = false): Promise<void> {
-    if (!this.isInitialized) {
-      throw new Error('GoogleDriveSync not initialized');
-    }
+    await this.ensureInitialized();
+    await this.ensureSignedIn();
 
     this.syncStatus.update(status => ({...status, isSyncing: true}));
 
     try {
       const content = encrypted ? data : await this.encryptionService.encrypt(data, 'default-password');
+      const existing = await this.findExistingBackup();
+      const fileId = existing?.id;
+      const boundary = '-------314159265358979323846';
+      const delimiter = `\r\n--${boundary}\r\n`;
+      const closeDelimiter = `\r\n--${boundary}--`;
 
-      // Upload logic would go here using gapi.client.drive.files.create()
-      // Simplified for now
+      const parents = this.getParentIds();
+      const metadata: Record<string, any> = fileId ? {
+        name: GoogleDriveSyncService.BACKUP_FILENAME,
+        mimeType: 'application/json',
+      } : {
+        name: GoogleDriveSyncService.BACKUP_FILENAME,
+        mimeType: 'application/json',
+        ...(parents.length ? {parents} : {}),
+      };
+
+      const multipartRequestBody =
+        delimiter +
+        'Content-Type: application/json; charset=UTF-8\r\n\r\n' +
+        JSON.stringify(metadata) +
+        delimiter +
+        'Content-Type: application/json\r\n\r\n' +
+        content +
+        closeDelimiter;
+
+      await gapi.client.request({
+        path: fileId ? `/upload/drive/v3/files/${fileId}` : '/upload/drive/v3/files',
+        method: fileId ? 'PATCH' : 'POST',
+        params: {uploadType: 'multipart'},
+        headers: {
+          'Content-Type': `multipart/related; boundary=${boundary}`,
+        },
+        body: multipartRequestBody,
+      });
 
       this.syncStatus.update(status => ({
         ...status,
@@ -183,6 +219,72 @@ export class GoogleDriveSyncService {
       }));
       throw error;
     }
+  }
+
+  /**
+   * Download latest backup content from Drive
+   */
+  async downloadBackup(): Promise<string> {
+    await this.ensureInitialized();
+    await this.ensureSignedIn();
+
+    const existing = await this.findExistingBackup();
+    if (!existing) {
+      throw new Error('No backup file found in Drive');
+    }
+
+    const response = await gapi.client.drive.files.get({
+      fileId: existing.id,
+      alt: 'media',
+    });
+
+    return response.body as string;
+  }
+
+  private getParentIds(): string[] {
+    if (!this.config) return [];
+    if (this.config.useAppDataFolder) return ['appDataFolder'];
+    if (this.config.appFolderId) return [this.config.appFolderId];
+    return [];
+  }
+
+  private async findExistingBackup(): Promise<DriveFile | null> {
+    const parents = this.getParentIds();
+    const qParts = [`name = '${GoogleDriveSyncService.BACKUP_FILENAME}'`, "mimeType = 'application/json'"];
+    if (parents.length && parents[0] === 'appDataFolder') {
+      qParts.push("'appDataFolder' in parents");
+    }
+    const query = qParts.join(' and ');
+    const resp = await gapi.client.drive.files.list({
+      q: query,
+      spaces: this.config?.useAppDataFolder ? 'appDataFolder' : 'drive',
+      fields: 'files(id, name, modifiedTime)',
+      pageSize: 1,
+    });
+    const files = resp.result.files as DriveFile[] | undefined;
+    return files?.[0] ?? null;
+  }
+
+  async ensureInitialized(): Promise<void> {
+    if (this.isInitialized) return;
+    if (!googleDriveConfig.clientId || !googleDriveConfig.apiKey) {
+      throw new Error('Google Drive config missing; check .env file (NG_APP_GOOGLE_CLIENT_ID, NG_APP_GOOGLE_API_KEY)');
+    }
+    await this.initialize({
+      clientId: googleDriveConfig.clientId,
+      apiKey: googleDriveConfig.apiKey,
+      useAppDataFolder: googleDriveConfig.useAppDataFolder,
+    });
+  }
+
+  private async ensureSignedIn(): Promise<void> {
+    if (!this.isInitialized) {
+      throw new Error('GoogleDriveSync not initialized');
+    }
+    if (gapi.client.getToken() !== null && this.accessToken) {
+      return;
+    }
+    await this.signIn();
   }
 
   private getScopes(): string {

@@ -103,13 +103,49 @@
         <lucide-icon [img]="Cloud" class="w-5 h-5 text-blue-600"></lucide-icon>
         <h2 class="text-xl font-semibold text-slate-900">Auto-Sync</h2>
       </div>
-      <p class="text-sm text-slate-600 mb-3">
-        Google Drive sync is not configured in this build. Manual export/import keeps your data portable.
-      </p>
-      <p class="text-xs text-slate-500">
-        To enable auto-sync later, wire Google Drive client ID/API key in environment settings and hook into
-        GoogleDriveSyncService.
-      </p>
+      <div class="flex flex-wrap items-center gap-3 mb-4 text-sm">
+        <span class="px-2 py-1 rounded-full"
+              [class.bg-green-100]="driveStatus().isSignedIn"
+              [class.text-green-800]="driveStatus().isSignedIn"
+              [class.bg-amber-100]="!driveStatus().isSignedIn"
+              [class.text-amber-800]="!driveStatus().isSignedIn">
+          {{ driveStatus().isSignedIn ? 'Signed in' : 'Not signed in' }}
+        </span>
+        <span class="text-slate-500" *ngIf="driveStatus().lastSyncTime">
+          Last sync: {{ driveStatus().lastSyncTime | date:'short' }}
+        </span>
+        <span class="text-red-600" *ngIf="driveStatus().error">{{ driveStatus().error }}</span>
+      </div>
+
+      <div class="flex flex-wrap gap-2">
+        <button type="button"
+          class="px-4 py-2 rounded-md text-white"
+          [ngClass]="driveStatus().isSignedIn ? 'bg-slate-400 hover:bg-slate-500' : 'bg-blue-600 hover:bg-blue-700'"
+          [disabled]="isDriveProcessing"
+                (click)="driveStatus().isSignedIn ? handleDriveSignOut() : handleDriveSignIn()">
+          {{ driveStatus().isSignedIn ? 'Sign out' : 'Sign in with Google' }}
+        </button>
+
+        <button type="button"
+                class="px-4 py-2 rounded-md bg-green-600 text-white hover:bg-green-700 disabled:opacity-50"
+                [disabled]="isDriveProcessing || !driveStatus().isSignedIn"
+                (click)="handleDriveUpload()">
+          Sync to Drive
+        </button>
+
+        <button type="button"
+                class="px-4 py-2 rounded-md bg-amber-600 text-white hover:bg-amber-700 disabled:opacity-50"
+                [disabled]="isDriveProcessing || !driveStatus().isSignedIn"
+                (click)="handleDriveRestore()">
+          Restore from Drive
+        </button>
+      </div>
+
+      <div *ngIf="driveMessage" class="mt-3 text-sm"
+           [class.text-red-700]="driveError"
+           [class.text-green-700]="!driveError">
+        {{ driveMessage }}
+      </div>
     </div>
 
     <div class="mt-6 bg-slate-50 rounded-lg p-4 border border-slate-200">

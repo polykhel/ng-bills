@@ -2,7 +2,7 @@ import { CommonModule } from '@angular/common';
 import { Component, OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { AlertCircle, Cloud, Download, FileDown, Lock, LucideAngularModule, Upload } from 'lucide-angular';
-import { SyncService, SyncUtilsService } from '@services';
+import { SyncService, SyncUtilsService, GoogleDriveSyncService } from '@services';
 
 @Component({
   selector: 'app-sync',
@@ -17,6 +17,11 @@ export class SyncComponent implements OnInit {
   message = '';
   isError = false;
   dataSize = 0;
+  driveMessage = '';
+  driveError = false;
+  isDriveProcessing = false;
+
+  driveStatus: any;
 
   readonly Download = Download;
   readonly Upload = Upload;
@@ -25,7 +30,12 @@ export class SyncComponent implements OnInit {
   readonly Lock = Lock;
   readonly AlertCircle = AlertCircle;
 
-  constructor(private syncService: SyncService, private syncUtils: SyncUtilsService) {
+  constructor(
+    private syncService: SyncService,
+    private syncUtils: SyncUtilsService,
+    private driveSync: GoogleDriveSyncService,
+  ) {
+    this.driveStatus = this.driveSync.syncStatus;
   }
 
   get passwordStrength(): 'weak' | 'medium' | 'strong' {
@@ -44,6 +54,7 @@ export class SyncComponent implements OnInit {
 
   ngOnInit(): void {
     this.dataSize = this.syncUtils.getDataSize();
+    this.initializeDrive();
   }
 
   async handleExport(): Promise<void> {
@@ -94,5 +105,77 @@ export class SyncComponent implements OnInit {
   private showMessage(msg: string, isError = false): void {
     this.message = msg;
     this.isError = isError;
+  }
+
+  private showDriveMessage(msg: string, isError = false): void {
+    this.driveMessage = msg;
+    this.driveError = isError;
+  }
+
+  private async initializeDrive(): Promise<void> {
+    try {
+      await this.driveSync.ensureInitialized();
+      this.showDriveMessage('Google Drive ready');
+    } catch (error: any) {
+      this.showDriveMessage(`Drive init failed: ${error?.message || 'Unknown error'}`, true);
+    }
+  }
+
+  async handleDriveSignIn(): Promise<void> {
+    this.isDriveProcessing = true;
+    this.showDriveMessage('');
+    try {
+      await this.driveSync.signIn();
+      this.showDriveMessage('Signed in to Google Drive');
+    } catch (error: any) {
+      this.showDriveMessage(`Sign-in failed: ${error?.message || 'Unknown error'}`, true);
+    } finally {
+      this.isDriveProcessing = false;
+    }
+  }
+
+  handleDriveSignOut(): void {
+    this.driveSync.signOut();
+    this.showDriveMessage('Signed out of Google Drive');
+  }
+
+  async handleDriveUpload(): Promise<void> {
+    if (this.isEncrypted && !this.password) {
+      this.showDriveMessage('Please enter a password for encryption', true);
+      return;
+    }
+
+    this.isDriveProcessing = true;
+    this.showDriveMessage('');
+
+    try {
+      let content: string;
+      if (this.isEncrypted) {
+        content = await this.syncService.exportEncrypted(this.password);
+      } else {
+        content = this.syncService.exportData();
+      }
+      await this.driveSync.uploadBackup(content, true);
+      this.showDriveMessage('Backup synced to Google Drive');
+    } catch (error: any) {
+      this.showDriveMessage(`Drive sync failed: ${error?.message || 'Unknown error'}`, true);
+    } finally {
+      this.isDriveProcessing = false;
+    }
+  }
+
+  async handleDriveRestore(): Promise<void> {
+    this.isDriveProcessing = true;
+    this.showDriveMessage('');
+    try {
+      const content = await this.driveSync.downloadBackup();
+      await this.syncService.importData(content, this.isEncrypted ? this.password : undefined);
+      this.showDriveMessage('Data restored from Google Drive');
+      setTimeout(() => window.location.reload(), 1500);
+    } catch (error: any) {
+      this.showDriveMessage(`Restore failed: ${error?.message || 'Unknown error'}`, true);
+    } finally {
+      this.isDriveProcessing = false;
+    }
   }
 }
