@@ -190,7 +190,6 @@ export class DashboardComponent {
       const amountDue = stmt?.adjustedAmount !== undefined ? stmt.adjustedAmount : effectiveAmount;
       billTotal += effectiveAmount;
       if (!stmt?.isPaid) {
-        console.log(card, stmt, unpaidTotal, amountDue)
         unpaidTotal += amountDue;
       }
     });

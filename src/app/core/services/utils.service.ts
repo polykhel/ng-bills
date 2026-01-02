@@ -42,4 +42,48 @@ export class UtilsService {
       maximumFractionDigits: 2,
     });
   }
+
+  /**
+   * Evaluate a mathematical expression (supports +, -, *, /)
+   * If the input is just a number, returns that number
+   * If the input is an expression like "5000+4000-2000", evaluates it
+   */
+  evaluateMathExpression(expression: string): number | null {
+    // Handle null/undefined input
+    if (!expression) {
+      return null;
+    }
+    
+    // Remove spaces
+    const cleaned = expression.trim().replace(/\s/g, '');
+    
+    if (!cleaned) {
+      return null;
+    }
+
+    // Check if it's just a simple number
+    const simpleNumber = parseFloat(cleaned);
+    if (!isNaN(simpleNumber) && /^-?\d+\.?\d*$/.test(cleaned)) {
+      return simpleNumber;
+    }
+
+    // Validate expression contains only numbers and operators
+    if (!/^[\d+\-*/().]+$/.test(cleaned)) {
+      return null;
+    }
+
+    try {
+      // Use Function constructor for safe evaluation
+      // This is safer than eval() as it doesn't have access to local scope
+      const result = new Function('return ' + cleaned)();
+      
+      if (typeof result === 'number' && !isNaN(result) && isFinite(result)) {
+        return result;
+      }
+      
+      return null;
+    } catch {
+      return null;
+    }
+  }
 }

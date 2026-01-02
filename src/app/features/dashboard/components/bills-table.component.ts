@@ -159,10 +159,11 @@ export class BillsTableComponent {
 
   saveBalance(row: DashboardRow): void {
     if (this.tempBalance !== '' && this.editingBalance === row.card.id) {
-      const amount = parseFloat(this.tempBalance);
-      if (!isNaN(amount) && amount >= 0) {
+      const amount = this.utils.evaluateMathExpression(this.tempBalance);
+      if (amount !== null && amount >= 0) {
         this.statementBalanceChanged.emit({ cardId: row.card.id, amount });
         this.editingBalance = null;
+        this.tempBalance = '';
       }
     }
   }
@@ -179,10 +180,11 @@ export class BillsTableComponent {
 
   saveAmountDue(row: DashboardRow): void {
     if (this.tempAmountDue !== '' && this.editingAmountDue === row.card.id) {
-      const amount = parseFloat(this.tempAmountDue);
-      if (!isNaN(amount) && amount >= 0) {
+      const amount = this.utils.evaluateMathExpression(this.tempAmountDue);
+      if (amount !== null && amount >= 0) {
         this.amountDueChanged.emit({ cardId: row.card.id, amount });
         this.editingAmountDue = null;
+        this.tempAmountDue = '';
       }
     }
   }
