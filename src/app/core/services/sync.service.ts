@@ -1,7 +1,7 @@
 import { Injectable } from '@angular/core';
 import { EncryptionService } from './encryption.service';
 import { StorageService } from './storage.service';
-import type { CashInstallment, CreditCard, Installment, Profile, Statement } from '@shared/types';
+import type { BankBalance, CashInstallment, CreditCard, Installment, Profile, Statement } from '@shared/types';
 
 export interface SyncData {
   version: string;
@@ -11,6 +11,8 @@ export interface SyncData {
   statements: Statement[];
   installments: Installment[];
   cashInstallments: CashInstallment[];
+  bankBalances: BankBalance[];
+  bankBalanceTrackingEnabled: boolean;
   activeProfileId: string | null;
   activeMonth: string | null;
 }
@@ -44,6 +46,8 @@ export class SyncService {
       statements: this.storage.getStatements(),
       installments: this.storage.getInstallments(),
       cashInstallments: this.storage.getCashInstallments(),
+      bankBalances: this.storage.getBankBalances(),
+      bankBalanceTrackingEnabled: this.storage.getBankBalanceTrackingEnabled(),
       activeProfileId: this.storage.getActiveProfileId(),
       activeMonth: this.storage.getActiveMonthStr(),
     };
@@ -97,6 +101,8 @@ export class SyncService {
       if (data.statements) this.storage.saveStatements(data.statements);
       if (data.installments) this.storage.saveInstallments(data.installments);
       if (data.cashInstallments) this.storage.saveCashInstallments(data.cashInstallments);
+      if (data.bankBalances) this.storage.saveBankBalances(data.bankBalances);
+      if (data.bankBalanceTrackingEnabled !== undefined) this.storage.saveBankBalanceTrackingEnabled(data.bankBalanceTrackingEnabled);
       if (data.activeProfileId) this.storage.saveActiveProfileId(data.activeProfileId);
       if (data.activeMonth) this.storage.saveActiveMonthStr(data.activeMonth);
 
@@ -210,6 +216,21 @@ export class SyncService {
         }
       }
       this.storage.saveCashInstallments(newCashInstallments);
+
+      // Merge bank balances
+      const existingBankBalances = this.storage.getBankBalances();
+      const newBankBalances = [...existingBankBalances];
+      for (const bankBalance of importedData.bankBalances || []) {
+        if (!existingBankBalances.find(b => b.id === bankBalance.id)) {
+          newBankBalances.push(bankBalance);
+        }
+      }
+      this.storage.saveBankBalances(newBankBalances);
+
+      // Update bank balance tracking setting if present
+      if (importedData.bankBalanceTrackingEnabled !== undefined) {
+        this.storage.saveBankBalanceTrackingEnabled(importedData.bankBalanceTrackingEnabled);
+      }
 
     } catch (error) {
       console.error('Merge failed:', error);
