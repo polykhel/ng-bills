@@ -17,47 +17,47 @@
 
       <div class="mb-4 flex items-center gap-3">
         <input
-          [(ngModel)]="isEncrypted"
+          [(ngModel)]="manualEncrypted"
           class="w-4 h-4 text-blue-600 rounded border-slate-300"
-          id="encrypted"
+          id="manualEncrypted"
           type="checkbox"
         />
-        <label class="flex items-center gap-2 text-sm font-medium text-slate-700" for="encrypted">
+        <label class="flex items-center gap-2 text-sm font-medium text-slate-700" for="manualEncrypted">
           <lucide-icon [img]="Lock" class="w-4 h-4"></lucide-icon>
           Encrypt data (recommended)
         </label>
       </div>
 
-      @if (isEncrypted) {
+      @if (manualEncrypted) {
         <div class="mb-4">
-          <label class="block text-sm font-medium text-slate-700 mb-1" for="password">Password</label>
+          <label class="block text-sm font-medium text-slate-700 mb-1" for="manualPassword">Password</label>
           <input
-            [(ngModel)]="password"
+            [(ngModel)]="manualPassword"
             class="w-full px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-            id="password"
+            id="manualPassword"
             placeholder="Enter encryption password"
             type="password"
           />
-          @if (password) {
+          @if (manualPassword) {
             <div class="mt-2">
               <div class="flex items-center gap-2 text-xs">
                 <span class="text-slate-600">Strength:</span>
                 <div class="flex-1 h-1.5 bg-slate-200 rounded-full overflow-hidden">
                   <div
-                    [class.bg-green-500]="passwordStrength === 'strong'"
-                    [class.bg-red-500]="passwordStrength === 'weak'"
-                    [class.bg-yellow-500]="passwordStrength === 'medium'"
-                    [style.width]="strengthWidth"
+                    [class.bg-green-500]="manualPasswordStrength === 'strong'"
+                    [class.bg-red-500]="manualPasswordStrength === 'weak'"
+                    [class.bg-yellow-500]="manualPasswordStrength === 'medium'"
+                    [style.width]="manualStrengthWidth"
                     class="h-full transition-all"
                   ></div>
                 </div>
                 <span
-                  [class.text-green-600]="passwordStrength === 'strong'"
-                  [class.text-red-600]="passwordStrength === 'weak'"
-                  [class.text-yellow-600]="passwordStrength === 'medium'"
+                  [class.text-green-600]="manualPasswordStrength === 'strong'"
+                  [class.text-red-600]="manualPasswordStrength === 'weak'"
+                  [class.text-yellow-600]="manualPasswordStrength === 'medium'"
                   class="font-medium"
                 >
-                      {{ passwordStrength }}
+                      {{ manualPasswordStrength }}
                     </span>
               </div>
             </div>
@@ -103,6 +103,72 @@
         <lucide-icon [img]="Cloud" class="w-5 h-5 text-blue-600"></lucide-icon>
         <h2 class="text-xl font-semibold text-slate-900">Auto-Sync</h2>
       </div>
+
+      <div class="mb-4 flex items-center gap-3">
+        <input
+          [(ngModel)]="driveEncrypted"
+          class="w-4 h-4 text-blue-600 rounded border-slate-300"
+          id="driveEncrypted"
+          type="checkbox"
+        />
+        <label class="flex items-center gap-2 text-sm font-medium text-slate-700" for="driveEncrypted">
+          <lucide-icon [img]="Lock" class="w-4 h-4"></lucide-icon>
+          Encrypt data (recommended)
+        </label>
+      </div>
+
+      @if (driveEncrypted) {
+        <div class="mb-4">
+          <label class="block text-sm font-medium text-slate-700 mb-1" for="drivePassword">Password</label>
+          <input
+            [(ngModel)]="drivePassword"
+            class="w-full px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            id="drivePassword"
+            placeholder="Enter encryption password"
+            type="password"
+          />
+          @if (drivePassword) {
+            <div class="mt-2">
+              <div class="flex items-center gap-2 text-xs">
+                <span class="text-slate-600">Strength:</span>
+                <div class="flex-1 h-1.5 bg-slate-200 rounded-full overflow-hidden">
+                  <div
+                    [class.bg-green-500]="drivePasswordStrength === 'strong'"
+                    [class.bg-red-500]="drivePasswordStrength === 'weak'"
+                    [class.bg-yellow-500]="drivePasswordStrength === 'medium'"
+                    [style.width]="driveStrengthWidth"
+                    class="h-full transition-all"
+                  ></div>
+                </div>
+                <span
+                  [class.text-green-600]="drivePasswordStrength === 'strong'"
+                  [class.text-red-600]="drivePasswordStrength === 'weak'"
+                  [class.text-yellow-600]="drivePasswordStrength === 'medium'"
+                  class="font-medium"
+                >
+                      {{ drivePasswordStrength }}
+                    </span>
+              </div>
+            </div>
+          }
+          <p class="text-xs text-slate-500 mt-1">This password is for Auto-Sync only.</p>
+        </div>
+      }
+
+      <div class="mb-4 flex items-center gap-3">
+        <input
+          [(ngModel)]="useAppDataFolder"
+          (ngModelChange)="onUseAppDataFolderChange()"
+          class="w-4 h-4 text-blue-600 rounded border-slate-300"
+          id="useAppDataFolder"
+          type="checkbox"
+        />
+        <label class="flex items-center gap-2 text-sm font-medium text-slate-700" for="useAppDataFolder">
+          Use hidden app data folder
+        </label>
+      </div>
+      <p class="text-xs text-slate-500 mb-4">When enabled, backup is stored in a hidden Google Drive folder. When disabled, it's stored in your main Drive.</p>
+
       <div class="flex flex-wrap items-center gap-3 mb-4 text-sm">
         <span class="px-2 py-1 rounded-full"
               [class.bg-green-100]="driveStatus().isSignedIn"

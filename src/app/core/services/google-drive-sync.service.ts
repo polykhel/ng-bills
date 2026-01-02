@@ -11,7 +11,6 @@ import { googleDriveConfig } from '../../../environments/google-drive';
 
 export interface DriveConfig {
   clientId: string;
-  apiKey: string;
   appFolderId?: string;
   useAppDataFolder?: boolean; // true = hidden folder, false = visible folder
 }
@@ -64,6 +63,23 @@ export class GoogleDriveSyncService {
       useAppDataFolder: config.useAppDataFolder ?? true,
     };
 
+    // If already initialized, check if we need to update the config
+    if (this.isInitialized) {
+      // Sign out if signed in, to force re-authentication with new scopes
+      if (this.syncStatus().isSignedIn) {
+        this.signOut();
+      }
+      // Reinitialize the token client with new scopes
+      if (typeof google !== 'undefined' && google.accounts) {
+        this.tokenClient = google.accounts.oauth2.initTokenClient({
+          client_id: this.config.clientId,
+          scope: this.getScopes(),
+          callback: '',
+        });
+      }
+      return;
+    }
+
     return new Promise((resolve, reject) => {
       if (typeof window === 'undefined') {
         reject(new Error('Not in browser environment'));
@@ -79,7 +95,6 @@ export class GoogleDriveSyncService {
       gapi.load('client', async () => {
         try {
           await gapi.client.init({
-            apiKey: this.config!.apiKey,
             discoveryDocs: GoogleDriveSyncService.DISCOVERY_DOCS,
           });
 
@@ -267,13 +282,12 @@ export class GoogleDriveSyncService {
 
   async ensureInitialized(): Promise<void> {
     if (this.isInitialized) return;
-    if (!googleDriveConfig.clientId || !googleDriveConfig.apiKey) {
-      throw new Error('Google Drive config missing; check .env file (NG_APP_GOOGLE_CLIENT_ID, NG_APP_GOOGLE_API_KEY)');
+    if (!googleDriveConfig.clientId) {
+      throw new Error('Google Drive config missing; check .env file (NG_APP_GOOGLE_CLIENT_ID)');
     }
     await this.initialize({
       clientId: googleDriveConfig.clientId,
-      apiKey: googleDriveConfig.apiKey,
-      useAppDataFolder: googleDriveConfig.useAppDataFolder,
+      useAppDataFolder: true, // default value, can be overridden by calling initialize again
     });
   }
 
