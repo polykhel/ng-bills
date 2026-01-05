@@ -275,15 +275,40 @@ export class DashboardComponent {
     const amountDue = stmt?.adjustedAmount !== undefined ? stmt.adjustedAmount : effectiveAmount;
     const wasPaid = stmt?.isPaid || false;
 
-    if (this.bankBalanceTrackingEnabled) {
-      if (!wasPaid) {
-        this.updateBankBalance(this.currentBankBalance - amountDue);
-      } else {
-        this.updateBankBalance(this.currentBankBalance + amountDue);
+    if (!wasPaid) {
+      // Marking as paid - add a payment for the remaining amount
+      const currentPaid = stmt?.paidAmount ?? 0;
+      const remainingAmount = amountDue - currentPaid;
+      
+      if (remainingAmount > 0) {
+        if (!stmt) {
+          // Create statement if it doesn't exist
+          this.statementService.updateStatement(cardId, this.monthKey, {
+            amount: cardInstTotal,
+            isEstimated: false,
+          });
+        }
+        
+        if (this.bankBalanceTrackingEnabled) {
+          this.updateBankBalance(this.currentBankBalance - remainingAmount);
+        }
+        
+        this.statementService.addPayment(cardId, this.monthKey, remainingAmount);
       }
+    } else {
+      // Marking as unpaid - clear all payments
+      const paidAmount = stmt?.paidAmount ?? 0;
+      
+      if (this.bankBalanceTrackingEnabled && paidAmount > 0) {
+        this.updateBankBalance(this.currentBankBalance + paidAmount);
+      }
+      
+      this.statementService.updateStatement(cardId, this.monthKey, {
+        isPaid: false,
+        paidAmount: 0,
+        payments: [],
+      });
     }
-
-    this.statementService.togglePaid(cardId, this.monthKey, cardInstTotal);
   }
 
   handleToggleCashInstallmentPaid(cashInstallmentId: string): void {
