@@ -27,6 +27,7 @@ export interface DashboardRow {
   activeInstallments?: Installment[];
   amountDue?: number;
   tags?: string[];
+  notes?: string;
 }
 
 @Component({
@@ -56,6 +57,7 @@ export class BillsTableComponent {
   @Output() dueDateChanged = new EventEmitter<{ cardId: string; dueDate: string }>();
   @Output() statementBalanceChanged = new EventEmitter<{ cardId: string; amount: number }>();
   @Output() amountDueChanged = new EventEmitter<{ cardId: string; amount: number }>();
+  @Output() notesChanged = new EventEmitter<{ cardId: string; notes: string }>();
   readonly Copy = Copy;
   readonly Circle = Circle;
   readonly CheckCircle2 = CheckCircle2;
@@ -64,9 +66,11 @@ export class BillsTableComponent {
   editingDueDate: string | null = null;
   editingBalance: string | null = null;
   editingAmountDue: string | null = null;
+  editingNotes: string | null = null;
   tempDueDate = '';
   tempBalance = '';
   tempAmountDue = '';
+  tempNotes = '';
 
   constructor(public utils: UtilsService) {
   }
@@ -203,6 +207,24 @@ export class BillsTableComponent {
       return 'None';
     }
     return `${row.activeInstallments.length} active`;
+  }
+
+  startEditNotes(row: DashboardRow): void {
+    this.editingNotes = row.card.id;
+    this.tempNotes = row.notes || '';
+  }
+
+  saveNotes(row: DashboardRow): void {
+    if (this.editingNotes === row.card.id) {
+      this.notesChanged.emit({ cardId: row.card.id, notes: this.tempNotes });
+      this.editingNotes = null;
+      this.tempNotes = '';
+    }
+  }
+
+  cancelEditNotes(): void {
+    this.editingNotes = null;
+    this.tempNotes = '';
   }
 
   trackRow = (_: number, row: DashboardRow) => this.rowId(row);

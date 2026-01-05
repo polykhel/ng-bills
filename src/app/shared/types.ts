@@ -24,6 +24,7 @@ export interface Statement {
   isUnbilled?: boolean;
   adjustedAmount?: number;
   isEstimated?: boolean;
+  notes?: string;
 }
 
 export interface Installment {

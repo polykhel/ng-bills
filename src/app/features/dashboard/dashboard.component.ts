@@ -153,6 +153,7 @@ export class DashboardComponent {
         profileName: profile?.name,
         activeInstallments,
         tags,
+        notes: stmt?.notes,
       } satisfies DashboardRow & { stmt?: Statement; cardInstTotal: number; isEstimated: boolean };
     });
 
@@ -393,6 +394,10 @@ export class DashboardComponent {
 
   handleAmountDueChange(event: { cardId: string; amount: number }): void {
     this.statementService.updateStatement(event.cardId, this.monthKey, {adjustedAmount: event.amount});
+  }
+
+  handleNotesChange(event: { cardId: string; notes: string }): void {
+    this.statementService.updateStatement(event.cardId, this.monthKey, {notes: event.notes});
   }
 
   private updateBankBalance(balance: number): void {
