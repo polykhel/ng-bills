@@ -121,17 +121,7 @@
           [class.border-green-200]="!isError"
           [class.border-red-200]="isError"
         >
-          <div class="flex items-start justify-between gap-3">
-            <span>{{ message }}</span>
-            @if (showManualReloadButton && !isError) {
-              <button
-                (click)="reloadPage()"
-                class="px-3 py-1 rounded text-xs font-medium bg-green-600 text-white hover:bg-green-700 transition-colors whitespace-nowrap flex-shrink-0"
-                type="button">
-                Reload
-              </button>
-            }
-          </div>
+          {{ message }}
         </div>
       }
     </div>
@@ -321,17 +311,7 @@
            [class.text-red-800]="driveError"
            [class.border-green-200]="!driveError"
            [class.border-red-200]="driveError">
-        <div class="flex items-start justify-between gap-3">
-          <span>{{ driveMessage }}</span>
-          @if (showReloadButton && !driveError) {
-            <button
-              (click)="reloadPage()"
-              class="px-3 py-1 rounded text-xs font-medium bg-green-600 text-white hover:bg-green-700 transition-colors whitespace-nowrap flex-shrink-0"
-              type="button">
-              Reload
-            </button>
-          }
-        </div>
+        {{ driveMessage }}
       </div>
     </div>
 

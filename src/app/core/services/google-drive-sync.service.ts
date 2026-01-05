@@ -311,7 +311,29 @@ export class GoogleDriveSyncService {
     if (gapi.client.getToken() !== null && this.accessToken) {
       return;
     }
-    await this.signIn();
+    // If we're marked as signed in but no token, try silent re-authentication
+    if (this.syncStatus().isSignedIn) {
+      try {
+        // Request token silently without user interaction
+        return new Promise((resolve, reject) => {
+          this.tokenClient.callback = (response: any) => {
+            if (response.error !== undefined) {
+              reject(new Error(response.error));
+              return;
+            }
+            this.accessToken = response.access_token;
+            gapi.client.setToken({access_token: response.access_token});
+            resolve();
+          };
+          this.tokenClient.requestAccessToken({prompt: 'none'});
+        });
+      } catch (error) {
+        // Silent auth failed, need user interaction
+        await this.signIn();
+      }
+    } else {
+      await this.signIn();
+    }
   }
 
   private getScopes(): string {

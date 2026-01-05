@@ -139,12 +139,12 @@ export class SyncComponent implements OnInit, OnDestroy {
     try {
       await this.syncService.downloadBackup(this.manualEncrypted, this.manualPassword || undefined);
       this.statusMessage = '';
+      this.isProcessing = false;
       this.showMessage('✓ Backup downloaded successfully!', false);
     } catch (error: any) {
       this.statusMessage = '';
-      this.showMessage(`✗ Export failed: ${error?.message || 'Unknown error'}`, true);
-    } finally {
       this.isProcessing = false;
+      this.showMessage(`✗ Export failed: ${error?.message || 'Unknown error'}`, true);
     }
   }
 
@@ -166,13 +166,14 @@ export class SyncComponent implements OnInit, OnDestroy {
     try {
       await this.syncService.loadBackup(file, this.manualEncrypted ? this.manualPassword : undefined);
       this.statusMessage = '';
-      this.showMessage('✓ Data imported successfully!', false);
-      this.showManualReloadButton = true;
+      this.isProcessing = false;
+      this.showMessage('✓ Data imported successfully! Reloading...', false);
+      setTimeout(() => window.location.reload(), 2000);
     } catch (error: any) {
       this.statusMessage = '';
+      this.isProcessing = false;
       this.showMessage(`✗ Import failed: ${error?.message || 'Unknown error'}`, true);
     } finally {
-      this.isProcessing = false;
       input.value = '';
     }
   }
@@ -289,12 +290,12 @@ export class SyncComponent implements OnInit, OnDestroy {
       await this.initializeDrive(); // Ensure correct config before sign in
       await this.driveSync.signIn();
       this.driveStatusMessage = '';
+      this.isDriveProcessing = false;
       this.showDriveMessage('✓ Signed in to Google Drive');
     } catch (error: any) {
       this.driveStatusMessage = '';
-      this.showDriveMessage(`✗ Sign-in failed: ${error?.message || 'Unknown error'}`, true);
-    } finally {
       this.isDriveProcessing = false;
+      this.showDriveMessage(`✗ Sign-in failed: ${error?.message || 'Unknown error'}`, true);
     }
   }
 
@@ -322,12 +323,12 @@ export class SyncComponent implements OnInit, OnDestroy {
       }
       await this.driveSync.uploadBackup(content, true);
       this.driveStatusMessage = '';
+      this.isDriveProcessing = false;
       this.showDriveMessage('✓ Backup synced to Google Drive');
     } catch (error: any) {
       this.driveStatusMessage = '';
-      this.showDriveMessage(`✗ Drive sync failed: ${error?.message || 'Unknown error'}`, true);
-    } finally {
       this.isDriveProcessing = false;
+      this.showDriveMessage(`✗ Drive sync failed: ${error?.message || 'Unknown error'}`, true);
     }
   }
 
@@ -344,13 +345,13 @@ export class SyncComponent implements OnInit, OnDestroy {
       const content = await this.driveSync.downloadBackup();
       await this.syncService.importData(content, this.driveEncrypted ? this.drivePassword : undefined);
       this.driveStatusMessage = '';
-      this.showDriveMessage('✓ Data restored from Google Drive');
-      this.showReloadButton = true;
+      this.isDriveProcessing = false;
+      this.showDriveMessage('✓ Data restored from Google Drive! Reloading...');
+      setTimeout(() => window.location.reload(), 2000);
     } catch (error: any) {
       this.driveStatusMessage = '';
-      this.showDriveMessage(`✗ Restore failed: ${error?.message || 'Unknown error'}`, true);
-    } finally {
       this.isDriveProcessing = false;
+      this.showDriveMessage(`✗ Restore failed: ${error?.message || 'Unknown error'}`, true);
     }
   }
 }
