@@ -112,7 +112,7 @@ export class GoogleDriveSyncService {
           
           // Restore signed-in state from localStorage
           const wasSignedIn = localStorage.getItem(GoogleDriveSyncService.SIGNED_IN_KEY) === 'true';
-          if (wasSignedIn && gapi.client.getToken() !== null) {
+          if (wasSignedIn) {
             this.syncStatus.update(status => ({
               ...status,
               isSignedIn: true,
