@@ -28,6 +28,7 @@ export interface DashboardRow {
   amountDue?: number;
   tags?: string[];
   notes?: string;
+  paidAmount?: number;
 }
 
 @Component({
@@ -58,6 +59,7 @@ export class BillsTableComponent {
   @Output() statementBalanceChanged = new EventEmitter<{ cardId: string; amount: number }>();
   @Output() amountDueChanged = new EventEmitter<{ cardId: string; amount: number }>();
   @Output() notesChanged = new EventEmitter<{ cardId: string; notes: string }>();
+  @Output() paidAmountChanged = new EventEmitter<{ cardId: string; paidAmount: number }>();
   readonly Copy = Copy;
   readonly Circle = Circle;
   readonly CheckCircle2 = CheckCircle2;
@@ -67,10 +69,12 @@ export class BillsTableComponent {
   editingBalance: string | null = null;
   editingAmountDue: string | null = null;
   editingNotes: string | null = null;
+  editingPaidAmount: string | null = null;
   tempDueDate = '';
   tempBalance = '';
   tempAmountDue = '';
   tempNotes = '';
+  tempPaidAmount = '';
 
   constructor(public utils: UtilsService) {
   }
@@ -87,6 +91,8 @@ export class BillsTableComponent {
     count += 1; // Amount Due
     count += 1; // Active Installments
     if (this.columnVisibility.status) count += 1;
+    count += 1; // Paid Amount
+    count += 1; // Notes
     count += 1; // Actions
     return count;
   }
@@ -99,6 +105,16 @@ export class BillsTableComponent {
 
   rowAmountDue(row: DashboardRow): string {
     return this.utils.formatCurrency(row.amountDue ?? row.displayAmount);
+  }
+
+  rowPaidAmount(row: DashboardRow): string {
+    return this.utils.formatCurrency(row.paidAmount ?? 0);
+  }
+
+  rowRemainingAmount(row: DashboardRow): string {
+    const amountDue = row.amountDue ?? row.displayAmount;
+    const remaining = Math.max(0, amountDue - (row.paidAmount ?? 0));
+    return this.utils.formatCurrency(remaining);
   }
 
   formatDate(date: Date): string {
@@ -225,6 +241,27 @@ export class BillsTableComponent {
   cancelEditNotes(): void {
     this.editingNotes = null;
     this.tempNotes = '';
+  }
+
+  startEditPaidAmount(row: DashboardRow): void {
+    this.editingPaidAmount = row.card.id;
+    this.tempPaidAmount = (row.stmt?.paidAmount ?? 0).toString();
+  }
+
+  savePaidAmount(row: DashboardRow): void {
+    if (this.tempPaidAmount !== '' && this.editingPaidAmount === row.card.id) {
+      const amount = this.utils.evaluateMathExpression(this.tempPaidAmount);
+      if (amount !== null && amount >= 0) {
+        this.paidAmountChanged.emit({ cardId: row.card.id, paidAmount: amount });
+        this.editingPaidAmount = null;
+        this.tempPaidAmount = '';
+      }
+    }
+  }
+
+  cancelEditPaidAmount(): void {
+    this.editingPaidAmount = null;
+    this.tempPaidAmount = '';
   }
 
   trackRow = (_: number, row: DashboardRow) => this.rowId(row);

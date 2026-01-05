@@ -154,6 +154,7 @@ export class DashboardComponent {
         activeInstallments,
         tags,
         notes: stmt?.notes,
+        paidAmount: stmt?.paidAmount ?? 0,
       } satisfies DashboardRow & { stmt?: Statement; cardInstTotal: number; isEstimated: boolean };
     });
 
@@ -398,6 +399,21 @@ export class DashboardComponent {
 
   handleNotesChange(event: { cardId: string; notes: string }): void {
     this.statementService.updateStatement(event.cardId, this.monthKey, {notes: event.notes});
+  }
+
+  handlePaidAmountChange(event: { cardId: string; paidAmount: number }): void {
+    const stmt = this.monthlyStatements.find(s => s.cardId === event.cardId);
+    if (!stmt) return;
+
+    const effectiveAmount = stmt.adjustedAmount !== undefined ? stmt.adjustedAmount : stmt.amount;
+    const oldPaidAmount = stmt.paidAmount ?? 0;
+    const delta = event.paidAmount - oldPaidAmount;
+
+    if (this.bankBalanceTrackingEnabled) {
+      this.updateBankBalance(this.currentBankBalance - delta);
+    }
+
+    this.statementService.setPaidAmount(event.cardId, this.monthKey, event.paidAmount);
   }
 
   private updateBankBalance(balance: number): void {

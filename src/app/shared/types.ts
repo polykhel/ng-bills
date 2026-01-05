@@ -20,6 +20,7 @@ export interface Statement {
   monthStr: string;
   amount: number;
   isPaid: boolean;
+  paidAmount?: number;
   customDueDate?: string;
   isUnbilled?: boolean;
   adjustedAmount?: number;

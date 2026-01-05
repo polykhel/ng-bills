@@ -58,8 +58,8 @@ export class StatementService {
       if (existing) {
         const newIsPaid = !existing.isPaid;
         const updates = newIsPaid
-          ? {isPaid: newIsPaid, isUnbilled: false}
-          : {isPaid: newIsPaid};
+          ? {isPaid: newIsPaid, isUnbilled: false, paidAmount: existing.amount}
+          : {isPaid: newIsPaid, paidAmount: 0};
         return prev.map(s => (s.id === existing.id ? {...s, ...updates} : s));
       }
 
@@ -71,9 +71,32 @@ export class StatementService {
           monthStr,
           amount: installmentTotal,
           isPaid: true,
+          paidAmount: installmentTotal,
           isUnbilled: false,
         },
       ];
+    });
+  }
+
+  setPaidAmount(cardId: string, monthStr: string, paidAmount: number): void {
+    this.statementsSignal.update(prev => {
+      const existing = prev.find(
+        s => s.cardId === cardId && s.monthStr === monthStr
+      );
+
+      if (existing) {
+        const effectiveAmount = existing.adjustedAmount !== undefined ? existing.adjustedAmount : existing.amount;
+        const newPaidAmount = Math.max(0, Math.min(paidAmount, effectiveAmount));
+        const isPaid = newPaidAmount >= effectiveAmount;
+        const updates = {
+          paidAmount: newPaidAmount,
+          isPaid,
+          isUnbilled: isPaid ? false : existing.isUnbilled,
+        };
+        return prev.map(s => (s.id === existing.id ? {...s, ...updates} : s));
+      }
+
+      return prev;
     });
   }
 
