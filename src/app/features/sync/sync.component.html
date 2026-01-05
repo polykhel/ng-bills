@@ -73,17 +73,43 @@
           class="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-slate-400 disabled:cursor-not-allowed transition-colors"
           type="button"
         >
-          <lucide-icon [img]="Download" class="w-4 h-4"></lucide-icon>
+          @if (isProcessing && !statusMessage.includes('Importing')) {
+            <svg class="w-4 h-4 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+          } @else {
+            <lucide-icon [img]="Download" class="w-4 h-4"></lucide-icon>
+          }
           Export Data
         </button>
 
         <label
+          [class.opacity-60]="isProcessing"
+          [class.cursor-not-allowed]="isProcessing"
           class="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 cursor-pointer transition-colors">
-          <lucide-icon [img]="Upload" class="w-4 h-4"></lucide-icon>
+          @if (isProcessing && statusMessage.includes('Importing')) {
+            <svg class="w-4 h-4 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+          } @else {
+            <lucide-icon [img]="Upload" class="w-4 h-4"></lucide-icon>
+          }
           Import Data
           <input (change)="handleImport($event)" [disabled]="isProcessing" accept=".json" class="hidden" type="file"/>
         </label>
       </div>
+
+      @if (statusMessage) {
+        <div class="mt-4 p-3 rounded-md text-sm bg-blue-50 text-blue-800 flex items-center gap-2">
+          <svg class="w-4 h-4 animate-spin flex-shrink-0" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+          </svg>
+          {{ statusMessage }}
+        </div>
+      }
 
       @if (message) {
         <div
@@ -91,9 +117,21 @@
           [class.bg-red-50]="isError"
           [class.text-green-800]="!isError"
           [class.text-red-800]="isError"
-          class="mt-4 p-3 rounded-md text-sm"
+          class="mt-4 p-3 rounded-md text-sm border"
+          [class.border-green-200]="!isError"
+          [class.border-red-200]="isError"
         >
-          {{ message }}
+          <div class="flex items-start justify-between gap-3">
+            <span>{{ message }}</span>
+            @if (showManualReloadButton && !isError) {
+              <button
+                (click)="reloadPage()"
+                class="px-3 py-1 rounded text-xs font-medium bg-green-600 text-white hover:bg-green-700 transition-colors whitespace-nowrap flex-shrink-0"
+                type="button">
+                Reload
+              </button>
+            }
+          </div>
         </div>
       }
     </div>
@@ -185,32 +223,80 @@
 
       <div class="flex flex-wrap gap-2">
         <button type="button"
-          class="px-4 py-2 rounded-md text-white"
+          class="flex items-center gap-2 px-4 py-2 rounded-md text-white transition-colors"
           [ngClass]="driveStatus().isSignedIn ? 'bg-slate-400 hover:bg-slate-500' : 'bg-blue-600 hover:bg-blue-700'"
           [disabled]="isDriveProcessing"
                 (click)="driveStatus().isSignedIn ? handleDriveSignOut() : handleDriveSignIn()">
+          @if (isDriveProcessing && driveStatusMessage.includes('Signing')) {
+            <svg class="w-4 h-4 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+          } @else {
+            <lucide-icon [img]="Cloud" class="w-4 h-4"></lucide-icon>
+          }
           {{ driveStatus().isSignedIn ? 'Sign out' : 'Sign in with Google' }}
         </button>
 
         <button type="button"
-                class="px-4 py-2 rounded-md bg-green-600 text-white hover:bg-green-700 disabled:opacity-50"
+                class="flex items-center gap-2 px-4 py-2 rounded-md bg-green-600 text-white hover:bg-green-700 disabled:opacity-50 transition-colors"
                 [disabled]="isDriveProcessing || !driveStatus().isSignedIn"
                 (click)="handleDriveUpload()">
+          @if (isDriveProcessing && driveStatusMessage.includes('Syncing')) {
+            <svg class="w-4 h-4 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+          } @else {
+            <lucide-icon [img]="Upload" class="w-4 h-4"></lucide-icon>
+          }
           Sync to Drive
         </button>
 
         <button type="button"
-                class="px-4 py-2 rounded-md bg-amber-600 text-white hover:bg-amber-700 disabled:opacity-50"
+                class="flex items-center gap-2 px-4 py-2 rounded-md bg-amber-600 text-white hover:bg-amber-700 disabled:opacity-50 transition-colors"
                 [disabled]="isDriveProcessing || !driveStatus().isSignedIn"
                 (click)="handleDriveRestore()">
+          @if (isDriveProcessing && driveStatusMessage.includes('Restoring')) {
+            <svg class="w-4 h-4 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+          } @else {
+            <lucide-icon [img]="Download" class="w-4 h-4"></lucide-icon>
+          }
           Restore from Drive
         </button>
       </div>
 
-      <div *ngIf="driveMessage" class="mt-3 text-sm"
-           [class.text-red-700]="driveError"
-           [class.text-green-700]="!driveError">
-        {{ driveMessage }}
+      @if (driveStatusMessage) {
+        <div class="mt-3 p-3 rounded-md text-sm bg-blue-50 text-blue-800 flex items-center gap-2">
+          <svg class="w-4 h-4 animate-spin flex-shrink-0" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+          </svg>
+          {{ driveStatusMessage }}
+        </div>
+      }
+
+      <div *ngIf="driveMessage" class="mt-3 p-3 rounded-md text-sm border"
+           [class.bg-green-50]="!driveError"
+           [class.bg-red-50]="driveError"
+           [class.text-green-800]="!driveError"
+           [class.text-red-800]="driveError"
+           [class.border-green-200]="!driveError"
+           [class.border-red-200]="driveError">
+        <div class="flex items-start justify-between gap-3">
+          <span>{{ driveMessage }}</span>
+          @if (showReloadButton && !driveError) {
+            <button
+              (click)="reloadPage()"
+              class="px-3 py-1 rounded text-xs font-medium bg-green-600 text-white hover:bg-green-700 transition-colors whitespace-nowrap flex-shrink-0"
+              type="button">
+              Reload
+            </button>
+          }
+        </div>
       </div>
     </div>
 

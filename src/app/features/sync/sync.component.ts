@@ -23,6 +23,10 @@ export class SyncComponent implements OnInit {
   driveMessage = '';
   driveError = false;
   isDriveProcessing = false;
+  statusMessage = '';
+  driveStatusMessage = '';
+  showReloadButton = false;
+  showManualReloadButton = false;
 
   driveStatus: any;
 
@@ -90,13 +94,16 @@ export class SyncComponent implements OnInit {
     }
 
     this.isProcessing = true;
+    this.statusMessage = 'Exporting data...';
     this.showMessage('');
 
     try {
       await this.syncService.downloadBackup(this.manualEncrypted, this.manualPassword || undefined);
-      this.showMessage('Backup downloaded successfully!', false);
+      this.statusMessage = '';
+      this.showMessage('✓ Backup downloaded successfully!', false);
     } catch (error: any) {
-      this.showMessage(`Export failed: ${error?.message || 'Unknown error'}`, true);
+      this.statusMessage = '';
+      this.showMessage(`✗ Export failed: ${error?.message || 'Unknown error'}`, true);
     } finally {
       this.isProcessing = false;
     }
@@ -114,14 +121,17 @@ export class SyncComponent implements OnInit {
     }
 
     this.isProcessing = true;
+    this.statusMessage = 'Importing data...';
     this.showMessage('');
 
     try {
       await this.syncService.loadBackup(file, this.manualEncrypted ? this.manualPassword : undefined);
-      this.showMessage('Data imported successfully! Refreshing...', false);
-      setTimeout(() => window.location.reload(), 1500);
+      this.statusMessage = '';
+      this.showMessage('✓ Data imported successfully!', false);
+      this.showManualReloadButton = true;
     } catch (error: any) {
-      this.showMessage(`Import failed: ${error?.message || 'Unknown error'}`, true);
+      this.statusMessage = '';
+      this.showMessage(`✗ Import failed: ${error?.message || 'Unknown error'}`, true);
     } finally {
       this.isProcessing = false;
       input.value = '';
@@ -136,6 +146,10 @@ export class SyncComponent implements OnInit {
   private showDriveMessage(msg: string, isError = false): void {
     this.driveMessage = msg;
     this.driveError = isError;
+  }
+
+  reloadPage(): void {
+    window.location.reload();
   }
 
   private async initializeDrive(): Promise<void> {
@@ -157,13 +171,16 @@ export class SyncComponent implements OnInit {
 
   async handleDriveSignIn(): Promise<void> {
     this.isDriveProcessing = true;
+    this.driveStatusMessage = 'Signing in...';
     this.showDriveMessage('');
     try {
       await this.initializeDrive(); // Ensure correct config before sign in
       await this.driveSync.signIn();
-      this.showDriveMessage('Signed in to Google Drive');
+      this.driveStatusMessage = '';
+      this.showDriveMessage('✓ Signed in to Google Drive');
     } catch (error: any) {
-      this.showDriveMessage(`Sign-in failed: ${error?.message || 'Unknown error'}`, true);
+      this.driveStatusMessage = '';
+      this.showDriveMessage(`✗ Sign-in failed: ${error?.message || 'Unknown error'}`, true);
     } finally {
       this.isDriveProcessing = false;
     }
@@ -181,6 +198,7 @@ export class SyncComponent implements OnInit {
     }
 
     this.isDriveProcessing = true;
+    this.driveStatusMessage = 'Syncing to Drive...';
     this.showDriveMessage('');
 
     try {
@@ -191,9 +209,11 @@ export class SyncComponent implements OnInit {
         content = this.syncService.exportData();
       }
       await this.driveSync.uploadBackup(content, true);
-      this.showDriveMessage('Backup synced to Google Drive');
+      this.driveStatusMessage = '';
+      this.showDriveMessage('✓ Backup synced to Google Drive');
     } catch (error: any) {
-      this.showDriveMessage(`Drive sync failed: ${error?.message || 'Unknown error'}`, true);
+      this.driveStatusMessage = '';
+      this.showDriveMessage(`✗ Drive sync failed: ${error?.message || 'Unknown error'}`, true);
     } finally {
       this.isDriveProcessing = false;
     }
@@ -201,14 +221,17 @@ export class SyncComponent implements OnInit {
 
   async handleDriveRestore(): Promise<void> {
     this.isDriveProcessing = true;
+    this.driveStatusMessage = 'Restoring from Drive...';
     this.showDriveMessage('');
     try {
       const content = await this.driveSync.downloadBackup();
       await this.syncService.importData(content, this.driveEncrypted ? this.drivePassword : undefined);
-      this.showDriveMessage('Data restored from Google Drive');
-      setTimeout(() => window.location.reload(), 1500);
+      this.driveStatusMessage = '';
+      this.showDriveMessage('✓ Data restored from Google Drive');
+      this.showReloadButton = true;
     } catch (error: any) {
-      this.showDriveMessage(`Restore failed: ${error?.message || 'Unknown error'}`, true);
+      this.driveStatusMessage = '';
+      this.showDriveMessage(`✗ Restore failed: ${error?.message || 'Unknown error'}`, true);
     } finally {
       this.isDriveProcessing = false;
     }

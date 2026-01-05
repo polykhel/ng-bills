@@ -39,6 +39,7 @@ export class GoogleDriveSyncService {
     'https://www.googleapis.com/discovery/v1/apis/drive/v3/rest',
   ];
   private static readonly BACKUP_FILENAME = 'bills-sync.json';
+  private static readonly SIGNED_IN_KEY = 'google_drive_signed_in';
   // Sync status signal
   syncStatus = signal<SyncStatus>({
     isSignedIn: false,
@@ -108,6 +109,16 @@ export class GoogleDriveSyncService {
           }
 
           this.isInitialized = true;
+          
+          // Restore signed-in state from localStorage
+          const wasSignedIn = localStorage.getItem(GoogleDriveSyncService.SIGNED_IN_KEY) === 'true';
+          if (wasSignedIn && gapi.client.getToken() !== null) {
+            this.syncStatus.update(status => ({
+              ...status,
+              isSignedIn: true,
+            }));
+          }
+          
           resolve();
         } catch (error) {
           reject(error);
@@ -137,6 +148,7 @@ export class GoogleDriveSyncService {
           }
           this.accessToken = response.access_token;
           gapi.client.setToken({access_token: response.access_token});
+          localStorage.setItem(GoogleDriveSyncService.SIGNED_IN_KEY, 'true');
           this.syncStatus.update(status => ({
             ...status,
             isSignedIn: true,
@@ -167,6 +179,7 @@ export class GoogleDriveSyncService {
       gapi.client.setToken(null);
     }
     this.accessToken = null;
+    localStorage.removeItem(GoogleDriveSyncService.SIGNED_IN_KEY);
     this.syncStatus.update(status => ({
       ...status,
       isSignedIn: false,
