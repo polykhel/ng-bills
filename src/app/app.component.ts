@@ -10,7 +10,8 @@ import {
   MultiProfileSelectorComponent,
   ProfileFormModalComponent,
   ProfileSelectorComponent,
-  TransferCardModalComponent
+  TransferCardModalComponent,
+  NotificationsComponent
 } from './shared/components';
 
 @Component({
@@ -27,7 +28,8 @@ import {
     ProfileFormModalComponent,
     CardFormModalComponent,
     InstallmentFormModalComponent,
-    TransferCardModalComponent
+    TransferCardModalComponent,
+    NotificationsComponent
   ],
   templateUrl: './app.component.html',
   styles: [`

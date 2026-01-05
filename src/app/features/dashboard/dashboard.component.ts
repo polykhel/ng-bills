@@ -1,12 +1,13 @@
-import { Component } from '@angular/core';
+import { Component, OnInit } from '@angular/core';
 
-import { format, isValid, parseISO, setDate } from 'date-fns';
+import { format, isValid, parseISO, setDate, differenceInDays, startOfDay } from 'date-fns';
 import {
   AppStateService,
   BankBalanceService,
   CardService,
   CashInstallmentService,
   InstallmentService,
+  NotificationService,
   ProfileService,
   StatementService,
   UtilsService,
@@ -28,7 +29,7 @@ interface BalanceStatus {
   imports: [StatsCardsComponent, BankBalanceToggleComponent, BillsTableHeaderComponent, BillsTableComponent],
   templateUrl: './dashboard.component.html',
 })
-export class DashboardComponent {
+export class DashboardComponent implements OnInit {
   dashboardSort: SortConfig = {key: 'dueDate', direction: 'asc'};
   selectedCards = new Set<string>();
   copiedId: string | null = null;
@@ -44,8 +45,13 @@ export class DashboardComponent {
     private installmentService: InstallmentService,
     private cashInstallmentService: CashInstallmentService,
     private bankBalanceService: BankBalanceService,
+    private notificationService: NotificationService,
     public utils: UtilsService,
   ) {
+  }
+
+  ngOnInit(): void {
+    this.checkUpcomingBills();
   }
 
   get isLoaded(): boolean {
@@ -495,5 +501,49 @@ export class DashboardComponent {
       // Could add installation tags here if needed
     }
     return tags;
+  }
+
+  private checkUpcomingBills(): void {
+    const today = startOfDay(new Date());
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+
+    const upcomingCards = this.visibleCards.filter(card => {
+      const stmt = this.monthlyStatements.find(s => s.cardId === card.id);
+      const defaultDate = setDate(this.viewDate, card.dueDay);
+      const displayDate = stmt?.customDueDate ? parseISO(stmt.customDueDate) : defaultDate;
+
+      if (!isValid(displayDate)) return false;
+
+      const daysUntilDue = differenceInDays(startOfDay(displayDate), today);
+      return daysUntilDue === 1 && !stmt?.isPaid;
+    });
+
+    // Check for upcoming cash installments
+    const upcomingCashInstallments = this.activeCashInstallments.filter(ci => {
+      const dueDate = parseISO(ci.dueDate);
+      if (!isValid(dueDate)) return false;
+
+      const daysUntilDue = differenceInDays(startOfDay(dueDate), today);
+      return daysUntilDue === 1 && !ci.isPaid;
+    });
+
+    if (upcomingCards.length > 0) {
+      const cardNames = upcomingCards.map(c => c.cardName).join(', ');
+      this.notificationService.warning(
+        '⚠️ Bills Due Tomorrow',
+        `The following bills are due tomorrow: ${cardNames}`,
+        true
+      );
+    }
+
+    if (upcomingCashInstallments.length > 0) {
+      const installmentNames = upcomingCashInstallments.map(ci => ci.name).join(', ');
+      this.notificationService.warning(
+        '⚠️ Installments Due Tomorrow',
+        `The following installments are due tomorrow: ${installmentNames}`,
+        true
+      );
+    }
   }
 }

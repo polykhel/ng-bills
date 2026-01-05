@@ -11,3 +11,4 @@ export * from './utils.service';
 export * from './sync-utils.service';
 export * from './sync.service';
 export * from './app-state.service';
+export * from './notification.service';

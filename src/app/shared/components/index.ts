@@ -9,3 +9,4 @@ export * from './profile-form-modal.component';
 export * from './card-form-modal.component';
 export * from './installment-form-modal.component';
 export * from './transfer-card-modal.component';
+export * from './notifications.component';
