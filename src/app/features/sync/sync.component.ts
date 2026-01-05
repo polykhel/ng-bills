@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, OnDestroy } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { AlertCircle, Cloud, Download, FileDown, Lock, LucideAngularModule, Upload } from 'lucide-angular';
 import { SyncService, SyncUtilsService, GoogleDriveSyncService } from '@services';
@@ -10,7 +10,7 @@ import { SyncService, SyncUtilsService, GoogleDriveSyncService } from '@services
   imports: [CommonModule, FormsModule, LucideAngularModule],
   templateUrl: './sync.component.html',
 })
-export class SyncComponent implements OnInit {
+export class SyncComponent implements OnInit, OnDestroy {
   manualPassword = '';
   manualEncrypted = true;
   drivePassword = '';
@@ -27,6 +27,13 @@ export class SyncComponent implements OnInit {
   driveStatusMessage = '';
   showReloadButton = false;
   showManualReloadButton = false;
+  autoSyncEnabled = false;
+  autoSyncInterval = 5; // minutes
+  lastAutoSyncTime: Date | null = null;
+  nextAutoSyncTime: Date | null = null;
+  private autoSyncIntervalId: any = null;
+  readonly MIN_AUTO_SYNC_INTERVAL = 1; // minimum 1 minute
+  readonly MAX_AUTO_SYNC_INTERVAL = 60; // maximum 60 minutes
 
   driveStatus: any;
 
@@ -84,11 +91,39 @@ export class SyncComponent implements OnInit {
   ngOnInit(): void {
     this.dataSize = this.syncUtils.getDataSize();
     this.initializeDrive();
+    this.setupAutoSync();
+    this.setupPageCloseSync();
+  }
+
+  ngOnDestroy(): void {
+    this.clearAutoSyncInterval();
   }
 
   async onUseAppDataFolderChange(): Promise<void> {
     // Reinitialize Drive with the new setting
     await this.initializeDrive();
+  }
+
+  onAutoSyncEnabledChange(): void {
+    if (this.autoSyncEnabled) {
+      this.setupAutoSync();
+    } else {
+      this.clearAutoSyncInterval();
+      this.nextAutoSyncTime = null;
+    }
+  }
+
+  onAutoSyncIntervalChange(): void {
+    // Clamp interval between min and max
+    this.autoSyncInterval = Math.max(
+      this.MIN_AUTO_SYNC_INTERVAL,
+      Math.min(this.MAX_AUTO_SYNC_INTERVAL, this.autoSyncInterval)
+    );
+    // Reset the interval with new duration if auto-sync is enabled
+    if (this.autoSyncEnabled) {
+      this.clearAutoSyncInterval();
+      this.setupAutoSync();
+    }
   }
 
   async handleExport(): Promise<void> {
@@ -150,6 +185,79 @@ export class SyncComponent implements OnInit {
   private showDriveMessage(msg: string, isError = false): void {
     this.driveMessage = msg;
     this.driveError = isError;
+  }
+
+  private clearAutoSyncInterval(): void {
+    if (this.autoSyncIntervalId) {
+      clearInterval(this.autoSyncIntervalId);
+      this.autoSyncIntervalId = null;
+    }
+  }
+
+  private setupAutoSync(): void {
+    if (!this.autoSyncEnabled) return;
+
+    this.clearAutoSyncInterval();
+    this.updateNextSyncTime();
+
+    // Set up interval for auto-sync
+    this.autoSyncIntervalId = setInterval(() => {
+      this.performAutoSync();
+    }, this.autoSyncInterval * 60 * 1000);
+
+    // Perform initial sync immediately
+    this.performAutoSync();
+  }
+
+  private setupPageCloseSync(): void {
+    window.addEventListener('beforeunload', () => {
+      if (this.autoSyncEnabled && this.driveStatus().isSignedIn) {
+        this.performAutoSync();
+      }
+    });
+  }
+
+  private async performAutoSync(): Promise<void> {
+    // Only sync if signed in and enabled
+    if (!this.autoSyncEnabled || !this.driveStatus().isSignedIn) {
+      return;
+    }
+
+    // Skip if encryption is enabled but no password
+    if (this.driveEncrypted && !this.drivePassword) {
+      return;
+    }
+
+    try {
+      let content: string;
+      if (this.driveEncrypted) {
+        content = await this.syncService.exportEncrypted(this.drivePassword);
+      } else {
+        content = this.syncService.exportData();
+      }
+      await this.driveSync.uploadBackup(content, true);
+      this.lastAutoSyncTime = new Date();
+      this.updateNextSyncTime();
+    } catch (error) {
+      // Silently fail auto-sync to avoid interrupting user experience
+      console.error('Auto-sync failed:', error);
+    }
+  }
+
+  private updateNextSyncTime(): void {
+    const nextTime = new Date();
+    nextTime.setMinutes(nextTime.getMinutes() + this.autoSyncInterval);
+    this.nextAutoSyncTime = nextTime;
+  }
+
+  get autoSyncStatusText(): string {
+    if (!this.autoSyncEnabled) {
+      return 'Auto-sync disabled';
+    }
+    if (this.lastAutoSyncTime) {
+      return `Last auto-sync: ${this.lastAutoSyncTime.toLocaleTimeString()}`;
+    }
+    return 'Auto-sync enabled, pending first sync...';
   }
 
   reloadPage(): void {
