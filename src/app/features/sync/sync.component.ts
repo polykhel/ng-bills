@@ -73,6 +73,10 @@ export class SyncComponent implements OnInit {
     return this.manualStrengthWidth;
   }
 
+  get isRestoreDisabled(): boolean {
+    return this.driveEncrypted && !this.drivePassword;
+  }
+
   get formattedDataSize(): string {
     return this.syncUtils.formatBytes(this.dataSize);
   }
@@ -220,6 +224,11 @@ export class SyncComponent implements OnInit {
   }
 
   async handleDriveRestore(): Promise<void> {
+    if (this.driveEncrypted && !this.drivePassword) {
+      this.showDriveMessage('Please enter a password to decrypt', true);
+      return;
+    }
+
     this.isDriveProcessing = true;
     this.driveStatusMessage = 'Restoring from Drive...';
     this.showDriveMessage('');

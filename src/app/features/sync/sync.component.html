@@ -189,7 +189,11 @@
               </div>
             </div>
           }
-          <p class="text-xs text-slate-500 mt-1">This password is for Auto-Sync only.</p>
+          @if (!drivePassword) {
+            <p class="text-xs text-red-600 mt-1">Password required to restore encrypted backup</p>
+          } @else {
+            <p class="text-xs text-slate-500 mt-1">This password is for Auto-Sync only.</p>
+          }
         </div>
       }
 
@@ -254,8 +258,9 @@
         </button>
 
         <button type="button"
-                class="flex items-center gap-2 px-4 py-2 rounded-md bg-amber-600 text-white hover:bg-amber-700 disabled:opacity-50 transition-colors"
-                [disabled]="isDriveProcessing || !driveStatus().isSignedIn"
+                class="flex items-center gap-2 px-4 py-2 rounded-md bg-amber-600 text-white hover:bg-amber-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                [disabled]="isDriveProcessing || !driveStatus().isSignedIn || isRestoreDisabled"
+                [title]="isRestoreDisabled ? 'Please enter a password to restore encrypted backup' : ''"
                 (click)="handleDriveRestore()">
           @if (isDriveProcessing && driveStatusMessage.includes('Restoring')) {
             <svg class="w-4 h-4 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
