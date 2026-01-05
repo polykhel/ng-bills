@@ -403,17 +403,39 @@ export class DashboardComponent {
 
   handlePaidAmountChange(event: { cardId: string; paidAmount: number }): void {
     const stmt = this.monthlyStatements.find(s => s.cardId === event.cardId);
-    if (!stmt) return;
+    if (!stmt) {
+      // Create statement if it doesn't exist
+      const cardInstTotal = this.getCardInstallmentTotal(event.cardId);
+      this.statementService.updateStatement(event.cardId, this.monthKey, {
+        amount: cardInstTotal,
+        isEstimated: false,
+      });
+    }
 
-    const effectiveAmount = stmt.adjustedAmount !== undefined ? stmt.adjustedAmount : stmt.amount;
-    const oldPaidAmount = stmt.paidAmount ?? 0;
+    const currentStmt = this.monthlyStatements.find(s => s.cardId === event.cardId);
+    if (!currentStmt) return;
+
+    const oldPaidAmount = currentStmt.paidAmount ?? 0;
     const delta = event.paidAmount - oldPaidAmount;
 
-    if (this.bankBalanceTrackingEnabled) {
+    if (this.bankBalanceTrackingEnabled && delta > 0) {
       this.updateBankBalance(this.currentBankBalance - delta);
     }
 
-    this.statementService.setPaidAmount(event.cardId, this.monthKey, event.paidAmount);
+    this.statementService.addPayment(event.cardId, this.monthKey, event.paidAmount);
+  }
+
+  handleRemovePayment(event: { cardId: string; paymentIndex: number }): void {
+    const stmt = this.monthlyStatements.find(s => s.cardId === event.cardId);
+    if (!stmt || !stmt.payments || !stmt.payments[event.paymentIndex]) return;
+
+    const paymentAmount = stmt.payments[event.paymentIndex].amount;
+
+    if (this.bankBalanceTrackingEnabled) {
+      this.updateBankBalance(this.currentBankBalance + paymentAmount);
+    }
+
+    this.statementService.removePayment(event.cardId, this.monthKey, event.paymentIndex);
   }
 
   private updateBankBalance(balance: number): void {

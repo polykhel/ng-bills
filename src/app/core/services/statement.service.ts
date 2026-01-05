@@ -100,6 +100,62 @@ export class StatementService {
     });
   }
 
+  addPayment(cardId: string, monthStr: string, amount: number): void {
+    this.statementsSignal.update(prev => {
+      const existing = prev.find(
+        s => s.cardId === cardId && s.monthStr === monthStr
+      );
+
+      if (existing) {
+        const effectiveAmount = existing.adjustedAmount !== undefined ? existing.adjustedAmount : existing.amount;
+        const payments = existing.payments || [];
+        const currentPaid = payments.reduce((sum, p) => sum + p.amount, 0);
+        const maxPayment = Math.max(0, effectiveAmount - currentPaid);
+        const paymentAmount = Math.min(amount, maxPayment);
+        
+        if (paymentAmount <= 0) return prev;
+
+        const newPayments = [...payments, { amount: paymentAmount, date: new Date().toISOString() }];
+        const totalPaid = newPayments.reduce((sum, p) => sum + p.amount, 0);
+        const isPaid = totalPaid >= effectiveAmount;
+
+        const updates = {
+          payments: newPayments,
+          paidAmount: totalPaid,
+          isPaid,
+          isUnbilled: isPaid ? false : existing.isUnbilled,
+        };
+        return prev.map(s => (s.id === existing.id ? {...s, ...updates} : s));
+      }
+
+      return prev;
+    });
+  }
+
+  removePayment(cardId: string, monthStr: string, paymentIndex: number): void {
+    this.statementsSignal.update(prev => {
+      const existing = prev.find(
+        s => s.cardId === cardId && s.monthStr === monthStr
+      );
+
+      if (existing && existing.payments) {
+        const newPayments = existing.payments.filter((_, i) => i !== paymentIndex);
+        const totalPaid = newPayments.reduce((sum, p) => sum + p.amount, 0);
+        const effectiveAmount = existing.adjustedAmount !== undefined ? existing.adjustedAmount : existing.amount;
+        const isPaid = totalPaid >= effectiveAmount;
+
+        const updates = {
+          payments: newPayments,
+          paidAmount: totalPaid,
+          isPaid,
+        };
+        return prev.map(s => (s.id === existing.id ? {...s, ...updates} : s));
+      }
+
+      return prev;
+    });
+  }
+
   deleteStatementsForCard(cardId: string): void {
     this.statementsSignal.update(prev => prev.filter(s => s.cardId !== cardId));
   }

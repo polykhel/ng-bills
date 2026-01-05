@@ -60,6 +60,7 @@ export class BillsTableComponent {
   @Output() amountDueChanged = new EventEmitter<{ cardId: string; amount: number }>();
   @Output() notesChanged = new EventEmitter<{ cardId: string; notes: string }>();
   @Output() paidAmountChanged = new EventEmitter<{ cardId: string; paidAmount: number }>();
+  @Output() paymentRemoved = new EventEmitter<{ cardId: string; paymentIndex: number }>();
   readonly Copy = Copy;
   readonly Circle = Circle;
   readonly CheckCircle2 = CheckCircle2;
@@ -245,13 +246,13 @@ export class BillsTableComponent {
 
   startEditPaidAmount(row: DashboardRow): void {
     this.editingPaidAmount = row.card.id;
-    this.tempPaidAmount = (row.stmt?.paidAmount ?? 0).toString();
+    this.tempPaidAmount = '';
   }
 
   savePaidAmount(row: DashboardRow): void {
     if (this.tempPaidAmount !== '' && this.editingPaidAmount === row.card.id) {
       const amount = this.utils.evaluateMathExpression(this.tempPaidAmount);
-      if (amount !== null && amount >= 0) {
+      if (amount !== null && amount > 0) {
         this.paidAmountChanged.emit({ cardId: row.card.id, paidAmount: amount });
         this.editingPaidAmount = null;
         this.tempPaidAmount = '';
@@ -264,7 +265,13 @@ export class BillsTableComponent {
     this.tempPaidAmount = '';
   }
 
+  removePayment(row: DashboardRow, index: number): void {
+    this.paymentRemoved.emit({ cardId: row.card.id, paymentIndex: index });
+  }
+
   trackRow = (_: number, row: DashboardRow) => this.rowId(row);
+
+  trackPayment = (index: number) => index;
 
   onSortClick(key: string): void {
     this.sortChange.emit(key);

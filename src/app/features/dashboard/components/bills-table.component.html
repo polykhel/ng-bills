@@ -278,14 +278,30 @@
               </div>
             } @else {
               <div class="flex flex-col gap-1.5">
+                @if (row.stmt && row.stmt.payments && row.stmt.payments.length > 0) {
+                  <div class="flex flex-col gap-1">
+                    @for (payment of row.stmt.payments; track trackPayment($index)) {
+                      <div class="flex items-center gap-2 text-xs bg-green-50 border border-green-200 rounded px-2 py-1">
+                        <span class="font-semibold text-green-700">{{ utils.formatCurrency(payment.amount) }}</span>
+                        <span class="text-slate-500">{{ utils.formatDate(payment.date, 'MMM dd') }}</span>
+                        <button
+                          (click)="removePayment(row, $index)"
+                          class="ml-auto text-red-600 hover:text-red-800 hover:bg-red-100 rounded p-0.5"
+                          title="Remove payment">
+                          ✕
+                        </button>
+                      </div>
+                    }
+                  </div>
+                }
                 <button
                   (click)="startEditPaidAmount(row)"
-                  class="text-slate-700 hover:text-blue-600 hover:underline font-semibold text-left"
-                  title="Click to edit">
-                  {{ rowPaidAmount(row) }} / {{ row.amountDue ? utils.formatCurrency(row.amountDue) : utils.formatCurrency(row.displayAmount) }}
+                  class="text-blue-600 hover:text-blue-800 text-xs font-medium hover:underline text-left"
+                  title="Add payment">
+                  + Add Payment
                 </button>
                 @if ((row.paidAmount ?? 0) > 0 || ((row.paidAmount ?? 0) < (row.amountDue ?? row.displayAmount))) {
-                  <div class="w-full bg-slate-200 rounded-full h-1.5">
+                  <div class="w-full bg-slate-200 rounded-full h-1.5 mt-1">
                     <div
                       class="h-1.5 rounded-full transition-all"
                       [class]="(row.paidAmount ?? 0) >= (row.amountDue ?? row.displayAmount) ? 'bg-green-500' : 'bg-blue-500'"

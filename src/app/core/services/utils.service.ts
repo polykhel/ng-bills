@@ -1,5 +1,5 @@
 import { Injectable } from '@angular/core';
-import { differenceInCalendarMonths, parseISO, startOfMonth } from 'date-fns';
+import { differenceInCalendarMonths, format, parseISO, startOfMonth } from 'date-fns';
 import type { Installment, InstallmentStatus } from '@shared/types';
 
 @Injectable({
@@ -41,6 +41,18 @@ export class UtilsService {
       minimumFractionDigits: 2,
       maximumFractionDigits: 2,
     });
+  }
+
+  /**
+   * Format a date string
+   */
+  formatDate(dateStr: string, formatStr: string = 'MMM dd, yyyy'): string {
+    try {
+      const date = parseISO(dateStr);
+      return format(date, formatStr);
+    } catch {
+      return dateStr;
+    }
   }
 
   /**

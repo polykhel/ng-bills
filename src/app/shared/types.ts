@@ -14,6 +14,11 @@ export interface CreditCard {
   isCashCard?: boolean;
 }
 
+export interface Payment {
+  amount: number;
+  date: string;
+}
+
 export interface Statement {
   id: string;
   cardId: string;
@@ -21,6 +26,7 @@ export interface Statement {
   amount: number;
   isPaid: boolean;
   paidAmount?: number;
+  payments?: Payment[];
   customDueDate?: string;
   isUnbilled?: boolean;
   adjustedAmount?: number;
