@@ -202,22 +202,27 @@ export class DashboardComponent {
     billTotal += cashTotal;
     unpaidTotal += unpaidCash;
 
-    return {billTotal, unpaidTotal, installmentTotal: installmentTotal + cashTotal};
+    return {
+      billTotal: this.utils.roundCurrency(billTotal),
+      unpaidTotal: this.utils.roundCurrency(unpaidTotal),
+      installmentTotal: this.utils.roundCurrency(installmentTotal + cashTotal)
+    };
   }
 
   get currentBankBalance(): number {
     if (this.multiProfileMode && this.selectedProfileIds.length > 0) {
       const balances = this.bankBalanceService.bankBalances();
-      return balances
+      const total = balances
         .filter(b => this.selectedProfileIds.includes(b.profileId) && b.monthStr === this.monthKey)
         .reduce((acc, b) => acc + b.balance, 0);
+      return this.utils.roundCurrency(total);
     }
     const balance = this.bankBalanceService.getBankBalance(this.activeProfileId, this.monthKey);
-    return balance ?? 0;
+    return balance ? this.utils.roundCurrency(balance) : 0;
   }
 
   get balanceStatus(): BalanceStatus {
-    const difference = this.currentBankBalance - this.totals.unpaidTotal;
+    const difference = this.utils.roundCurrency(this.currentBankBalance - this.totals.unpaidTotal);
     return {difference, isEnough: difference >= 0};
   }
 
@@ -464,10 +469,11 @@ export class DashboardComponent {
   }
 
   private updateBankBalance(balance: number): void {
+    const rounded = this.utils.roundCurrency(balance);
     if (this.multiProfileMode && this.selectedProfileIds.length > 0) {
-      this.bankBalanceService.updateBankBalance(this.selectedProfileIds[0], this.monthKey, balance);
+      this.bankBalanceService.updateBankBalance(this.selectedProfileIds[0], this.monthKey, rounded);
     } else {
-      this.bankBalanceService.updateBankBalance(this.activeProfileId, this.monthKey, balance);
+      this.bankBalanceService.updateBankBalance(this.activeProfileId, this.monthKey, rounded);
     }
   }
 

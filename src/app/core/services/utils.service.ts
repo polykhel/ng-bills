@@ -32,6 +32,14 @@ export class UtilsService {
   }
 
   /**
+   * Round a number to 2 decimal places (for currency)
+   * Uses Math.round to avoid floating point precision issues
+   */
+  roundCurrency(amount: number): number {
+    return Math.round(amount * 100) / 100;
+  }
+
+  /**
    * Format a number as currency
    */
   formatCurrency(amount: number): string {

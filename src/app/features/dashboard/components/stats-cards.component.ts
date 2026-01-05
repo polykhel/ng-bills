@@ -31,14 +31,17 @@ export class StatsCardsComponent {
   onBalanceChange(event: Event): void {
     const target = event.target as HTMLInputElement;
     const value = parseFloat(target.value);
-    this.bankBalanceChange.emit(isNaN(value) ? 0 : value);
+    const rounded = isNaN(value) ? 0 : this.utils.roundCurrency(value);
+    this.bankBalanceChange.emit(rounded);
   }
 
   onBalanceBlur(event: Event): void {
     const target = event.target as HTMLInputElement;
     const value = parseFloat(target.value);
     if (!isNaN(value)) {
-      this.bankBalanceChange.emit(parseFloat(value.toFixed(2)));
+      const rounded = this.utils.roundCurrency(value);
+      this.bankBalanceChange.emit(rounded);
+      target.value = rounded.toFixed(2);
     }
   }
 }
