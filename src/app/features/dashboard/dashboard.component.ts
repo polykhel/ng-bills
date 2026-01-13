@@ -287,9 +287,9 @@ export class DashboardComponent implements OnInit {
     const wasPaid = stmt?.isPaid || false;
 
     if (!wasPaid) {
-      // Marking as paid - add a payment for the remaining amount
+      // Marking as paid - add a payment for the remaining statement balance amount
       const currentPaid = stmt?.paidAmount ?? 0;
-      const remainingAmount = amountDue - currentPaid;
+      const remainingAmount = effectiveAmount - currentPaid;
       
       if (remainingAmount > 0) {
         if (!stmt) {
