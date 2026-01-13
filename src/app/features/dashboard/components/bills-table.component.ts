@@ -116,8 +116,7 @@ export class BillsTableComponent {
   }
 
   rowRemainingAmount(row: DashboardRow): string {
-    const amountDue = row.amountDue ?? row.displayAmount;
-    const remaining = Math.max(0, amountDue - (row.paidAmount ?? 0));
+    const remaining = Math.max(0, row.displayAmount - (row.paidAmount ?? 0));
     return this.utils.formatCurrency(remaining);
   }
 

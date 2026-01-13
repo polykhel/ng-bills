@@ -325,12 +325,12 @@
                   title="Add payment">
                   + Add Payment
                 </button>
-                @if ((row.paidAmount ?? 0) > 0 || ((row.paidAmount ?? 0) < (row.amountDue ?? row.displayAmount))) {
+                @if ((row.paidAmount ?? 0) > 0 || ((row.paidAmount ?? 0) < row.displayAmount)) {
                   <div class="w-full bg-slate-200 rounded-full h-1.5 mt-1">
                     <div
                       class="h-1.5 rounded-full transition-all"
-                      [class]="(row.paidAmount ?? 0) >= (row.amountDue ?? row.displayAmount) ? 'bg-green-500' : 'bg-blue-500'"
-                      [style.width.%]="((row.paidAmount ?? 0) / (row.amountDue ?? row.displayAmount)) * 100">
+                      [class]="(row.paidAmount ?? 0) >= row.displayAmount ? 'bg-green-500' : 'bg-blue-500'"
+                      [style.width.%]="((row.paidAmount ?? 0) / row.displayAmount) * 100">
                     </div>
                   </div>
                   <div class="text-xs text-slate-600">
