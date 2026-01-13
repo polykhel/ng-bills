@@ -61,6 +61,7 @@ export class BillsTableComponent {
   @Output() notesChanged = new EventEmitter<{ cardId: string; notes: string }>();
   @Output() paidAmountChanged = new EventEmitter<{ cardId: string; paidAmount: number }>();
   @Output() paymentRemoved = new EventEmitter<{ cardId: string; paymentIndex: number }>();
+  @Output() paymentDateChanged = new EventEmitter<{ cardId: string; paymentIndex: number; date: string }>();
   readonly Copy = Copy;
   readonly Circle = Circle;
   readonly CheckCircle2 = CheckCircle2;
@@ -71,11 +72,13 @@ export class BillsTableComponent {
   editingAmountDue: string | null = null;
   editingNotes: string | null = null;
   editingPaidAmount: string | null = null;
+  editingPaymentDate: string | null = null;
   tempDueDate = '';
   tempBalance = '';
   tempAmountDue = '';
   tempNotes = '';
   tempPaidAmount = '';
+  tempPaymentDate = '';
 
   constructor(public utils: UtilsService) {
   }
@@ -267,6 +270,28 @@ export class BillsTableComponent {
 
   removePayment(row: DashboardRow, index: number): void {
     this.paymentRemoved.emit({ cardId: row.card.id, paymentIndex: index });
+  }
+
+  startEditPaymentDate(row: DashboardRow, index: number, currentDate: string): void {
+    this.editingPaymentDate = row.card.id + '-' + index;
+    this.tempPaymentDate = format(new Date(currentDate), 'yyyy-MM-dd');
+  }
+
+  savePaymentDate(row: DashboardRow, index: number): void {
+    if (this.tempPaymentDate && this.editingPaymentDate === row.card.id + '-' + index) {
+      this.paymentDateChanged.emit({ 
+        cardId: row.card.id, 
+        paymentIndex: index, 
+        date: this.tempPaymentDate 
+      });
+      this.editingPaymentDate = null;
+      this.tempPaymentDate = '';
+    }
+  }
+
+  cancelEditPaymentDate(): void {
+    this.editingPaymentDate = null;
+    this.tempPaymentDate = '';
   }
 
   trackRow = (_: number, row: DashboardRow) => this.rowId(row);

@@ -474,6 +474,10 @@ export class DashboardComponent implements OnInit {
     this.statementService.removePayment(event.cardId, this.monthKey, event.paymentIndex);
   }
 
+  handlePaymentDateChange(event: { cardId: string; paymentIndex: number; date: string }): void {
+    this.statementService.updatePaymentDate(event.cardId, this.monthKey, event.paymentIndex, event.date);
+  }
+
   private updateBankBalance(balance: number): void {
     const rounded = this.utils.roundCurrency(balance);
     if (this.multiProfileMode && this.selectedProfileIds.length > 0) {

@@ -156,6 +156,27 @@ export class StatementService {
     });
   }
 
+  updatePaymentDate(cardId: string, monthStr: string, paymentIndex: number, date: string): void {
+    this.statementsSignal.update(prev => {
+      const existing = prev.find(
+        s => s.cardId === cardId && s.monthStr === monthStr
+      );
+
+      if (existing && existing.payments && existing.payments[paymentIndex]) {
+        const newPayments = existing.payments.map((p, i) => 
+          i === paymentIndex ? { ...p, date } : p
+        );
+
+        const updates = {
+          payments: newPayments,
+        };
+        return prev.map(s => (s.id === existing.id ? {...s, ...updates} : s));
+      }
+
+      return prev;
+    });
+  }
+
   deleteStatementsForCard(cardId: string): void {
     this.statementsSignal.update(prev => prev.filter(s => s.cardId !== cardId));
   }
