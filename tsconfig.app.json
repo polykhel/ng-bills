@@ -14,7 +14,8 @@
       "@features/*": ["src/app/features/*"],
       "@shared/*": ["src/app/shared/*"],
       "@components": ["src/app/shared/components"],
-      "@components/*": ["src/app/shared/components/*"]
+      "@components/*": ["src/app/shared/components/*"],
+      "@environments/*": ["src/environments/*"]
     }
   },
   "include": [

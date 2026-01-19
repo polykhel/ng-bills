@@ -1,8 +1,25 @@
 import { CommonModule } from '@angular/common';
-import { Component, OnInit, OnDestroy } from '@angular/core';
+import { Component, inject, OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { AlertCircle, Cloud, Download, FileDown, Lock, LucideAngularModule, Upload } from 'lucide-angular';
-import { SyncService, SyncUtilsService, GoogleDriveSyncService } from '@services';
+import {
+  AlertCircle,
+  Cloud,
+  Database,
+  Download,
+  FileDown,
+  Lock,
+  LogIn,
+  LogOut,
+  LucideAngularModule,
+  Upload,
+} from 'lucide-angular';
+import { SyncService, SyncUtilsService } from '@services';
+import { FirebaseAuthService } from '@services/firebase-auth.service';
+import { FirebaseSyncService } from '@services/firebase-sync.service';
+import { initializeApp } from '@angular/fire/app';
+import { getAuth } from '@angular/fire/auth';
+import { getFirestore } from '@angular/fire/firestore';
+import { firebaseConfig, isFirebaseConfigured } from '@environments/firebase';
 
 @Component({
   selector: 'app-sync',
@@ -10,46 +27,44 @@ import { SyncService, SyncUtilsService, GoogleDriveSyncService } from '@services
   imports: [CommonModule, FormsModule, LucideAngularModule],
   templateUrl: './sync.component.html',
 })
-export class SyncComponent implements OnInit, OnDestroy {
+export class SyncComponent implements OnInit {
   manualPassword = '';
   manualEncrypted = true;
-  drivePassword = '';
-  driveEncrypted = true;
-  useAppDataFolder = true;
   isProcessing = false;
   message = '';
   isError = false;
   dataSize = 0;
-  driveMessage = '';
-  driveError = false;
-  isDriveProcessing = false;
   statusMessage = '';
-  driveStatusMessage = '';
-  showReloadButton = false;
-  showManualReloadButton = false;
-  autoSyncEnabled = false;
-  autoSyncInterval = 5; // minutes
-  lastAutoSyncTime: Date | null = null;
-  nextAutoSyncTime: Date | null = null;
-  private autoSyncIntervalId: any = null;
-  readonly MIN_AUTO_SYNC_INTERVAL = 1; // minimum 1 minute
-  readonly MAX_AUTO_SYNC_INTERVAL = 60; // maximum 60 minutes
-
-  driveStatus: any;
 
   readonly Download = Download;
   readonly Upload = Upload;
-  readonly Cloud = Cloud;
   readonly FileDown = FileDown;
   readonly Lock = Lock;
   readonly AlertCircle = AlertCircle;
+  readonly LogIn = LogIn;
+  readonly LogOut = LogOut;
+  readonly Database = Database;
+
+  // Firebase
+  firebaseAuth?: FirebaseAuthService;
+  firebaseSync?: FirebaseSyncService;
+  firebaseEmail = '';
+  firebasePassword = '';
+  firebaseDisplayName = '';
+  isFirebaseConfigured = false;
+  showSignUp = false;
+  firebaseMessage = '';
+  firebaseError = false;
+  isFirebaseProcessing = false;
+  firebaseStatusMessage = '';
+  firebaseAuthState: any;
+  firebaseSyncStatus: any;
 
   constructor(
     private syncService: SyncService,
     private syncUtils: SyncUtilsService,
-    private driveSync: GoogleDriveSyncService,
   ) {
-    this.driveStatus = this.driveSync.syncStatus;
+    this.initializeFirebase();
   }
 
   get manualPasswordStrength(): 'weak' | 'medium' | 'strong' {
@@ -62,68 +77,12 @@ export class SyncComponent implements OnInit, OnDestroy {
     return '100%';
   }
 
-  get drivePasswordStrength(): 'weak' | 'medium' | 'strong' {
-    return this.syncUtils.getPasswordStrength(this.drivePassword || '');
-  }
-
-  get driveStrengthWidth(): string {
-    if (this.drivePasswordStrength === 'weak') return '33%';
-    if (this.drivePasswordStrength === 'medium') return '66%';
-    return '100%';
-  }
-
-  get passwordStrength(): 'weak' | 'medium' | 'strong' {
-    return this.manualPasswordStrength;
-  }
-
-  get strengthWidth(): string {
-    return this.manualStrengthWidth;
-  }
-
-  get isRestoreDisabled(): boolean {
-    return this.driveEncrypted && !this.drivePassword;
-  }
-
   get formattedDataSize(): string {
     return this.syncUtils.formatBytes(this.dataSize);
   }
 
   ngOnInit(): void {
     this.dataSize = this.syncUtils.getDataSize();
-    this.initializeDrive();
-    this.setupAutoSync();
-    this.setupPageCloseSync();
-  }
-
-  ngOnDestroy(): void {
-    this.clearAutoSyncInterval();
-  }
-
-  async onUseAppDataFolderChange(): Promise<void> {
-    // Reinitialize Drive with the new setting
-    await this.initializeDrive();
-  }
-
-  onAutoSyncEnabledChange(): void {
-    if (this.autoSyncEnabled) {
-      this.setupAutoSync();
-    } else {
-      this.clearAutoSyncInterval();
-      this.nextAutoSyncTime = null;
-    }
-  }
-
-  onAutoSyncIntervalChange(): void {
-    // Clamp interval between min and max
-    this.autoSyncInterval = Math.max(
-      this.MIN_AUTO_SYNC_INTERVAL,
-      Math.min(this.MAX_AUTO_SYNC_INTERVAL, this.autoSyncInterval)
-    );
-    // Reset the interval with new duration if auto-sync is enabled
-    if (this.autoSyncEnabled) {
-      this.clearAutoSyncInterval();
-      this.setupAutoSync();
-    }
   }
 
   async handleExport(): Promise<void> {
@@ -164,7 +123,10 @@ export class SyncComponent implements OnInit, OnDestroy {
     this.showMessage('');
 
     try {
-      await this.syncService.loadBackup(file, this.manualEncrypted ? this.manualPassword : undefined);
+      await this.syncService.loadBackup(
+        file,
+        this.manualEncrypted ? this.manualPassword : undefined,
+      );
       this.statusMessage = '';
       this.isProcessing = false;
       this.showMessage('✓ Data imported successfully! Reloading...', false);
@@ -178,180 +140,184 @@ export class SyncComponent implements OnInit, OnDestroy {
     }
   }
 
+  // Firebase Auth Methods
+  async handleFirebaseSignIn(): Promise<void> {
+    if (!this.firebaseAuth) return;
+
+    this.isFirebaseProcessing = true;
+    this.firebaseStatusMessage = 'Signing in...';
+    this.showFirebaseMessage('');
+
+    try {
+      await this.firebaseAuth.signInWithEmail(this.firebaseEmail, this.firebasePassword);
+      this.firebaseStatusMessage = '';
+      this.isFirebaseProcessing = false;
+      this.showFirebaseMessage('✓ Signed in successfully!');
+      this.firebasePassword = '';
+    } catch (error: any) {
+      this.firebaseStatusMessage = '';
+      this.isFirebaseProcessing = false;
+      this.showFirebaseMessage(`✗ Sign-in failed: ${error?.message || 'Unknown error'}`, true);
+    }
+  }
+
+  async handleFirebaseSignUp(): Promise<void> {
+    if (!this.firebaseAuth) return;
+
+    this.isFirebaseProcessing = true;
+    this.firebaseStatusMessage = 'Creating account...';
+    this.showFirebaseMessage('');
+
+    try {
+      await this.firebaseAuth.signUpWithEmail(
+        this.firebaseEmail,
+        this.firebasePassword,
+        this.firebaseDisplayName || undefined,
+      );
+      this.firebaseStatusMessage = '';
+      this.isFirebaseProcessing = false;
+      this.showFirebaseMessage('✓ Account created successfully!');
+      this.firebasePassword = '';
+      this.showSignUp = false;
+    } catch (error: any) {
+      this.firebaseStatusMessage = '';
+      this.isFirebaseProcessing = false;
+      this.showFirebaseMessage(`✗ Sign-up failed: ${error?.message || 'Unknown error'}`, true);
+    }
+  }
+
+  async handleFirebaseGoogleSignIn(): Promise<void> {
+    if (!this.firebaseAuth) return;
+
+    this.isFirebaseProcessing = true;
+    this.firebaseStatusMessage = 'Signing in with Google...';
+    this.showFirebaseMessage('');
+
+    try {
+      await this.firebaseAuth.signInWithGoogle();
+      this.firebaseStatusMessage = '';
+      this.isFirebaseProcessing = false;
+      this.showFirebaseMessage('✓ Signed in with Google!');
+    } catch (error: any) {
+      this.firebaseStatusMessage = '';
+      this.isFirebaseProcessing = false;
+      this.showFirebaseMessage(
+        `✗ Google sign-in failed: ${error?.message || 'Unknown error'}`,
+        true,
+      );
+    }
+  }
+
+  async handleFirebaseSignOut(): Promise<void> {
+    if (!this.firebaseAuth) return;
+
+    try {
+      await this.firebaseAuth.signOut();
+      this.showFirebaseMessage('Signed out successfully');
+    } catch (error: any) {
+      this.showFirebaseMessage(`✗ Sign-out failed: ${error?.message || 'Unknown error'}`, true);
+    }
+  }
+
+  // Firebase Sync Methods
+  async handleFirebaseEnableSync(): Promise<void> {
+    if (!this.firebaseSync) return;
+
+    this.isFirebaseProcessing = true;
+    this.firebaseStatusMessage = 'Enabling real-time sync...';
+    this.showFirebaseMessage('');
+
+    try {
+      await this.firebaseSync.enableSync();
+      this.firebaseStatusMessage = '';
+      this.isFirebaseProcessing = false;
+      this.showFirebaseMessage('✓ Real-time sync enabled!');
+    } catch (error: any) {
+      this.firebaseStatusMessage = '';
+      this.isFirebaseProcessing = false;
+      this.showFirebaseMessage(`✗ Enable sync failed: ${error?.message || 'Unknown error'}`, true);
+    }
+  }
+
+  handleFirebaseDisableSync(): void {
+    if (!this.firebaseSync) return;
+    this.firebaseSync.disableSync();
+    this.showFirebaseMessage('Real-time sync disabled');
+  }
+
+  async handleFirebasePush(): Promise<void> {
+    if (!this.firebaseSync) return;
+
+    this.isFirebaseProcessing = true;
+    this.firebaseStatusMessage = 'Pushing data to cloud...';
+    this.showFirebaseMessage('');
+
+    try {
+      await this.firebaseSync.pushToCloud();
+      this.firebaseStatusMessage = '';
+      this.isFirebaseProcessing = false;
+      this.showFirebaseMessage('✓ Data synced to cloud!');
+    } catch (error: any) {
+      this.firebaseStatusMessage = '';
+      this.isFirebaseProcessing = false;
+      this.showFirebaseMessage(`✗ Push failed: ${error?.message || 'Unknown error'}`, true);
+    }
+  }
+
+  async handleFirebasePull(): Promise<void> {
+    if (!this.firebaseSync) return;
+
+    this.isFirebaseProcessing = true;
+    this.firebaseStatusMessage = 'Pulling data from cloud...';
+    this.showFirebaseMessage('');
+
+    try {
+      await this.firebaseSync.pullFromCloud();
+      this.firebaseStatusMessage = '';
+      this.isFirebaseProcessing = false;
+      this.showFirebaseMessage('✓ Data pulled from cloud! Reloading...');
+      setTimeout(() => window.location.reload(), 2000);
+    } catch (error: any) {
+      this.firebaseStatusMessage = '';
+      this.isFirebaseProcessing = false;
+      this.showFirebaseMessage(`✗ Pull failed: ${error?.message || 'Unknown error'}`, true);
+    }
+  }
+
+  private async initializeFirebase(): Promise<void> {
+    this.isFirebaseConfigured = isFirebaseConfigured();
+
+    if (this.isFirebaseConfigured) {
+      try {
+        // Dynamically initialize Firebase
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const firestore = getFirestore(app);
+
+        this.firebaseAuth = inject(FirebaseAuthService);
+        this.firebaseSync = inject(FirebaseSyncService);
+
+        await this.firebaseAuth.initialize(auth);
+        await this.firebaseSync.initialize(firestore);
+
+        this.firebaseAuthState = this.firebaseAuth.authState;
+        this.firebaseSyncStatus = this.firebaseSync.syncStatus;
+      } catch (error) {
+        console.error('Firebase initialization failed:', error);
+        this.isFirebaseConfigured = false;
+      }
+    }
+  }
+
   private showMessage(msg: string, isError = false): void {
     this.message = msg;
     this.isError = isError;
   }
 
-  private showDriveMessage(msg: string, isError = false): void {
-    this.driveMessage = msg;
-    this.driveError = isError;
+  private showFirebaseMessage(msg: string, isError = false): void {
+    this.firebaseMessage = msg;
+    this.firebaseError = isError;
   }
 
-  private clearAutoSyncInterval(): void {
-    if (this.autoSyncIntervalId) {
-      clearInterval(this.autoSyncIntervalId);
-      this.autoSyncIntervalId = null;
-    }
-  }
-
-  private setupAutoSync(): void {
-    if (!this.autoSyncEnabled) return;
-
-    this.clearAutoSyncInterval();
-    this.updateNextSyncTime();
-
-    // Set up interval for auto-sync
-    this.autoSyncIntervalId = setInterval(() => {
-      this.performAutoSync();
-    }, this.autoSyncInterval * 60 * 1000);
-
-    // Perform initial sync immediately
-    this.performAutoSync();
-  }
-
-  private setupPageCloseSync(): void {
-    window.addEventListener('beforeunload', () => {
-      if (this.autoSyncEnabled && this.driveStatus().isSignedIn) {
-        this.performAutoSync();
-      }
-    });
-  }
-
-  private async performAutoSync(): Promise<void> {
-    // Only sync if signed in and enabled
-    if (!this.autoSyncEnabled || !this.driveStatus().isSignedIn) {
-      return;
-    }
-
-    // Skip if encryption is enabled but no password
-    if (this.driveEncrypted && !this.drivePassword) {
-      return;
-    }
-
-    try {
-      let content: string;
-      if (this.driveEncrypted) {
-        content = await this.syncService.exportEncrypted(this.drivePassword);
-      } else {
-        content = this.syncService.exportData();
-      }
-      await this.driveSync.uploadBackup(content, true);
-      this.lastAutoSyncTime = new Date();
-      this.updateNextSyncTime();
-    } catch (error) {
-      // Silently fail auto-sync to avoid interrupting user experience
-      console.error('Auto-sync failed:', error);
-    }
-  }
-
-  private updateNextSyncTime(): void {
-    const nextTime = new Date();
-    nextTime.setMinutes(nextTime.getMinutes() + this.autoSyncInterval);
-    this.nextAutoSyncTime = nextTime;
-  }
-
-  get autoSyncStatusText(): string {
-    if (!this.autoSyncEnabled) {
-      return 'Auto-sync disabled';
-    }
-    if (this.lastAutoSyncTime) {
-      return `Last auto-sync: ${this.lastAutoSyncTime.toLocaleTimeString()}`;
-    }
-    return 'Auto-sync enabled, pending first sync...';
-  }
-
-  reloadPage(): void {
-    window.location.reload();
-  }
-
-  private async initializeDrive(): Promise<void> {
-    try {
-      const clientId = (await import('../../../environments/google-drive')).googleDriveConfig.clientId;
-      if (!clientId) {
-        this.showDriveMessage('Google Drive not configured', true);
-        return;
-      }
-      await this.driveSync.initialize({
-        clientId,
-        useAppDataFolder: this.useAppDataFolder,
-      });
-      this.showDriveMessage('Google Drive ready');
-    } catch (error: any) {
-      this.showDriveMessage(`Drive init failed: ${error?.message || 'Unknown error'}`, true);
-    }
-  }
-
-  async handleDriveSignIn(): Promise<void> {
-    this.isDriveProcessing = true;
-    this.driveStatusMessage = 'Signing in...';
-    this.showDriveMessage('');
-    try {
-      await this.initializeDrive(); // Ensure correct config before sign in
-      await this.driveSync.signIn();
-      this.driveStatusMessage = '';
-      this.isDriveProcessing = false;
-      this.showDriveMessage('✓ Signed in to Google Drive');
-    } catch (error: any) {
-      this.driveStatusMessage = '';
-      this.isDriveProcessing = false;
-      this.showDriveMessage(`✗ Sign-in failed: ${error?.message || 'Unknown error'}`, true);
-    }
-  }
-
-  handleDriveSignOut(): void {
-    this.driveSync.signOut();
-    this.showDriveMessage('Signed out of Google Drive');
-  }
-
-  async handleDriveUpload(): Promise<void> {
-    if (this.driveEncrypted && !this.drivePassword) {
-      this.showDriveMessage('Please enter a password for encryption', true);
-      return;
-    }
-
-    this.isDriveProcessing = true;
-    this.driveStatusMessage = 'Syncing to Drive...';
-    this.showDriveMessage('');
-
-    try {
-      let content: string;
-      if (this.driveEncrypted) {
-        content = await this.syncService.exportEncrypted(this.drivePassword);
-      } else {
-        content = this.syncService.exportData();
-      }
-      await this.driveSync.uploadBackup(content, true);
-      this.driveStatusMessage = '';
-      this.isDriveProcessing = false;
-      this.showDriveMessage('✓ Backup synced to Google Drive');
-    } catch (error: any) {
-      this.driveStatusMessage = '';
-      this.isDriveProcessing = false;
-      this.showDriveMessage(`✗ Drive sync failed: ${error?.message || 'Unknown error'}`, true);
-    }
-  }
-
-  async handleDriveRestore(): Promise<void> {
-    if (this.driveEncrypted && !this.drivePassword) {
-      this.showDriveMessage('Please enter a password to decrypt', true);
-      return;
-    }
-
-    this.isDriveProcessing = true;
-    this.driveStatusMessage = 'Restoring from Drive...';
-    this.showDriveMessage('');
-    try {
-      const content = await this.driveSync.downloadBackup();
-      await this.syncService.importData(content, this.driveEncrypted ? this.drivePassword : undefined);
-      this.driveStatusMessage = '';
-      this.isDriveProcessing = false;
-      this.showDriveMessage('✓ Data restored from Google Drive! Reloading...');
-      setTimeout(() => window.location.reload(), 2000);
-    } catch (error: any) {
-      this.driveStatusMessage = '';
-      this.isDriveProcessing = false;
-      this.showDriveMessage(`✗ Restore failed: ${error?.message || 'Unknown error'}`, true);
-    }
-  }
+  protected readonly Cloud = Cloud;
 }
