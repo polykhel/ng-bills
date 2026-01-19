@@ -291,20 +291,25 @@ export class DashboardComponent implements OnInit {
       const currentPaid = stmt?.paidAmount ?? 0;
       const remainingAmount = effectiveAmount - currentPaid;
       
+      if (!stmt) {
+        // Create statement if it doesn't exist
+        this.statementService.updateStatement(cardId, this.monthKey, {
+          amount: cardInstTotal,
+          isEstimated: false,
+        });
+      }
+      
       if (remainingAmount > 0) {
-        if (!stmt) {
-          // Create statement if it doesn't exist
-          this.statementService.updateStatement(cardId, this.monthKey, {
-            amount: cardInstTotal,
-            isEstimated: false,
-          });
-        }
-        
         if (this.bankBalanceTrackingEnabled) {
           this.updateBankBalance(this.currentBankBalance - remainingAmount);
         }
         
         this.statementService.addPayment(cardId, this.monthKey, remainingAmount);
+      } else {
+        // If balance is 0 or already fully paid, just mark as paid
+        this.statementService.updateStatement(cardId, this.monthKey, {
+          isPaid: true,
+        });
       }
     } else {
       // Marking as unpaid - clear all payments
