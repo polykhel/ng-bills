@@ -1,5 +1,89 @@
 # ng-bills Roadmap
 
+Structured plan for evolving ng-bills into a full personal finance platform. All work is assumed AI-driven; focus on clear specifications and acceptance criteria rather than timeboxes.
+
+## Guiding Principles
+- Transactions-first: every money movement is a transaction; other views are aggregations.
+- Local-first storage (IndexedDB) with optional Firestore sync; preserve privacy and offline use.
+- Standalone Angular 21 + Tailwind; prefer signals for UI state and path aliases for imports.
+- Ship behind safe defaults; favor additive/replaceable components over in-place rewrites until stable.
+
+## Phase 0: UI/IA Refactor (current)
+Goal: move from bill-centric UI to a finance hub with clear navigation and reusable components.
+- Navigation & routes: Overview, Transactions, Bills, Budget as primary; Calendar, Manage, Sync, and future features in "More". Redirect root to Overview once stable.
+- Page scaffolds: build new standalone pages (Overview, Transactions, Bills, Budget) without breaking existing Dashboard/Calendar/Manage/Sync until cutover is validated.
+- Shared component kit: metric cards, transaction card/list, filters (date range, type, category, payment method), budget progress bar, quick actions, widgets (upcoming bills, recent transactions, budget summary).
+- Layout polish: consistent header with month selector, responsive grid, Tailwind utility-first styling.
+- Acceptance: new nav renders; pages load with stubbed data from signals; old dashboard can be removed after parity is verified.
+
+## Phase 1: Transaction Layer
+Objective: add full income/expense tracking and tie credit card statements to transactions.
+- Data model: Transaction with type (income/expense), amount, date, category/subcategory, paymentMethod (cash/card/bank_transfer), optional cardId, tags, notes, recurring metadata, timestamps.
+- Services: TransactionService (CRUD, filters, statement linking), CategoryService (predefined + custom), enhancements to CardService/StatementService to aggregate linked transactions.
+- UI: Transactions page with filters, grouping (date/category/card), quick add modal, receipt attachment placeholder, CSV import hook, summary stats (income, expenses, net).
+- Statement linkage: when paymentMethod=card, auto-assign to the card’s month statement; show breakdown inside Bills.
+- Acceptance: can create/edit/delete transactions; filters work; statements reflect linked totals; bank balance updates when transactions are added.
+
+## Phase 2: Budgeting & Goals
+Objective: basic budgets and savings goals tied to transactions.
+- Budgets: monthly/quarterly/yearly budgets with category allocations, rollover flag, alert threshold.
+- Views: Budget page with allocated vs spent vs remaining, per-category progress bars, drill-down to transactions.
+- Goals: goal entities with target, current, deadline, priority; simple progress widgets on Overview.
+- Acceptance: budget math uses transaction data; alerts trigger at threshold; goals show progress and can be updated.
+
+## Phase 3: Purchases & Loan Planning
+Objective: plan future buys and loans using real data.
+- Planned purchases: wishlist with priority (need/want/wish), estimated cost, target date, notes, tags; affordability check against available balance.
+- Loan planner: scenarios with amount, down payment, rate, term, taxes/insurance, monthly payment, DTI and affordability score; comparison table.
+- Integration: convert planned purchase to installment/transaction when purchased; link to budgets/goals.
+- Acceptance: can create scenarios, see affordability outputs, and log purchase to transactions/installments.
+
+## Phase 4: Analytics & Insights
+Objective: actionable dashboards and reports.
+- Visuals: spending trends, category breakdowns, income vs expenses, cash-flow waterfall, YoY/MoM comparisons.
+- Reports: monthly and annual summaries, export (CSV/PDF stub), scheduled report hooks.
+- Insights: rule/AI hints (overspend alerts, trend deltas, budget suggestions).
+- Acceptance: charts render from demo data; insights list generates from rules; exports download placeholder files.
+
+## Phase 5: Sync & Collaboration
+Objective: reliable sync and multi-user readiness.
+- Firestore sync polish: conflict handling strategy, status indicator, last sync time, selective sync toggles.
+- Collaboration: profile sharing roles (view/edit/admin), shared budgets/goals, household rollup view.
+- Acceptance: sync toggle works; conflicts surface UI choices; shared profile mock supports basic role checks.
+
+## Phase 6: Automation & Integrations
+Objective: reduce manual entry.
+- Recurring detection and auto-entry with approval.
+- Receipt OCR hook (API placeholder) with amount/date/vendor extraction.
+- Bank integration placeholder (Plaid-style) behind feature flag; reconciliation flow design.
+- Acceptance: recurring rules execute; OCR stub populates fields; bank connector mocked with sample data.
+
+## Phase 7: Mobile & PWA
+Objective: excellent mobile experience.
+- PWA: installability, offline-first, push hooks for due bills/budget alerts.
+- Mobile UX: quick-add transaction widget, camera path for receipts, touch-friendly lists, biometric gate.
+- Acceptance: passes Lighthouse PWA checks; offline transaction queue works; mobile layout verified.
+
+## Phase 8: Monetization
+Objective: define free/premium value.
+- Free: basic transactions, simple budget, manual sync, single profile, limited history.
+- Premium: unlimited history, advanced budgeting/analytics, purchase planner, goals, priority sync, receipt OCR, exports/reports; family tier with shared profiles.
+- Acceptance: feature gating toggles exist; upgrade prompts wired; entitlements enforced in UI guards.
+
+## Technical Tracks (ongoing)
+- Storage: StorageProvider + IndexedDB migration complete; keep local-first with optional Firestore. Provide export/import, migration guard, storage info UI.
+- Performance: virtual scrolling for large lists, lazy data loading, pagination hooks, memoized signals.
+- Security & privacy: optional encryption wrappers, privacy mode (hide amounts), secure token handling for cloud.
+
+## Execution Notes for AI
+- Use path aliases and barrels; keep components standalone with explicit imports.
+- Favor signals/computed for view state; avoid ad hoc globals.
+- Build new features behind clear toggles; maintain backward compatibility until parity is proven.
+- When adding data features, route through StorageService/SyncService; avoid direct localStorage access.
+
+**Last Updated**: January 2026  
+**Status**: Planning with Phase 0 in progress# ng-bills Roadmap
+
 This document outlines planned features and enhancements to transform ng-bills into a comprehensive personal finance management platform.
 
 ## Phase 1: Transaction Tracking 💸

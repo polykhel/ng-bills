@@ -3,9 +3,39 @@ import { Routes } from '@angular/router';
 export const routes: Routes = [
   {
     path: '',
-    redirectTo: '/dashboard',
+    redirectTo: '/overview',
     pathMatch: 'full',
   },
+  // Primary Navigation
+  {
+    path: 'overview',
+    loadComponent: () =>
+      import('./features/overview/overview.component').then(
+        m => m.OverviewComponent
+      ),
+  },
+  {
+    path: 'transactions',
+    loadComponent: () =>
+      import('./features/transactions/transactions.component').then(
+        m => m.TransactionsComponent
+      ),
+  },
+  {
+    path: 'bills',
+    loadComponent: () =>
+      import('./features/bills/bills.component').then(
+        m => m.BillsComponent
+      ),
+  },
+  {
+    path: 'budget',
+    loadComponent: () =>
+      import('./features/budget/budget.component').then(
+        m => m.BudgetComponent
+      ),
+  },
+  // Secondary Navigation (More menu)
   {
     path: 'dashboard',
     loadComponent: () =>

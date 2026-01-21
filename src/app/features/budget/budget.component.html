@@ -1,0 +1,149 @@
+<div class="max-w-7xl mx-auto px-4 py-6">
+  @if (!activeProfile()) {
+    <app-empty-state
+      [icon]="PieChart"
+      title="No Profile Selected"
+      message="Select a profile to manage your budget"
+    />
+  } @else {
+    <!-- Header with Create Button -->
+    <div class="flex items-center justify-between mb-6">
+      <div>
+        <h1 class="text-2xl font-bold text-slate-900">Budget</h1>
+        <p class="text-slate-600 mt-1">Track your spending by category</p>
+      </div>
+      <app-quick-action-button
+        [icon]="Plus"
+        label="Create Budget"
+        variant="primary"
+        (clicked)="onCreateBudget()"
+      />
+    </div>
+
+    <!-- Summary Metrics -->
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+      <app-metric-card
+        [icon]="Target"
+        label="Total Budget"
+        [value]="'₱' + summary.totalBudget.toLocaleString()"
+        variant="info"
+      />
+
+      <app-metric-card
+        [icon]="TrendingDown"
+        label="Total Spent"
+        [value]="'₱' + summary.totalSpent.toLocaleString()"
+        variant="warning"
+      />
+
+      <app-metric-card
+        [icon]="DollarSign"
+        label="Remaining"
+        [value]="'₱' + summary.remaining.toLocaleString()"
+        [variant]="summary.remaining >= 0 ? 'success' : 'danger'"
+      />
+
+      <app-metric-card
+        [icon]="PieChart"
+        label="Used"
+        [value]="summary.percentageUsed + '%'"
+        [variant]="summary.percentageUsed > 80 ? 'danger' : summary.percentageUsed > 60 ? 'warning' : 'success'"
+      />
+    </div>
+
+    <!-- Budget Overview -->
+    <div class="bg-white rounded-lg border border-slate-200 shadow-sm mb-6">
+      <div class="p-6">
+        <app-section-header [icon]="PieChart" title="Budget Categories" />
+
+        <app-empty-state
+          [icon]="PieChart"
+          title="No budget set"
+          message="Create a budget to track your spending by category. You'll be able to set limits for food, transportation, entertainment, and more."
+          actionLabel="Create Your First Budget"
+          (action)="onCreateBudget()"
+        />
+
+        <!-- Category budget items will be rendered here in Phase 2 -->
+      </div>
+    </div>
+
+    <!-- Info Cards -->
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <!-- How Budgets Work -->
+      <div class="bg-blue-50 border border-blue-200 rounded-lg p-6">
+        <div class="flex items-start gap-3">
+          <lucide-angular [img]="Target" [size]="24" class="text-blue-600 mt-0.5" />
+          <div>
+            <h3 class="font-semibold text-blue-900 mb-2">How Budgets Work</h3>
+            <ul class="text-sm text-blue-800 space-y-2">
+              <li class="flex items-start gap-2">
+                <span class="text-blue-600">•</span>
+                <span>Set monthly spending limits for each category</span>
+              </li>
+              <li class="flex items-start gap-2">
+                <span class="text-blue-600">•</span>
+                <span>Track actual spending against your budget</span>
+              </li>
+              <li class="flex items-start gap-2">
+                <span class="text-blue-600">•</span>
+                <span>Get alerts when approaching category limits</span>
+              </li>
+              <li class="flex items-start gap-2">
+                <span class="text-blue-600">•</span>
+                <span>View spending trends and insights</span>
+              </li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <!-- Budget Categories -->
+      <div class="bg-green-50 border border-green-200 rounded-lg p-6">
+        <div class="flex items-start gap-3">
+          <lucide-angular [img]="PieChart" [size]="24" class="text-green-600 mt-0.5" />
+          <div>
+            <h3 class="font-semibold text-green-900 mb-2">Common Categories</h3>
+            <ul class="text-sm text-green-800 space-y-2">
+              <li class="flex items-start gap-2">
+                <span class="text-green-600">•</span>
+                <span>🏠 Housing (rent, utilities, maintenance)</span>
+              </li>
+              <li class="flex items-start gap-2">
+                <span class="text-green-600">•</span>
+                <span>🍔 Food & Dining (groceries, restaurants)</span>
+              </li>
+              <li class="flex items-start gap-2">
+                <span class="text-green-600">•</span>
+                <span>🚗 Transportation (gas, public transit)</span>
+              </li>
+              <li class="flex items-start gap-2">
+                <span class="text-green-600">•</span>
+                <span>🎭 Entertainment (movies, hobbies)</span>
+              </li>
+              <li class="flex items-start gap-2">
+                <span class="text-green-600">•</span>
+                <span>And many more...</span>
+              </li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Coming in Phase 2 -->
+    <div class="mt-6 p-4 bg-purple-50 border border-purple-200 rounded-lg">
+      <div class="flex items-start gap-3">
+        <lucide-angular [img]="TrendingUp" [size]="20" class="text-purple-600 mt-0.5" />
+        <div>
+          <h4 class="font-semibold text-purple-900 mb-1">Coming in Phase 2</h4>
+          <p class="text-sm text-purple-800">
+            Full budget functionality will be available in Phase 2, including category-based budgets,
+            spending tracking from transactions, progress visualization, and smart recommendations to help
+            you stay on track.
+          </p>
+        </div>
+      </div>
+    </div>
+  }
+</div>

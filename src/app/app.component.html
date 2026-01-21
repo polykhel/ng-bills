@@ -25,27 +25,57 @@
 
     <!-- Navigation Tabs -->
     <div class="max-w-7xl mx-auto px-4 border-t border-slate-100">
-      <nav class="flex gap-1">
+      <nav class="flex gap-1 overflow-x-auto no-scrollbar">
+        <!-- Primary Navigation -->
         <a
-          class="px-4 py-2 text-sm font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-50 rounded-t-lg transition-colors"
+          class="px-4 py-2 text-sm font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-50 rounded-t-lg transition-colors whitespace-nowrap"
+          routerLink="/overview"
+          routerLinkActive="active-link">
+          Overview
+        </a>
+        <a
+          class="px-4 py-2 text-sm font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-50 rounded-t-lg transition-colors whitespace-nowrap"
+          routerLink="/transactions"
+          routerLinkActive="active-link">
+          Transactions
+        </a>
+        <a
+          class="px-4 py-2 text-sm font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-50 rounded-t-lg transition-colors whitespace-nowrap"
+          routerLink="/bills"
+          routerLinkActive="active-link">
+          Bills
+        </a>
+        <a
+          class="px-4 py-2 text-sm font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-50 rounded-t-lg transition-colors whitespace-nowrap"
+          routerLink="/budget"
+          routerLinkActive="active-link">
+          Budget
+        </a>
+        
+        <!-- Divider -->
+        <div class="w-px bg-slate-200 my-1 mx-1"></div>
+        
+        <!-- Secondary Navigation (More) -->
+        <a
+          class="px-4 py-2 text-sm font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-50 rounded-t-lg transition-colors whitespace-nowrap"
           routerLink="/dashboard"
           routerLinkActive="active-link">
           Dashboard
         </a>
         <a
-          class="px-4 py-2 text-sm font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-50 rounded-t-lg transition-colors"
+          class="px-4 py-2 text-sm font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-50 rounded-t-lg transition-colors whitespace-nowrap"
           routerLink="/calendar"
           routerLinkActive="active-link">
           Calendar
         </a>
         <a
-          class="px-4 py-2 text-sm font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-50 rounded-t-lg transition-colors"
+          class="px-4 py-2 text-sm font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-50 rounded-t-lg transition-colors whitespace-nowrap"
           routerLink="/manage"
           routerLinkActive="active-link">
           Manage
         </a>
         <a
-          class="px-4 py-2 text-sm font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-50 rounded-t-lg transition-colors"
+          class="px-4 py-2 text-sm font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-50 rounded-t-lg transition-colors whitespace-nowrap"
           routerLink="/sync"
           routerLinkActive="active-link">
           Sync

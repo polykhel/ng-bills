@@ -1,0 +1,157 @@
+<div class="max-w-7xl mx-auto px-4 py-6">
+  @if (!activeProfile()) {
+    <app-empty-state
+      [icon]="CreditCard"
+      title="No Profile Selected"
+      message="Select a profile to view your bills"
+    />
+  } @else {
+    <!-- Header -->
+    <div class="mb-6">
+      <h1 class="text-2xl font-bold text-slate-900">Bills</h1>
+      <p class="text-slate-600 mt-1">Manage your credit card bills and installments</p>
+    </div>
+
+    <!-- Summary Metrics -->
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+      <app-metric-card
+        [icon]="DollarSign"
+        label="Total Due"
+        [value]="'₱' + summary().totalDue.toLocaleString()"
+        variant="warning"
+      />
+
+      <app-metric-card
+        [icon]="FileText"
+        label="Unpaid Bills"
+        [value]="summary().unpaidCount.toString()"
+        variant="danger"
+      />
+
+      <app-metric-card
+        [icon]="FileText"
+        label="Paid Bills"
+        [value]="summary().paidCount.toString()"
+        variant="success"
+      />
+
+      <app-metric-card
+        [icon]="DollarSign"
+        label="Total Paid"
+        [value]="'₱' + summary().totalPaid.toLocaleString()"
+        variant="info"
+      />
+    </div>
+
+    <!-- Bills List -->
+    <div class="bg-white rounded-lg border border-slate-200 shadow-sm">
+      <div class="p-6">
+        <app-section-header
+          [icon]="CreditCard"
+          title="Credit Card Bills"
+          [badge]="bills().length > 0 ? bills().length.toString() : undefined"
+        />
+
+        @if (bills().length === 0) {
+          <app-empty-state
+            [icon]="CreditCard"
+            title="No credit cards"
+            message="Add credit cards to start tracking your bills"
+          />
+        } @else {
+          <div class="space-y-3 mt-4">
+            @for (bill of bills(); track bill.cardId) {
+              <div
+                class="flex items-center justify-between p-4 rounded-lg border-2 transition-all"
+                [style.border-color]="bill.color"
+                [class.bg-green-50]="bill.isPaid"
+                [class.bg-white]="!bill.isPaid"
+              >
+                <div class="flex-1">
+                  <div class="flex items-center gap-3">
+                    <div
+                      class="w-1 h-12 rounded-full"
+                      [style.background-color]="bill.color"
+                    ></div>
+                    <div>
+                      <h3 class="font-semibold text-slate-900">{{ bill.cardName }}</h3>
+                      <div class="flex items-center gap-3 mt-1">
+                        <div class="flex items-center gap-1 text-sm text-slate-600">
+                          <lucide-angular [img]="Calendar" [size]="14" />
+                          <span>Due {{ bill.dueDate | date : 'MMM d, yyyy' }}</span>
+                        </div>
+                        @if (bill.isPaid) {
+                          <span
+                            class="px-2 py-0.5 text-xs font-medium bg-green-100 text-green-700 rounded-full"
+                          >
+                            Paid
+                          </span>
+                        } @else {
+                          <span
+                            class="px-2 py-0.5 text-xs font-medium bg-yellow-100 text-yellow-700 rounded-full"
+                          >
+                            Unpaid
+                          </span>
+                        }
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="flex items-center gap-4">
+                  <div class="text-right">
+                    <div class="text-2xl font-bold text-slate-900">
+                      ₱{{ bill.amount.toLocaleString() }}
+                    </div>
+                    @if (!bill.hasStatement) {
+                      <div class="text-xs text-slate-500">No statement</div>
+                    }
+                  </div>
+
+                  <div class="flex gap-2">
+                    @if (!bill.isPaid && bill.hasStatement) {
+                      <button
+                        type="button"
+                        (click)="onMarkAsPaid(bill.cardId)"
+                        class="px-3 py-1.5 text-sm font-medium bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors"
+                      >
+                        Mark Paid
+                      </button>
+                    }
+                    <button
+                      type="button"
+                      (click)="onViewDetails(bill.cardId)"
+                      class="px-3 py-1.5 text-sm font-medium border border-slate-300 text-slate-700 rounded-md hover:bg-slate-50 transition-colors"
+                    >
+                      Details
+                    </button>
+                  </div>
+                </div>
+              </div>
+            }
+          </div>
+        }
+      </div>
+    </div>
+
+    <!-- Navigate to full dashboard for advanced features -->
+    <div class="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+      <div class="flex items-start gap-3">
+        <lucide-angular [img]="FileText" [size]="20" class="text-blue-600 mt-0.5" />
+        <div>
+          <h4 class="font-semibold text-blue-900 mb-1">Need more features?</h4>
+          <p class="text-sm text-blue-800 mb-3">
+            The full Dashboard view includes installments, bank balance tracking, advanced sorting, and
+            more. This Bills view is a simplified overview.
+          </p>
+          <a
+            routerLink="/dashboard"
+            class="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-medium bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+          >
+            Go to Full Dashboard
+          </a>
+        </div>
+      </div>
+    </div>
+  }
+</div>
