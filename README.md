@@ -1,18 +1,85 @@
-# Bills
+# ng-bills
 
-A personal finance management application built with Angular. Track credit cards, manage installments, monitor bank balances, and sync your data across devices.
+A comprehensive personal finance management application built with Angular 21 and Tailwind CSS. Track credit cards, manage installments, monitor bank balances, and sync your data across devices with multiple sync options.
 
-## Features
+## Current Features
 
-- 📊 **Dashboard**: Overview of your financial status
-- 💳 **Credit Cards**: Manage multiple credit cards and their statements
-- 📅 **Calendar**: Monthly view of all your bills and installments
-- 💰 **Installments**: Track recurring and one-time payments
-- 🏦 **Bank Balance**: Monitor your account balances
-- 🔄 **Multi-sync Options**:
-  - **Firebase Cloud Sync** (Recommended): Real-time sync with authentication
-  - **Google Drive Sync**: Manual or automatic backup to Google Drive
-  - **Local Sync**: Export/import encrypted files without any account
+### 📊 Dashboard
+- Monthly overview of all bills and financial obligations
+- Real-time calculation of total amounts due, unpaid totals, and installment totals
+- Bank balance tracking with positive/negative balance indicators
+- Quick pay/unpay toggle for statements
+- Custom due dates and statement amounts
+- Notes field for each statement
+- Bulk copy functionality for payment information
+- CSV export for monthly statements
+- Sortable columns (bank, card, due date, amount, status)
+- Column visibility controls
+
+### 💳 Credit Card Management
+- Support for multiple credit cards with custom colors
+- Track bank name, card name, due day, and cutoff day
+- Cash card support (for tracking non-credit-card installments)
+- Card transfer between profiles
+- Active/inactive card status
+
+### 📅 Calendar View
+- Monthly calendar displaying all due dates
+- Visual indicators for paid/unpaid bills
+- Credit card statements and cash installments on their due dates
+- Color-coded by card
+- Today's date highlighting
+
+### 💰 Installment Tracking
+- **Credit Card Installments**: Track recurring installments tied to credit cards
+  - Total principal, number of terms, monthly amortization
+  - Automatic calculation of current term based on start date
+  - Active/finished/upcoming status indicators
+- **Cash Installments**: One-time or recurring payments not tied to credit cards
+  - Custom due dates
+  - Individual payment tracking
+  - Multi-profile support
+
+### 🏦 Bank Balance Monitoring
+- Monthly bank balance tracking per profile
+- Visual status indicators (positive/negative balance)
+- Quick enable/disable toggle
+- Balance history
+
+### 👥 Multi-Profile Support
+- Create and manage multiple financial profiles
+- Switch between profiles easily
+- Multi-profile view mode to see combined data
+- Profile-specific filtering throughout the app
+
+### 🔄 Data Synchronization
+Three flexible sync options to suit your privacy and convenience needs:
+
+- **🔥 Firebase Cloud Sync** (Recommended for most users)
+  - Real-time synchronization across devices
+  - Email/password or Google authentication
+  - Automatic cloud backup
+  - Offline support with automatic sync when online
+  
+- **📁 Local Export/Import**
+  - Password-encrypted JSON files
+  - No cloud account required
+  - Complete data portability
+  - Manual backup and restore
+
+### 🔔 Notifications
+- Browser notifications for upcoming bills (3 days before due date)
+- In-app notification center
+- Mark as read/unread functionality
+- Auto-dismiss for paid bills
+
+### 🎨 UI/UX Features
+- Responsive design (mobile-friendly)
+- Dark mode compatible
+- Month navigation (previous/next month)
+- Lucide icons throughout
+- Tailwind CSS styling
+- Standalone Angular components
 
 ## Quick Start
 
@@ -75,73 +142,98 @@ Export and import encrypted JSON files. Perfect for complete privacy.
 
 ## Development
 
-This project was generated using [Angular CLI](https://github.com/angular/angular-cli) version 20.3.8.
+### Tech Stack
+- **Frontend**: Angular 21 (Standalone components)
+- **Styling**: Tailwind CSS 4
+- **Icons**: Lucide Angular
+- **Date handling**: date-fns
+- **Backend/Sync**: Firebase (Authentication & Firestore)
+- **Build**: Angular CLI with Vite
+- **State Management**: Angular Signals
+
+### Project Structure
+```
+src/app/
+├── core/services/          # Core business logic services
+│   ├── app-state.service.ts      # Global app state
+│   ├── profile.service.ts        # Profile management
+│   ├── card.service.ts           # Credit card CRUD
+│   ├── statement.service.ts      # Monthly statements
+│   ├── installment.service.ts    # Installment tracking
+│   ├── cash-installment.service.ts
+│   ├── bank-balance.service.ts   # Bank balance tracking
+│   ├── notification.service.ts   # Notification system
+│   ├── sync.service.ts           # Local sync logic
+│   ├── firebase-auth.service.ts  # Firebase authentication
+│   ├── firebase-sync.service.ts  # Firebase sync logic
+│   ├── encryption.service.ts     # Data encryption
+│   └── storage.service.ts        # LocalStorage wrapper
+├── features/               # Feature modules
+│   ├── dashboard/          # Main dashboard view
+│   ├── calendar/           # Calendar view
+│   ├── manage/             # Card & installment management
+│   └── sync/               # Sync & backup interface
+├── shared/
+│   ├── components/         # Reusable components
+│   └── types.ts            # TypeScript interfaces
+└── environments/           # Environment configs
+```
 
 ## Development server
 
 To start a local development server, run:
 
 ```bash
+npm start
+# or
 ng serve
 ```
 
 Once the server is running, open your browser and navigate to `http://localhost:4200/`. The application will automatically reload whenever you modify any of the source files.
 
-## Code scaffolding
-
-Angular CLI includes powerful code scaffolding tools. To generate a new component, run:
-
-```bash
-ng generate component component-name
-```
-
-For a complete list of available schematics (such as `components`, `directives`, or `pipes`), run:
-
-```bash
-ng generate --help
-```
-
 ## Building
 
-To build the project run:
+To build the project for production:
 
 ```bash
+npm run build
+# or
 ng build
 ```
 
-This will compile your project and store the build artifacts in the `dist/` directory. By default, the production build optimizes your application for performance and speed.
+This will compile your project and store the build artifacts in the `dist/` directory with optimizations for performance and speed.
 
-## Running unit tests
+## Testing
 
-To execute unit tests with the [Karma](https://karma-runner.github.io) test runner, use the following command:
+To execute unit tests:
 
 ```bash
+npm test
+# or
 ng test
 ```
 
-## Running end-to-end tests
+Uses [Karma](https://karma-runner.github.io) test runner with Jasmine framework.
 
-For end-to-end (e2e) testing, run:
+## Code Formatting
+
+This project uses Prettier for code formatting:
 
 ```bash
-ng e2e
+npx prettier --write .
 ```
 
-Angular CLI does not come with an end-to-end testing framework by default. You can choose one that suits your needs.
+Configuration in [package.json](package.json) (printWidth: 100, singleQuote: true).
 
 ## Additional Resources
 
-For more information on using the Angular CLI, including detailed command references, visit the [Angular CLI Overview and Command Reference](https://angular.dev/tools/cli) page.
+- [Angular CLI Documentation](https://angular.dev/tools/cli)
+- [Angular Signals Documentation](https://angular.dev/guide/signals)
+- [Tailwind CSS Documentation](https://tailwindcss.com/docs)
+- [Firebase Documentation](https://firebase.google.com/docs)
 
-## Future Enhancements
+---
 
-Potential improvements for future iterations:
+## Future Roadmap
 
-1. **Conflict Resolution**: Handle simultaneous edits from multiple devices
-2. **Sync Status Indicator**: Show sync progress in the app header
-3. **Data Versioning**: Track change history
-4. **Selective Sync**: Choose which data types to sync
-5. **Family Sharing**: Share specific profiles with family members
-6. **Export to Firebase Storage**: Store file attachments
-7. **Push Notifications**: Notify about upcoming bills
-8. **Analytics**: Track usage patterns (privacy-respecting)
+See [ROADMAP.md](ROADMAP.md) for planned features including transaction tracking, budgeting, financial planning, and analytics.
