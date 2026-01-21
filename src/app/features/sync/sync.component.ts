@@ -20,11 +20,12 @@ import { initializeApp } from '@angular/fire/app';
 import { getAuth } from '@angular/fire/auth';
 import { getFirestore } from '@angular/fire/firestore';
 import { firebaseConfig, isFirebaseConfigured } from '@environments/firebase';
+import { StorageSettingsComponent } from './components/storage-settings.component';
 
 @Component({
   selector: 'app-sync',
   standalone: true,
-  imports: [CommonModule, FormsModule, LucideAngularModule],
+  imports: [CommonModule, FormsModule, LucideAngularModule, StorageSettingsComponent],
   templateUrl: './sync.component.html',
 })
 export class SyncComponent implements OnInit {

@@ -7,218 +7,203 @@ import type {
   Profile,
   Statement
 } from '@shared/types';
+import { LocalStorageProvider } from '../storage/local-storage.provider';
 
-const KEYS = {
-  PROFILES: 'bt_profiles',
-  CARDS: 'bt_cards',
-  STATEMENTS: 'bt_statements',
-  INSTALLMENTS: 'bt_installments',
-  CASH_INSTALLMENTS: 'bt_cash_installments',
-  BANK_BALANCES: 'bt_bank_balances',
-  BANK_BALANCE_TRACKING_ENABLED: 'bt_bank_balance_tracking_enabled',
-  ACTIVE_PROFILE_ID: 'bt_active_profile_id',
-  ACTIVE_MONTH: 'bt_active_month',
-  MULTI_PROFILE_MODE: 'bt_multi_profile_mode',
-  SELECTED_PROFILE_IDS: 'bt_selected_profile_ids',
-  COLUMN_LAYOUTS: 'bt_column_layouts',
-};
-
-// Generic JSON helpers for objects (not just arrays)
-const loadJSON = <T, >(key: string, fallback: T): T => {
-  if (typeof window === 'undefined') return fallback;
-  try {
-    const item = localStorage.getItem(key);
-    return item ? (JSON.parse(item) as T) : fallback;
-  } catch (e) {
-    console.error('Error loading JSON from key:', key, e);
-    return fallback;
-  }
-};
-
-const saveJSON = <T, >(key: string, value: T) => {
-  if (typeof window === 'undefined') return;
-  try {
-    localStorage.setItem(key, JSON.stringify(value));
-  } catch (e) {
-    console.error('Error saving JSON to key:', key, e);
-  }
-};
-
-const loadData = <T, >(key: string): T[] => {
-  if (typeof window === 'undefined') return [];
-  try {
-    const item = localStorage.getItem(key);
-    return item ? JSON.parse(item) : [];
-  } catch (e) {
-    console.error('Error loading data from key:', key, e);
-    return [];
-  }
-};
-
-const saveData = <T, >(key: string, data: T[]) => {
-  if (typeof window === 'undefined') return;
-  localStorage.setItem(key, JSON.stringify(data));
-};
-
-// Scalar (string) helpers for simple values
-const loadString = (key: string): string | null => {
-  if (typeof window === 'undefined') return null;
-  try {
-    const item = localStorage.getItem(key);
-    return item ? JSON.parse(item) : null;
-  } catch (e) {
-    console.error('Error loading string from key:', key, e);
-    return null;
-  }
-};
-
-const saveString = (key: string, value: string) => {
-  if (typeof window === 'undefined') return;
-  try {
-    localStorage.setItem(key, JSON.stringify(value));
-  } catch (e) {
-    console.error('Error saving string to key:', key, e);
-  }
-};
-
-const loadBoolean = (key: string): boolean => {
-  if (typeof window === 'undefined') return false;
-  try {
-    const item = localStorage.getItem(key);
-    return item ? JSON.parse(item) : false;
-  } catch (e) {
-    console.error('Error loading boolean from key:', key, e);
-    return false;
-  }
-};
-
-const saveBoolean = (key: string, value: boolean) => {
-  if (typeof window === 'undefined') return;
-  try {
-    localStorage.setItem(key, JSON.stringify(value));
-  } catch (e) {
-    console.error('Error saving boolean to key:', key, e);
-  }
-};
-
-const loadStringArray = (key: string): string[] => {
-  if (typeof window === 'undefined') return [];
-  try {
-    const item = localStorage.getItem(key);
-    return item ? JSON.parse(item) : [];
-  } catch (e) {
-    console.error('Error loading string array from key:', key, e);
-    return [];
-  }
-};
-
-const saveStringArray = (key: string, value: string[]) => {
-  if (typeof window === 'undefined') return;
-  try {
-    localStorage.setItem(key, JSON.stringify(value));
-  } catch (e) {
-    console.error('Error saving string array to key:', key, e);
-  }
-};
-
+/**
+ * StorageService
+ * 
+ * Simple wrapper using LocalStorageProvider directly for now.
+ * This maintains backward compatibility while using the new storage abstraction.
+ * 
+ * In Phase 0.1, we'll add StorageFactory with auto-migration to IndexedDB.
+ */
 @Injectable({
   providedIn: 'root',
 })
 export class StorageService {
+  private provider = new LocalStorageProvider();
+
+  constructor() {
+    // Initialize provider (LocalStorage init is sync, so it's immediate)
+    this.provider.init();
+  }
+
+  // ==================== Profile Operations ====================
+  
   getProfiles(): Profile[] {
-    return loadData<Profile>(KEYS.PROFILES);
+    // Use a cached result pattern for sync compatibility
+    let result: Profile[] = [];
+    this.provider.getProfiles().then(data => result = data);
+    return result.length > 0 ? result : this.getProfilesSync();
+  }
+
+  private getProfilesSync(): Profile[] {
+    // Fallback to direct localStorage read for immediate availability
+    if (typeof window === 'undefined') return [];
+    try {
+      const item = localStorage.getItem('bt_profiles');
+      return item ? JSON.parse(item) : [];
+    } catch {
+      return [];
+    }
   }
 
   saveProfiles(data: Profile[]): void {
-    saveData(KEYS.PROFILES, data);
+    this.provider.saveProfiles(data);
   }
 
   getCards(): CreditCard[] {
-    return loadData<CreditCard>(KEYS.CARDS);
+    if (typeof window === 'undefined') return [];
+    try {
+      const item = localStorage.getItem('bt_cards');
+      return item ? JSON.parse(item) : [];
+    } catch {
+      return [];
+    }
   }
 
   saveCards(data: CreditCard[]): void {
-    saveData(KEYS.CARDS, data);
+    this.provider.saveCards(data);
   }
 
   getStatements(): Statement[] {
-    return loadData<Statement>(KEYS.STATEMENTS);
+    if (typeof window === 'undefined') return [];
+    try {
+      const item = localStorage.getItem('bt_statements');
+      return item ? JSON.parse(item) : [];
+    } catch {
+      return [];
+    }
   }
 
   saveStatements(data: Statement[]): void {
-    saveData(KEYS.STATEMENTS, data);
+    this.provider.saveStatements(data);
   }
 
   getInstallments(): Installment[] {
-    return loadData<Installment>(KEYS.INSTALLMENTS);
+    if (typeof window === 'undefined') return [];
+    try {
+      const item = localStorage.getItem('bt_installments');
+      return item ? JSON.parse(item) : [];
+    } catch {
+      return [];
+    }
   }
 
   saveInstallments(data: Installment[]): void {
-    saveData(KEYS.INSTALLMENTS, data);
+    this.provider.saveInstallments(data);
   }
 
   getCashInstallments(): CashInstallment[] {
-    return loadData<CashInstallment>(KEYS.CASH_INSTALLMENTS);
+    if (typeof window === 'undefined') return [];
+    try {
+      const item = localStorage.getItem('bt_cash_installments');
+      return item ? JSON.parse(item) : [];
+    } catch {
+      return [];
+    }
   }
 
   saveCashInstallments(data: CashInstallment[]): void {
-    saveData(KEYS.CASH_INSTALLMENTS, data);
+    this.provider.saveCashInstallments(data);
   }
 
   getBankBalances(): BankBalance[] {
-    return loadData<BankBalance>(KEYS.BANK_BALANCES);
+    if (typeof window === 'undefined') return [];
+    try {
+      const item = localStorage.getItem('bt_bank_balances');
+      return item ? JSON.parse(item) : [];
+    } catch {
+      return [];
+    }
   }
 
   saveBankBalances(data: BankBalance[]): void {
-    saveData(KEYS.BANK_BALANCES, data);
+    this.provider.saveBankBalances(data);
   }
 
   getActiveProfileId(): string | null {
-    return loadString(KEYS.ACTIVE_PROFILE_ID);
+    if (typeof window === 'undefined') return null;
+    try {
+      const item = localStorage.getItem('bt_active_profile_id');
+      return item ? JSON.parse(item) : null;
+    } catch {
+      return null;
+    }
   }
 
   saveActiveProfileId(id: string): void {
-    saveString(KEYS.ACTIVE_PROFILE_ID, id);
+    this.provider.saveActiveProfileId(id);
   }
 
   getActiveMonthStr(): string | null {
-    return loadString(KEYS.ACTIVE_MONTH);
+    if (typeof window === 'undefined') return null;
+    try {
+      const item = localStorage.getItem('bt_active_month');
+      return item ? JSON.parse(item) : null;
+    } catch {
+      return null;
+    }
   }
 
   saveActiveMonthStr(monthStr: string): void {
-    saveString(KEYS.ACTIVE_MONTH, monthStr);
+    this.provider.saveActiveMonthStr(monthStr);
   }
 
   getMultiProfileMode(): boolean {
-    return loadBoolean(KEYS.MULTI_PROFILE_MODE);
+    if (typeof window === 'undefined') return false;
+    try {
+      const item = localStorage.getItem('bt_multi_profile_mode');
+      return item ? JSON.parse(item) : false;
+    } catch {
+      return false;
+    }
   }
 
   saveMultiProfileMode(enabled: boolean): void {
-    saveBoolean(KEYS.MULTI_PROFILE_MODE, enabled);
+    this.provider.saveMultiProfileMode(enabled);
   }
 
   getSelectedProfileIds(): string[] {
-    return loadStringArray(KEYS.SELECTED_PROFILE_IDS);
+    if (typeof window === 'undefined') return [];
+    try {
+      const item = localStorage.getItem('bt_selected_profile_ids');
+      return item ? JSON.parse(item) : [];
+    } catch {
+      return [];
+    }
   }
 
   saveSelectedProfileIds(ids: string[]): void {
-    saveStringArray(KEYS.SELECTED_PROFILE_IDS, ids);
+    this.provider.saveSelectedProfileIds(ids);
   }
 
   getBankBalanceTrackingEnabled(): boolean {
-    return loadBoolean(KEYS.BANK_BALANCE_TRACKING_ENABLED);
+    if (typeof window === 'undefined') return false;
+    try {
+      const item = localStorage.getItem('bt_bank_balance_tracking_enabled');
+      return item ? JSON.parse(item) : false;
+    } catch {
+      return false;
+    }
   }
 
   saveBankBalanceTrackingEnabled(enabled: boolean): void {
-    saveBoolean(KEYS.BANK_BALANCE_TRACKING_ENABLED, enabled);
+    this.provider.saveBankBalanceTrackingEnabled(enabled);
   }
 
   getColumnLayouts(): Record<string, Record<string, any>> {
-    return loadJSON<Record<string, Record<string, any>>>(KEYS.COLUMN_LAYOUTS, {});
+    if (typeof window === 'undefined') return {};
+    try {
+      const item = localStorage.getItem('bt_column_layouts');
+      return item ? JSON.parse(item) : {};
+    } catch {
+      return {};
+    }
   }
 
   saveColumnLayouts(layouts: Record<string, Record<string, any>>): void {
-    saveJSON(KEYS.COLUMN_LAYOUTS, layouts);
+    this.provider.saveColumnLayouts(layouts);
   }
 
   getColumnLayout(profileId: string, tableId: string): any {
@@ -230,6 +215,40 @@ export class StorageService {
     const allLayouts = this.getColumnLayouts();
     const profileLayouts = allLayouts[profileId] ?? {};
     profileLayouts[tableId] = layout;
-    this.saveColumnLayouts({...allLayouts, [profileId]: profileLayouts});
+    this.saveColumnLayouts({ ...allLayouts, [profileId]: profileLayouts });
+  }
+
+  // ==================== Utility Methods ====================
+
+  /**
+   * Get access to the underlying storage provider.
+   */
+  getProvider(): LocalStorageProvider {
+    return this.provider;
+  }
+
+  /**
+   * Export all data as JSON.
+   */
+  async exportData(): Promise<string> {
+    return this.provider.exportData();
+  }
+
+  /**
+   * Import data from JSON.
+   */
+  async importData(jsonData: string): Promise<void> {
+    return this.provider.importData(jsonData);
+  }
+
+  /**
+   * Get storage information.
+   */
+  async getStorageInfo(): Promise<{
+    used: number;
+    available: number;
+    percentage: number;
+  } | null> {
+    return this.provider.getStorageInfo();
   }
 }
