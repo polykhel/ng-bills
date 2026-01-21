@@ -1,6 +1,6 @@
 import { Injectable } from '@angular/core';
 import { EncryptionService } from './encryption.service';
-import { StorageService } from './storage.service';
+import { IndexedDBService } from './indexeddb.service';
 import type { BankBalance, CashInstallment, CreditCard, Installment, Profile, Statement } from '@shared/types';
 
 export interface SyncData {
@@ -17,57 +17,41 @@ export interface SyncData {
   activeMonth: string | null;
 }
 
-export interface SyncOptions {
-  password?: string;
-  encrypted?: boolean;
-}
-
 @Injectable({
-  providedIn: 'root'
+  providedIn: 'root',
 })
 export class SyncService {
   private readonly VERSION = '1.0.0';
 
   constructor(
     private encryption: EncryptionService,
-    private storage: StorageService
-  ) {
-  }
+    private idb: IndexedDBService,
+  ) {}
 
   /**
    * Export all data to a JSON string
    */
-  exportData(options: SyncOptions = {}): string {
-    const data: SyncData = {
-      version: this.VERSION,
-      timestamp: new Date().toISOString(),
-      profiles: this.storage.getProfiles(),
-      cards: this.storage.getCards(),
-      statements: this.storage.getStatements(),
-      installments: this.storage.getInstallments(),
-      cashInstallments: this.storage.getCashInstallments(),
-      bankBalances: this.storage.getBankBalances(),
-      bankBalanceTrackingEnabled: this.storage.getBankBalanceTrackingEnabled(),
-      activeProfileId: this.storage.getActiveProfileId(),
-      activeMonth: this.storage.getActiveMonthStr(),
-    };
-
-    return JSON.stringify(data, null, 2);
+  async exportData(): Promise<string> {
+    return this.idb.exportData();
   }
 
   /**
    * Export encrypted data
    */
   async exportEncrypted(password: string): Promise<string> {
-    const jsonData = this.exportData();
+    const jsonData = await this.exportData();
     const encrypted = await this.encryption.encrypt(jsonData, password);
 
-    return JSON.stringify({
-      encrypted: true,
-      version: this.VERSION,
-      timestamp: new Date().toISOString(),
-      data: encrypted,
-    }, null, 2);
+    return JSON.stringify(
+      {
+        encrypted: true,
+        version: this.VERSION,
+        timestamp: new Date().toISOString(),
+        data: encrypted,
+      },
+      null,
+      2,
+    );
   }
 
   /**
@@ -95,17 +79,8 @@ export class SyncService {
         console.warn('Data version mismatch. Attempting import anyway.');
       }
 
-      // Import all data
-      if (data.profiles) this.storage.saveProfiles(data.profiles);
-      if (data.cards) this.storage.saveCards(data.cards);
-      if (data.statements) this.storage.saveStatements(data.statements);
-      if (data.installments) this.storage.saveInstallments(data.installments);
-      if (data.cashInstallments) this.storage.saveCashInstallments(data.cashInstallments);
-      if (data.bankBalances) this.storage.saveBankBalances(data.bankBalances);
-      if (data.bankBalanceTrackingEnabled !== undefined) this.storage.saveBankBalanceTrackingEnabled(data.bankBalanceTrackingEnabled);
-      if (data.activeProfileId) this.storage.saveActiveProfileId(data.activeProfileId);
-      if (data.activeMonth) this.storage.saveActiveMonthStr(data.activeMonth);
-
+      // Import all data via IndexedDBService
+      await this.idb.importData(jsonString);
     } catch (error) {
       console.error('Import failed:', error);
       throw new Error('Failed to import data. Please check the file and password.');
@@ -123,11 +98,11 @@ export class SyncService {
       content = await this.exportEncrypted(password);
       filename = `bills-backup-encrypted-${Date.now()}.json`;
     } else {
-      content = this.exportData();
+      content = await this.exportData();
       filename = `bills-backup-${Date.now()}.json`;
     }
 
-    const blob = new Blob([content], {type: 'application/json'});
+    const blob = new Blob([content], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
@@ -142,99 +117,5 @@ export class SyncService {
   async loadBackup(file: File, password?: string): Promise<void> {
     const content = await file.text();
     await this.importData(content, password);
-  }
-
-  /**
-   * Merge imported data with existing data
-   * Uses timestamps and IDs to determine conflicts
-   */
-  async mergeData(jsonString: string, password?: string): Promise<void> {
-    let importedData: SyncData;
-
-    try {
-      const parsed = JSON.parse(jsonString);
-
-      if (parsed.encrypted) {
-        if (!password) {
-          throw new Error('Password required for encrypted data');
-        }
-        const decrypted = await this.encryption.decrypt(parsed.data, password);
-        importedData = JSON.parse(decrypted);
-      } else {
-        importedData = parsed;
-      }
-
-      // Merge profiles (keep both, user can delete duplicates)
-      const existingProfiles = this.storage.getProfiles();
-      const newProfiles = [...existingProfiles];
-      for (const profile of importedData.profiles) {
-        if (!existingProfiles.find(p => p.id === profile.id)) {
-          newProfiles.push(profile);
-        }
-      }
-      this.storage.saveProfiles(newProfiles);
-
-      // Merge cards
-      const existingCards = this.storage.getCards();
-      const newCards = [...existingCards];
-      for (const card of importedData.cards) {
-        if (!existingCards.find(c => c.id === card.id)) {
-          newCards.push(card);
-        }
-      }
-      this.storage.saveCards(newCards);
-
-      // Merge statements
-      const existingStatements = this.storage.getStatements();
-      const newStatements = [...existingStatements];
-      for (const statement of importedData.statements) {
-        const existingIndex = existingStatements.findIndex(
-          s => s.id === statement.id
-        );
-        if (existingIndex === -1) {
-          newStatements.push(statement);
-        }
-      }
-      this.storage.saveStatements(newStatements);
-
-      // Merge installments
-      const existingInstallments = this.storage.getInstallments();
-      const newInstallments = [...existingInstallments];
-      for (const installment of importedData.installments) {
-        if (!existingInstallments.find(i => i.id === installment.id)) {
-          newInstallments.push(installment);
-        }
-      }
-      this.storage.saveInstallments(newInstallments);
-
-      // Merge cash installments
-      const existingCashInstallments = this.storage.getCashInstallments();
-      const newCashInstallments = [...existingCashInstallments];
-      for (const cashInstallment of importedData.cashInstallments || []) {
-        if (!existingCashInstallments.find(i => i.id === cashInstallment.id)) {
-          newCashInstallments.push(cashInstallment);
-        }
-      }
-      this.storage.saveCashInstallments(newCashInstallments);
-
-      // Merge bank balances
-      const existingBankBalances = this.storage.getBankBalances();
-      const newBankBalances = [...existingBankBalances];
-      for (const bankBalance of importedData.bankBalances || []) {
-        if (!existingBankBalances.find(b => b.id === bankBalance.id)) {
-          newBankBalances.push(bankBalance);
-        }
-      }
-      this.storage.saveBankBalances(newBankBalances);
-
-      // Update bank balance tracking setting if present
-      if (importedData.bankBalanceTrackingEnabled !== undefined) {
-        this.storage.saveBankBalanceTrackingEnabled(importedData.bankBalanceTrackingEnabled);
-      }
-
-    } catch (error) {
-      console.error('Merge failed:', error);
-      throw new Error('Failed to merge data. Please check the file and password.');
-    }
   }
 }

@@ -19,10 +19,19 @@ Focused guidance for contributing productively to ng-bills (Angular 21, Tailwind
 - Date logic relies on date-fns (e.g., `UtilsService` in [src/app/core/services/utils.service.ts](../src/app/core/services/utils.service.ts)). Reuse helpers instead of ad hoc math.
 
 ## Storage & Sync
-- Local persistence goes through `StorageService` ([src/app/core/services/storage.service.ts](../src/app/core/services/storage.service.ts)) which currently wraps `LocalStorageProvider` but preserves a future migration path to IndexedDB.
-- Abstraction lives in [src/app/core/storage](../src/app/core/storage): `StorageProvider` interface, `LocalStorageProvider`, `IndexedDBProvider`, and `StorageFactory` with auto-migration from LocalStorage → IndexedDB.
+
+- Local persistence goes through IndexedDB via
+  `IndexedDBService` ([src/app/core/services/indexeddb.service.ts](../src/app/core/services/indexeddb.service.ts)) which
+  wraps a minimal generic IndexedDB class.
+- Storage abstraction lives in [src/app/core/storage/indexeddb.ts](../src/app/core/storage/indexeddb.ts): Generic
+  `IndexedDB` class with CRUD operations (`getAll<T>`, `get<T>`, `put`, `putAll`, `delete`, `clear`) and `STORES`
+  constant for type-safe store names.
+- Each feature service (Profile, Card, Statement, Installment, CashInstallment, BankBalance) accesses IndexedDB directly
+  using `idb.getDB()` with generic operations instead of feature-specific methods.
 - Cloud sync: `FirebaseAuthService` ([src/app/core/services/firebase-auth.service.ts](../src/app/core/services/firebase-auth.service.ts)) + `FirebaseSyncService` ([src/app/core/services/firebase-sync.service.ts](../src/app/core/services/firebase-sync.service.ts)). Sync status uses signals; upload/download cover all collections and settings.
-- Manual/local sync and encrypted backups handled by `SyncService` ([src/app/core/services/sync.service.ts](../src/app/core/services/sync.service.ts)). Prefer this over bespoke export/import code.
+- Manual/local sync and encrypted backups handled by
+  `SyncService` ([src/app/core/services/sync.service.ts](../src/app/core/services/sync.service.ts)). Uses
+  IndexedDBService for export/import.
 
 ## Conventions
 - Path aliases are required (see [tsconfig.app.json](../tsconfig.app.json)): `@services`, `@components`, `@shared`, `@core`, `@features`, `@environments`. Example: `import { AppStateService } from '@services';` or `from '@components/card-form-modal.component'`.
@@ -38,15 +47,24 @@ Focused guidance for contributing productively to ng-bills (Angular 21, Tailwind
 ## Developer Workflows
 - Convert inline templates to external HTML with [scripts/extract-templates.js](../scripts/extract-templates.js) (`node scripts/extract-templates.js`).
 - Normalize imports to path aliases with [scripts/update-imports.js](../scripts/update-imports.js) (`npm run update-imports`).
-- When adding data features, route through `StorageService` and reuse types from [src/app/shared/types.ts](../src/app/shared/types.ts). Update both local and sync layers where applicable.
+- When adding data features: Define type in [src/app/shared/types.ts](../src/app/shared/types.ts), add store name to
+  `STORES` constant in [src/app/core/storage/indexeddb.ts](../src/app/core/storage/indexeddb.ts), create service
+  in [src/app/core/services](../src/app/core/services) using generic IndexedDB operations (`getAll`, `putAll`, `get`,
+  `put`), and export from barrel [src/app/core/services/index.ts](../src/app/core/services/index.ts).
 
 ## Examples
 - Importing a service: `import { AppStateService, ProfileService } from '@services';`
 - Lazy feature route: `{ path: 'dashboard', loadComponent: () => import('@features/dashboard/dashboard.component').then(m => m.DashboardComponent) }`
-- Reading settings (local): `storageService.getBankBalanceTrackingEnabled()`; Cloud sync settings live under `users/{uid}/settings/app` in Firestore via `FirebaseSyncService`.
+- Reading data: `const profiles = await idb.getDB().getAll<Profile>(STORES.PROFILES);`
+- Saving data: `await idb.getDB().putAll(STORES.PROFILES, profiles);`
+- Settings pattern: Store as `{key: string, value: T}` objects, e.g.,
+  `await idb.getDB().put(STORES.SETTINGS, {key: 'activeProfileId', value: profileId})`
+- Cloud sync settings live under `users/{uid}/settings/app` in Firestore via `FirebaseSyncService`.
 
 ## Testing & Quality
 - Unit tests run with Karma/Jasmine (`npm test`). Keep signal-based logic in services with small pure helpers (e.g., `UtilsService`) to ease testing.
 - Prettier config lives in [package.json](../package.json). Format with `npx prettier --write .`.
 
 If any conventions here are unclear or you need deeper context (e.g., storage migration paths or sync edge cases), tell me which section to expand and I’ll update this doc.
+
+Don't create summary documents.

@@ -62,6 +62,48 @@ export interface BankBalance {
   balance: number;
 }
 
+export type TransactionType = 'income' | 'expense';
+
+export type PaymentMethod = 'cash' | 'card' | 'bank_transfer' | 'other';
+
+export interface Category {
+  id: string;
+  name: string;
+  icon?: string;
+  color?: string;
+  parentId?: string;
+  type?: TransactionType | 'both';
+}
+
+export interface Transaction {
+  id: string;
+  profileId: string;
+  type: TransactionType;
+  amount: number;
+  date: string; // ISO string
+  categoryId: string;
+  subcategoryId?: string;
+  description: string;
+  notes?: string;
+  paymentMethod: PaymentMethod;
+  cardId?: string; // when paymentMethod is card
+  tags?: string[];
+  createdAt?: string;
+  updatedAt?: string;
+  isRecurring?: boolean;
+  isEstimate?: boolean;
+}
+
+export interface TransactionFilter {
+  profileIds?: string[];
+  dateRange?: { start: string; end: string };
+  type?: TransactionType | 'all';
+  categoryIds?: string[];
+  paymentMethod?: PaymentMethod | 'all';
+  cardId?: string;
+  searchQuery?: string;
+}
+
 export interface InstallmentStatus {
   currentTerm: number;
   totalTerms: number;

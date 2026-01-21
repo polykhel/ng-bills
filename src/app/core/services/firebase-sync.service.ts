@@ -1,26 +1,24 @@
 import { Injectable, signal } from '@angular/core';
 import {
-  Firestore,
   collection,
   doc,
-  setDoc,
+  Firestore,
   getDoc,
   getDocs,
-  deleteDoc,
   onSnapshot,
+  serverTimestamp,
   Unsubscribe,
   writeBatch,
-  serverTimestamp,
 } from '@angular/fire/firestore';
 import { FirebaseAuthService } from './firebase-auth.service';
-import { StorageService } from './storage.service';
-import type { 
-  BankBalance, 
-  CashInstallment, 
-  CreditCard, 
-  Installment, 
-  Profile, 
-  Statement 
+import { IndexedDBService, STORES } from './indexeddb.service';
+import type {
+  BankBalance,
+  CashInstallment,
+  CreditCard,
+  Installment,
+  Profile,
+  Statement,
 } from '@shared/types';
 
 export interface FirestoreSyncStatus {
@@ -52,7 +50,7 @@ export class FirebaseSyncService {
 
   constructor(
     private authService: FirebaseAuthService,
-    private storageService: StorageService
+    private idb: IndexedDBService,
   ) {}
 
   /**
@@ -72,8 +70,8 @@ export class FirebaseSyncService {
     }
 
     this.ensureInitialized();
-    
-    this.syncStatus.update(state => ({ ...state, isEnabled: true, isSyncing: true }));
+
+    this.syncStatus.update((state) => ({ ...state, isEnabled: true, isSyncing: true }));
 
     try {
       // First, upload current local data to Firestore
@@ -82,14 +80,14 @@ export class FirebaseSyncService {
       // Then start listening to changes
       this.startListening(userId);
 
-      this.syncStatus.update(state => ({
+      this.syncStatus.update((state) => ({
         ...state,
         isSyncing: false,
         lastSyncTime: new Date(),
         error: null,
       }));
     } catch (error: any) {
-      this.syncStatus.update(state => ({
+      this.syncStatus.update((state) => ({
         ...state,
         isEnabled: false,
         isSyncing: false,
@@ -104,7 +102,7 @@ export class FirebaseSyncService {
    */
   disableSync(): void {
     this.stopListening();
-    this.syncStatus.update(state => ({
+    this.syncStatus.update((state) => ({
       ...state,
       isEnabled: false,
       isSyncing: false,
@@ -121,18 +119,18 @@ export class FirebaseSyncService {
     }
 
     this.ensureInitialized();
-    this.syncStatus.update(state => ({ ...state, isSyncing: true, error: null }));
+    this.syncStatus.update((state) => ({ ...state, isSyncing: true, error: null }));
 
     try {
       await this.uploadAllData(userId);
-      
-      this.syncStatus.update(state => ({
+
+      this.syncStatus.update((state) => ({
         ...state,
         isSyncing: false,
         lastSyncTime: new Date(),
       }));
     } catch (error: any) {
-      this.syncStatus.update(state => ({
+      this.syncStatus.update((state) => ({
         ...state,
         isSyncing: false,
         error: error.message,
@@ -151,18 +149,18 @@ export class FirebaseSyncService {
     }
 
     this.ensureInitialized();
-    this.syncStatus.update(state => ({ ...state, isSyncing: true, error: null }));
+    this.syncStatus.update((state) => ({ ...state, isSyncing: true, error: null }));
 
     try {
       await this.downloadAllData(userId);
-      
-      this.syncStatus.update(state => ({
+
+      this.syncStatus.update((state) => ({
         ...state,
         isSyncing: false,
         lastSyncTime: new Date(),
       }));
     } catch (error: any) {
-      this.syncStatus.update(state => ({
+      this.syncStatus.update((state) => ({
         ...state,
         isSyncing: false,
         error: error.message,
@@ -177,50 +175,55 @@ export class FirebaseSyncService {
   private async uploadAllData(userId: string): Promise<void> {
     const batch = writeBatch(this.firestore!);
     const userDocRef = doc(this.firestore!, 'users', userId);
+    const db = this.idb.getDB();
 
     // Upload metadata
-    batch.set(userDocRef, {
-      lastModified: serverTimestamp(),
-      version: '1.0.0',
-    }, { merge: true });
+    batch.set(
+      userDocRef,
+      {
+        lastModified: serverTimestamp(),
+        version: '1.0.0',
+      },
+      { merge: true },
+    );
 
     // Upload profiles
-    const profiles = this.storageService.getProfiles();
+    const profiles = await db.getAll<Profile>(STORES.PROFILES);
     const profilesRef = collection(this.firestore!, `users/${userId}/profiles`);
     for (const profile of profiles) {
       batch.set(doc(profilesRef, profile.id), profile);
     }
 
     // Upload cards
-    const cards = this.storageService.getCards();
+    const cards = await db.getAll<CreditCard>(STORES.CARDS);
     const cardsRef = collection(this.firestore!, `users/${userId}/cards`);
     for (const card of cards) {
       batch.set(doc(cardsRef, card.id), card);
     }
 
     // Upload statements
-    const statements = this.storageService.getStatements();
+    const statements = await db.getAll<Statement>(STORES.STATEMENTS);
     const statementsRef = collection(this.firestore!, `users/${userId}/statements`);
     for (const statement of statements) {
       batch.set(doc(statementsRef, statement.id), statement);
     }
 
     // Upload installments
-    const installments = this.storageService.getInstallments();
+    const installments = await db.getAll<Installment>(STORES.INSTALLMENTS);
     const installmentsRef = collection(this.firestore!, `users/${userId}/installments`);
     for (const installment of installments) {
       batch.set(doc(installmentsRef, installment.id), installment);
     }
 
     // Upload cash installments
-    const cashInstallments = this.storageService.getCashInstallments();
+    const cashInstallments = await db.getAll<CashInstallment>(STORES.CASH_INSTALLMENTS);
     const cashInstallmentsRef = collection(this.firestore!, `users/${userId}/cashInstallments`);
     for (const cashInstallment of cashInstallments) {
       batch.set(doc(cashInstallmentsRef, cashInstallment.id), cashInstallment);
     }
 
     // Upload bank balances
-    const bankBalances = this.storageService.getBankBalances();
+    const bankBalances = await db.getAll<BankBalance>(STORES.BANK_BALANCES);
     const bankBalancesRef = collection(this.firestore!, `users/${userId}/bankBalances`);
     for (const bankBalance of bankBalances) {
       batch.set(doc(bankBalancesRef, bankBalance.id), bankBalance);
@@ -228,10 +231,23 @@ export class FirebaseSyncService {
 
     // Upload settings
     const settingsRef = doc(this.firestore!, `users/${userId}/settings/app`);
+    const bankBalanceTracking = await db.get<{ key: string; value: boolean }>(
+      STORES.SETTINGS,
+      'bankBalanceTrackingEnabled',
+    );
+    const activeProfileId = await db.get<{ key: string; value: string }>(
+      STORES.SETTINGS,
+      'activeProfileId',
+    );
+    const activeMonth = await db.get<{ key: string; value: string }>(
+      STORES.SETTINGS,
+      'activeMonth',
+    );
+
     batch.set(settingsRef, {
-      bankBalanceTrackingEnabled: this.storageService.getBankBalanceTrackingEnabled(),
-      activeProfileId: this.storageService.getActiveProfileId(),
-      activeMonth: this.storageService.getActiveMonthStr(),
+      bankBalanceTrackingEnabled: bankBalanceTracking?.value ?? false,
+      activeProfileId: activeProfileId?.value ?? null,
+      activeMonth: activeMonth?.value ?? null,
     });
 
     await batch.commit();
@@ -241,76 +257,78 @@ export class FirebaseSyncService {
    * Download all data from Firestore to local storage
    */
   private async downloadAllData(userId: string): Promise<void> {
+    const db = this.idb.getDB();
+
     // Download profiles
-    const profilesSnapshot = await getDocs(
-      collection(this.firestore!, `users/${userId}/profiles`)
-    );
-    const profiles = profilesSnapshot.docs.map(doc => doc.data() as Profile);
+    const profilesSnapshot = await getDocs(collection(this.firestore!, `users/${userId}/profiles`));
+    const profiles = profilesSnapshot.docs.map((doc) => doc.data() as Profile);
     if (profiles.length > 0) {
-      this.storageService.saveProfiles(profiles);
+      await db.putAll(STORES.PROFILES, profiles);
     }
 
     // Download cards
-    const cardsSnapshot = await getDocs(
-      collection(this.firestore!, `users/${userId}/cards`)
-    );
-    const cards = cardsSnapshot.docs.map(doc => doc.data() as CreditCard);
+    const cardsSnapshot = await getDocs(collection(this.firestore!, `users/${userId}/cards`));
+    const cards = cardsSnapshot.docs.map((doc) => doc.data() as CreditCard);
     if (cards.length > 0) {
-      this.storageService.saveCards(cards);
+      await db.putAll(STORES.CARDS, cards);
     }
 
     // Download statements
     const statementsSnapshot = await getDocs(
-      collection(this.firestore!, `users/${userId}/statements`)
+      collection(this.firestore!, `users/${userId}/statements`),
     );
-    const statements = statementsSnapshot.docs.map(doc => doc.data() as Statement);
+    const statements = statementsSnapshot.docs.map((doc) => doc.data() as Statement);
     if (statements.length > 0) {
-      this.storageService.saveStatements(statements);
+      await db.putAll(STORES.STATEMENTS, statements);
     }
 
     // Download installments
     const installmentsSnapshot = await getDocs(
-      collection(this.firestore!, `users/${userId}/installments`)
+      collection(this.firestore!, `users/${userId}/installments`),
     );
-    const installments = installmentsSnapshot.docs.map(doc => doc.data() as Installment);
+    const installments = installmentsSnapshot.docs.map((doc) => doc.data() as Installment);
     if (installments.length > 0) {
-      this.storageService.saveInstallments(installments);
+      await db.putAll(STORES.INSTALLMENTS, installments);
     }
 
     // Download cash installments
     const cashInstallmentsSnapshot = await getDocs(
-      collection(this.firestore!, `users/${userId}/cashInstallments`)
+      collection(this.firestore!, `users/${userId}/cashInstallments`),
     );
     const cashInstallments = cashInstallmentsSnapshot.docs.map(
-      doc => doc.data() as CashInstallment
+      (doc) => doc.data() as CashInstallment,
     );
     if (cashInstallments.length > 0) {
-      this.storageService.saveCashInstallments(cashInstallments);
+      await db.putAll(STORES.CASH_INSTALLMENTS, cashInstallments);
     }
 
     // Download bank balances
     const bankBalancesSnapshot = await getDocs(
-      collection(this.firestore!, `users/${userId}/bankBalances`)
+      collection(this.firestore!, `users/${userId}/bankBalances`),
     );
-    const bankBalances = bankBalancesSnapshot.docs.map(doc => doc.data() as BankBalance);
+    const bankBalances = bankBalancesSnapshot.docs.map((doc) => doc.data() as BankBalance);
     if (bankBalances.length > 0) {
-      this.storageService.saveBankBalances(bankBalances);
+      await db.putAll(STORES.BANK_BALANCES, bankBalances);
     }
 
     // Download settings
-    const settingsDoc = await getDoc(
-      doc(this.firestore!, `users/${userId}/settings/app`)
-    );
+    const settingsDoc = await getDoc(doc(this.firestore!, `users/${userId}/settings/app`));
     if (settingsDoc.exists()) {
       const settings = settingsDoc.data();
       if (settings['bankBalanceTrackingEnabled'] !== undefined) {
-        this.storageService.saveBankBalanceTrackingEnabled(settings['bankBalanceTrackingEnabled']);
+        await db.put(STORES.SETTINGS, {
+          key: 'bankBalanceTrackingEnabled',
+          value: settings['bankBalanceTrackingEnabled'],
+        });
       }
       if (settings['activeProfileId']) {
-        this.storageService.saveActiveProfileId(settings['activeProfileId']);
+        await db.put(STORES.SETTINGS, {
+          key: 'activeProfileId',
+          value: settings['activeProfileId'],
+        });
       }
       if (settings['activeMonth']) {
-        this.storageService.saveActiveMonthStr(settings['activeMonth']);
+        await db.put(STORES.SETTINGS, { key: 'activeMonth', value: settings['activeMonth'] });
       }
     }
   }
@@ -324,17 +342,18 @@ export class FirebaseSyncService {
     }
 
     this.isListening = true;
+    const db = this.idb.getDB();
 
     // Listen to profiles
     const profilesUnsubscribe = onSnapshot(
       collection(this.firestore!, `users/${userId}/profiles`),
       (snapshot) => {
-        const profiles = snapshot.docs.map(doc => doc.data() as Profile);
-        this.storageService.saveProfiles(profiles);
+        const profiles = snapshot.docs.map((doc) => doc.data() as Profile);
+        void db.putAll(STORES.PROFILES, profiles);
       },
       (error) => {
         console.error('Error listening to profiles:', error);
-      }
+      },
     );
     this.unsubscribes.push(profilesUnsubscribe);
 
@@ -342,12 +361,12 @@ export class FirebaseSyncService {
     const cardsUnsubscribe = onSnapshot(
       collection(this.firestore!, `users/${userId}/cards`),
       (snapshot) => {
-        const cards = snapshot.docs.map(doc => doc.data() as CreditCard);
-        this.storageService.saveCards(cards);
+        const cards = snapshot.docs.map((doc) => doc.data() as CreditCard);
+        void db.putAll(STORES.CARDS, cards);
       },
       (error) => {
         console.error('Error listening to cards:', error);
-      }
+      },
     );
     this.unsubscribes.push(cardsUnsubscribe);
 
@@ -355,12 +374,12 @@ export class FirebaseSyncService {
     const statementsUnsubscribe = onSnapshot(
       collection(this.firestore!, `users/${userId}/statements`),
       (snapshot) => {
-        const statements = snapshot.docs.map(doc => doc.data() as Statement);
-        this.storageService.saveStatements(statements);
+        const statements = snapshot.docs.map((doc) => doc.data() as Statement);
+        void db.putAll(STORES.STATEMENTS, statements);
       },
       (error) => {
         console.error('Error listening to statements:', error);
-      }
+      },
     );
     this.unsubscribes.push(statementsUnsubscribe);
 
@@ -368,12 +387,12 @@ export class FirebaseSyncService {
     const installmentsUnsubscribe = onSnapshot(
       collection(this.firestore!, `users/${userId}/installments`),
       (snapshot) => {
-        const installments = snapshot.docs.map(doc => doc.data() as Installment);
-        this.storageService.saveInstallments(installments);
+        const installments = snapshot.docs.map((doc) => doc.data() as Installment);
+        void db.putAll(STORES.INSTALLMENTS, installments);
       },
       (error) => {
         console.error('Error listening to installments:', error);
-      }
+      },
     );
     this.unsubscribes.push(installmentsUnsubscribe);
 
@@ -381,12 +400,12 @@ export class FirebaseSyncService {
     const cashInstallmentsUnsubscribe = onSnapshot(
       collection(this.firestore!, `users/${userId}/cashInstallments`),
       (snapshot) => {
-        const cashInstallments = snapshot.docs.map(doc => doc.data() as CashInstallment);
-        this.storageService.saveCashInstallments(cashInstallments);
+        const cashInstallments = snapshot.docs.map((doc) => doc.data() as CashInstallment);
+        void db.putAll(STORES.CASH_INSTALLMENTS, cashInstallments);
       },
       (error) => {
         console.error('Error listening to cash installments:', error);
-      }
+      },
     );
     this.unsubscribes.push(cashInstallmentsUnsubscribe);
 
@@ -394,12 +413,12 @@ export class FirebaseSyncService {
     const bankBalancesUnsubscribe = onSnapshot(
       collection(this.firestore!, `users/${userId}/bankBalances`),
       (snapshot) => {
-        const bankBalances = snapshot.docs.map(doc => doc.data() as BankBalance);
-        this.storageService.saveBankBalances(bankBalances);
+        const bankBalances = snapshot.docs.map((doc) => doc.data() as BankBalance);
+        void db.putAll(STORES.BANK_BALANCES, bankBalances);
       },
       (error) => {
         console.error('Error listening to bank balances:', error);
-      }
+      },
     );
     this.unsubscribes.push(bankBalancesUnsubscribe);
 
@@ -410,19 +429,25 @@ export class FirebaseSyncService {
         if (snapshot.exists()) {
           const settings = snapshot.data();
           if (settings['bankBalanceTrackingEnabled'] !== undefined) {
-            this.storageService.saveBankBalanceTrackingEnabled(settings['bankBalanceTrackingEnabled']);
+            void db.put(STORES.SETTINGS, {
+              key: 'bankBalanceTrackingEnabled',
+              value: settings['bankBalanceTrackingEnabled'],
+            });
           }
           if (settings['activeProfileId']) {
-            this.storageService.saveActiveProfileId(settings['activeProfileId']);
+            void db.put(STORES.SETTINGS, {
+              key: 'activeProfileId',
+              value: settings['activeProfileId'],
+            });
           }
           if (settings['activeMonth']) {
-            this.storageService.saveActiveMonthStr(settings['activeMonth']);
+            void db.put(STORES.SETTINGS, { key: 'activeMonth', value: settings['activeMonth'] });
           }
         }
       },
       (error) => {
         console.error('Error listening to settings:', error);
-      }
+      },
     );
     this.unsubscribes.push(settingsUnsubscribe);
   }
@@ -431,7 +456,7 @@ export class FirebaseSyncService {
    * Stop listening to Firestore changes
    */
   private stopListening(): void {
-    this.unsubscribes.forEach(unsubscribe => unsubscribe());
+    this.unsubscribes.forEach((unsubscribe) => unsubscribe());
     this.unsubscribes = [];
     this.isListening = false;
   }

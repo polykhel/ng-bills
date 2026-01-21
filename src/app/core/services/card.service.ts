@@ -1,5 +1,5 @@
 import { computed, effect, Injectable, signal } from '@angular/core';
-import { StorageService } from './storage.service';
+import { IndexedDBService, STORES } from './indexeddb.service';
 import { ProfileService } from './profile.service';
 import type { CreditCard } from '@shared/types';
 
@@ -16,65 +16,64 @@ export class CardService {
   activeCards = computed(() => {
     const cards = this.cardsSignal();
     const activeProfileId = this.profileService.activeProfileId();
-    return cards.filter(c => c.profileId === activeProfileId);
+    return cards.filter((c) => c.profileId === activeProfileId);
   });
 
   constructor(
-    private storageService: StorageService,
-    private profileService: ProfileService
+    private idb: IndexedDBService,
+    private profileService: ProfileService,
   ) {
-    this.initializeCards();
+    void this.initializeCards();
     this.setupAutoSave();
   }
 
   addCard(card: Omit<CreditCard, 'id'>): void {
-    const newCard: CreditCard = {...card, id: this.generateId()};
-    this.cardsSignal.update(cards => [...cards, newCard]);
+    const newCard: CreditCard = { ...card, id: this.generateId() };
+    this.cardsSignal.update((cards) => [...cards, newCard]);
   }
 
   updateCard(id: string, updates: Partial<CreditCard>): void {
-    this.cardsSignal.update(cards =>
-      cards.map(c => (c.id === id ? {...c, ...updates} : c))
-    );
+    this.cardsSignal.update((cards) => cards.map((c) => (c.id === id ? { ...c, ...updates } : c)));
   }
 
   deleteCard(id: string): boolean {
     if (confirm('Delete this card and all its history?')) {
-      this.cardsSignal.update(cards => cards.filter(c => c.id !== id));
+      this.cardsSignal.update((cards) => cards.filter((c) => c.id !== id));
       return true;
     }
     return false;
   }
 
   transferCard(cardId: string, targetProfileId: string): void {
-    this.cardsSignal.update(cards =>
-      cards.map(c => (c.id === cardId ? {...c, profileId: targetProfileId} : c))
+    this.cardsSignal.update((cards) =>
+      cards.map((c) => (c.id === cardId ? { ...c, profileId: targetProfileId } : c)),
     );
   }
 
   getCardsForProfiles(profileIds: string[]): CreditCard[] {
-    return this.cardsSignal().filter(c => profileIds.includes(c.profileId));
+    return this.cardsSignal().filter((c) => profileIds.includes(c.profileId));
   }
 
   getCardById(cardId: string): CreditCard | undefined {
-    return this.cardsSignal().find(c => c.id === cardId);
+    return this.cardsSignal().find((c) => c.id === cardId);
   }
 
-  private initializeCards(): void {
-    const loadedCards = this.storageService.getCards();
+  private async initializeCards(): Promise<void> {
+    const db = this.idb.getDB();
+    const loadedCards = await db.getAll<CreditCard>(STORES.CARDS);
     const activeProfileId = this.profileService.activeProfileId();
     let cardsChanged = false;
 
-    const migratedCards = loadedCards.map(c => {
+    const migratedCards = loadedCards.map((c) => {
       if (!c.profileId) {
         cardsChanged = true;
-        return {...c, profileId: activeProfileId};
+        return { ...c, profileId: activeProfileId };
       }
       return c;
     });
 
     if (cardsChanged) {
-      this.storageService.saveCards(migratedCards);
+      await db.putAll(STORES.CARDS, migratedCards);
     }
 
     this.cardsSignal.set(migratedCards);
@@ -84,7 +83,7 @@ export class CardService {
     // Auto-save cards when they change
     effect(() => {
       if (this.profileService.isLoaded()) {
-        this.storageService.saveCards(this.cardsSignal());
+        void this.idb.getDB().putAll(STORES.CARDS, this.cardsSignal());
       }
     });
   }

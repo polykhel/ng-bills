@@ -1,5 +1,5 @@
 import { computed, effect, Injectable, signal } from '@angular/core';
-import { StorageService } from './storage.service';
+import { IndexedDBService, STORES } from './indexeddb.service';
 import type { Profile } from '@shared/types';
 
 @Injectable({
@@ -15,25 +15,25 @@ export class ProfileService {
   activeProfile = computed(() => {
     const profiles = this.profilesSignal();
     const activeId = this.activeProfileIdSignal();
-    return profiles.find(p => p.id === activeId) || null;
+    return profiles.find((p) => p.id === activeId) || null;
   });
   private isLoadedSignal = signal<boolean>(false);
   isLoaded = this.isLoadedSignal.asReadonly();
 
-  constructor(private storageService: StorageService) {
-    this.initializeProfiles();
+  constructor(private idb: IndexedDBService) {
+    void this.initializeProfiles();
     this.setupAutoSave();
   }
 
   addProfile(name: string): void {
-    const newProfile: Profile = {id: this.generateId(), name};
-    this.profilesSignal.update(profiles => [...profiles, newProfile]);
+    const newProfile: Profile = { id: this.generateId(), name };
+    this.profilesSignal.update((profiles) => [...profiles, newProfile]);
     this.activeProfileIdSignal.set(newProfile.id);
   }
 
   renameProfile(profileId: string, newName: string): void {
-    this.profilesSignal.update(profiles =>
-      profiles.map(p => (p.id === profileId ? {...p, name: newName} : p))
+    this.profilesSignal.update((profiles) =>
+      profiles.map((p) => (p.id === profileId ? { ...p, name: newName } : p)),
     );
   }
 
@@ -44,7 +44,7 @@ export class ProfileService {
       return false;
     }
 
-    this.profilesSignal.update(profs => profs.filter(p => p.id !== profileId));
+    this.profilesSignal.update((profs) => profs.filter((p) => p.id !== profileId));
 
     // Switch to first remaining profile if active was deleted
     if (this.activeProfileIdSignal() === profileId) {
@@ -56,26 +56,31 @@ export class ProfileService {
   }
 
   setActiveProfile(profileId: string): void {
-    const profile = this.profilesSignal().find(p => p.id === profileId);
+    const profile = this.profilesSignal().find((p) => p.id === profileId);
     if (profile) {
       this.activeProfileIdSignal.set(profileId);
     }
   }
 
-  private initializeProfiles(): void {
-    const loadedProfiles = this.storageService.getProfiles();
-    let initialProfileId = '';
+  private async initializeProfiles(): Promise<void> {
+    const db = this.idb.getDB();
+    const loadedProfiles = await db.getAll<Profile>(STORES.PROFILES);
+    let initialProfileId: string;
 
     if (loadedProfiles.length === 0) {
-      const defaultProfile: Profile = {id: this.generateId(), name: 'My Profile'};
+      const defaultProfile: Profile = { id: this.generateId(), name: 'My Profile' };
       this.profilesSignal.set([defaultProfile]);
       initialProfileId = defaultProfile.id;
-      this.storageService.saveProfiles([defaultProfile]);
+      await db.putAll(STORES.PROFILES, [defaultProfile]);
     } else {
       // Try to restore last active profile
-      const savedActive = this.storageService.getActiveProfileId();
-      const exists = savedActive && loadedProfiles.some(p => p.id === savedActive);
-      initialProfileId = exists ? (savedActive as string) : loadedProfiles[0].id;
+      const savedActive = await db.get<{ key: string; value: string }>(
+        STORES.SETTINGS,
+        'activeProfileId',
+      );
+      const activeId = savedActive?.value;
+      const exists = activeId && loadedProfiles.some((p) => p.id === activeId);
+      initialProfileId = exists ? activeId : loadedProfiles[0].id;
       this.profilesSignal.set(loadedProfiles);
     }
 
@@ -87,14 +92,16 @@ export class ProfileService {
     // Auto-save profiles when they change
     effect(() => {
       if (this.isLoadedSignal()) {
-        this.storageService.saveProfiles(this.profilesSignal());
+        void this.idb.getDB().putAll(STORES.PROFILES, this.profilesSignal());
       }
     });
 
     // Auto-save active profile ID when it changes
     effect(() => {
       if (this.isLoadedSignal() && this.activeProfileIdSignal()) {
-        this.storageService.saveActiveProfileId(this.activeProfileIdSignal());
+        void this.idb
+          .getDB()
+          .put(STORES.SETTINGS, { key: 'activeProfileId', value: this.activeProfileIdSignal() });
       }
     });
   }

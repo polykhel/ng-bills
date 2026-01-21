@@ -1,12 +1,12 @@
 import { Injectable } from '@angular/core';
-import { StorageService } from './storage.service';
+import { IndexedDBService, STORES } from './indexeddb.service';
+import type { CashInstallment, CreditCard, Installment, Profile, Statement } from '@shared/types';
 
 @Injectable({
-  providedIn: 'root'
+  providedIn: 'root',
 })
 export class SyncUtilsService {
-  constructor(private storage: StorageService) {
-  }
+  constructor(private idb: IndexedDBService) {}
 
   /**
    * Get a timestamp of the last local data modification
@@ -34,12 +34,14 @@ export class SyncUtilsService {
   /**
    * Check if data exists (for first-time setup detection)
    */
-  hasLocalData(): boolean {
-    const profiles = this.storage.getProfiles();
-    const cards = this.storage.getCards();
-    const statements = this.storage.getStatements();
-    const installments = this.storage.getInstallments();
-    const cashInstallments = this.storage.getCashInstallments();
+  async hasLocalData(): Promise<boolean> {
+    const db = this.idb.getDB();
+
+    const profiles = await db.getAll<Profile>(STORES.PROFILES);
+    const cards = await db.getAll<CreditCard>(STORES.CARDS);
+    const statements = await db.getAll<Statement>(STORES.STATEMENTS);
+    const installments = await db.getAll<Installment>(STORES.INSTALLMENTS);
+    const cashInstallments = await db.getAll<CashInstallment>(STORES.CASH_INSTALLMENTS);
 
     return (
       profiles.length > 0 ||
@@ -53,13 +55,15 @@ export class SyncUtilsService {
   /**
    * Get data size in bytes (approximate)
    */
-  getDataSize(): number {
+  async getDataSize(): Promise<number> {
+    const db = this.idb.getDB();
+
     const data = {
-      profiles: this.storage.getProfiles(),
-      cards: this.storage.getCards(),
-      statements: this.storage.getStatements(),
-      installments: this.storage.getInstallments(),
-      cashInstallments: this.storage.getCashInstallments(),
+      profiles: await db.getAll<Profile>(STORES.PROFILES),
+      cards: await db.getAll<CreditCard>(STORES.CARDS),
+      statements: await db.getAll<Statement>(STORES.STATEMENTS),
+      installments: await db.getAll<Installment>(STORES.INSTALLMENTS),
+      cashInstallments: await db.getAll<CashInstallment>(STORES.CASH_INSTALLMENTS),
     };
 
     return new Blob([JSON.stringify(data)]).size;

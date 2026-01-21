@@ -20,12 +20,11 @@ import { initializeApp } from '@angular/fire/app';
 import { getAuth } from '@angular/fire/auth';
 import { getFirestore } from '@angular/fire/firestore';
 import { firebaseConfig, isFirebaseConfigured } from '@environments/firebase';
-import { StorageSettingsComponent } from './components/storage-settings.component';
 
 @Component({
   selector: 'app-sync',
   standalone: true,
-  imports: [CommonModule, FormsModule, LucideAngularModule, StorageSettingsComponent],
+  imports: [CommonModule, FormsModule, LucideAngularModule],
   templateUrl: './sync.component.html',
 })
 export class SyncComponent implements OnInit {
@@ -83,7 +82,9 @@ export class SyncComponent implements OnInit {
   }
 
   ngOnInit(): void {
-    this.dataSize = this.syncUtils.getDataSize();
+    void this.syncUtils.getDataSize().then((size) => {
+      this.dataSize = size;
+    });
   }
 
   async handleExport(): Promise<void> {

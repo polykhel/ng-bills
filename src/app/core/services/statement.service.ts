@@ -1,5 +1,5 @@
 import { effect, Injectable, signal } from '@angular/core';
-import { StorageService } from './storage.service';
+import { IndexedDBService, STORES } from './indexeddb.service';
 import { ProfileService } from './profile.service';
 import type { Statement } from '@shared/types';
 
@@ -13,25 +13,19 @@ export class StatementService {
   statements = this.statementsSignal.asReadonly();
 
   constructor(
-    private storageService: StorageService,
-    private profileService: ProfileService
+    private idb: IndexedDBService,
+    private profileService: ProfileService,
   ) {
-    this.initializeStatements();
+    void this.initializeStatements();
     this.setupAutoSave();
   }
 
-  updateStatement(
-    cardId: string,
-    monthStr: string,
-    updates: Partial<Statement>
-  ): void {
-    this.statementsSignal.update(prev => {
-      const existing = prev.find(
-        s => s.cardId === cardId && s.monthStr === monthStr
-      );
+  updateStatement(cardId: string, monthStr: string, updates: Partial<Statement>): void {
+    this.statementsSignal.update((prev) => {
+      const existing = prev.find((s) => s.cardId === cardId && s.monthStr === monthStr);
 
       if (existing) {
-        return prev.map(s => (s.id === existing.id ? {...s, ...updates} : s));
+        return prev.map((s) => (s.id === existing.id ? { ...s, ...updates } : s));
       }
 
       return [
@@ -50,17 +44,15 @@ export class StatementService {
   }
 
   togglePaid(cardId: string, monthStr: string, installmentTotal: number): void {
-    this.statementsSignal.update(prev => {
-      const existing = prev.find(
-        s => s.cardId === cardId && s.monthStr === monthStr
-      );
+    this.statementsSignal.update((prev) => {
+      const existing = prev.find((s) => s.cardId === cardId && s.monthStr === monthStr);
 
       if (existing) {
         const newIsPaid = !existing.isPaid;
         const updates = newIsPaid
-          ? {isPaid: newIsPaid, isUnbilled: false, paidAmount: existing.amount}
-          : {isPaid: newIsPaid, paidAmount: 0};
-        return prev.map(s => (s.id === existing.id ? {...s, ...updates} : s));
+          ? { isPaid: newIsPaid, isUnbilled: false, paidAmount: existing.amount }
+          : { isPaid: newIsPaid, paidAmount: 0 };
+        return prev.map((s) => (s.id === existing.id ? { ...s, ...updates } : s));
       }
 
       return [
@@ -79,13 +71,12 @@ export class StatementService {
   }
 
   setPaidAmount(cardId: string, monthStr: string, paidAmount: number): void {
-    this.statementsSignal.update(prev => {
-      const existing = prev.find(
-        s => s.cardId === cardId && s.monthStr === monthStr
-      );
+    this.statementsSignal.update((prev) => {
+      const existing = prev.find((s) => s.cardId === cardId && s.monthStr === monthStr);
 
       if (existing) {
-        const effectiveAmount = existing.adjustedAmount !== undefined ? existing.adjustedAmount : existing.amount;
+        const effectiveAmount =
+          existing.adjustedAmount !== undefined ? existing.adjustedAmount : existing.amount;
         const newPaidAmount = Math.max(0, Math.min(paidAmount, effectiveAmount));
         const isPaid = newPaidAmount >= effectiveAmount;
         const updates = {
@@ -93,7 +84,7 @@ export class StatementService {
           isPaid,
           isUnbilled: isPaid ? false : existing.isUnbilled,
         };
-        return prev.map(s => (s.id === existing.id ? {...s, ...updates} : s));
+        return prev.map((s) => (s.id === existing.id ? { ...s, ...updates } : s));
       }
 
       return prev;
@@ -101,21 +92,23 @@ export class StatementService {
   }
 
   addPayment(cardId: string, monthStr: string, amount: number): void {
-    this.statementsSignal.update(prev => {
-      const existing = prev.find(
-        s => s.cardId === cardId && s.monthStr === monthStr
-      );
+    this.statementsSignal.update((prev) => {
+      const existing = prev.find((s) => s.cardId === cardId && s.monthStr === monthStr);
 
       if (existing) {
-        const effectiveAmount = existing.adjustedAmount !== undefined ? existing.adjustedAmount : existing.amount;
+        const effectiveAmount =
+          existing.adjustedAmount !== undefined ? existing.adjustedAmount : existing.amount;
         const payments = existing.payments || [];
         const currentPaid = payments.reduce((sum, p) => sum + p.amount, 0);
         const maxPayment = Math.max(0, effectiveAmount - currentPaid);
         const paymentAmount = Math.min(amount, maxPayment);
-        
+
         if (paymentAmount <= 0) return prev;
 
-        const newPayments = [...payments, { amount: paymentAmount, date: new Date().toISOString() }];
+        const newPayments = [
+          ...payments,
+          { amount: paymentAmount, date: new Date().toISOString() },
+        ];
         const totalPaid = newPayments.reduce((sum, p) => sum + p.amount, 0);
         const isPaid = totalPaid >= effectiveAmount;
 
@@ -125,7 +118,7 @@ export class StatementService {
           isPaid,
           isUnbilled: isPaid ? false : existing.isUnbilled,
         };
-        return prev.map(s => (s.id === existing.id ? {...s, ...updates} : s));
+        return prev.map((s) => (s.id === existing.id ? { ...s, ...updates } : s));
       }
 
       return prev;
@@ -133,15 +126,14 @@ export class StatementService {
   }
 
   removePayment(cardId: string, monthStr: string, paymentIndex: number): void {
-    this.statementsSignal.update(prev => {
-      const existing = prev.find(
-        s => s.cardId === cardId && s.monthStr === monthStr
-      );
+    this.statementsSignal.update((prev) => {
+      const existing = prev.find((s) => s.cardId === cardId && s.monthStr === monthStr);
 
       if (existing && existing.payments) {
         const newPayments = existing.payments.filter((_, i) => i !== paymentIndex);
         const totalPaid = newPayments.reduce((sum, p) => sum + p.amount, 0);
-        const effectiveAmount = existing.adjustedAmount !== undefined ? existing.adjustedAmount : existing.amount;
+        const effectiveAmount =
+          existing.adjustedAmount !== undefined ? existing.adjustedAmount : existing.amount;
         const isPaid = totalPaid >= effectiveAmount;
 
         const updates = {
@@ -149,7 +141,7 @@ export class StatementService {
           paidAmount: totalPaid,
           isPaid,
         };
-        return prev.map(s => (s.id === existing.id ? {...s, ...updates} : s));
+        return prev.map((s) => (s.id === existing.id ? { ...s, ...updates } : s));
       }
 
       return prev;
@@ -157,20 +149,18 @@ export class StatementService {
   }
 
   updatePaymentDate(cardId: string, monthStr: string, paymentIndex: number, date: string): void {
-    this.statementsSignal.update(prev => {
-      const existing = prev.find(
-        s => s.cardId === cardId && s.monthStr === monthStr
-      );
+    this.statementsSignal.update((prev) => {
+      const existing = prev.find((s) => s.cardId === cardId && s.monthStr === monthStr);
 
       if (existing && existing.payments && existing.payments[paymentIndex]) {
-        const newPayments = existing.payments.map((p, i) => 
-          i === paymentIndex ? { ...p, date } : p
+        const newPayments = existing.payments.map((p, i) =>
+          i === paymentIndex ? { ...p, date } : p,
         );
 
         const updates = {
           payments: newPayments,
         };
-        return prev.map(s => (s.id === existing.id ? {...s, ...updates} : s));
+        return prev.map((s) => (s.id === existing.id ? { ...s, ...updates } : s));
       }
 
       return prev;
@@ -178,27 +168,27 @@ export class StatementService {
   }
 
   deleteStatementsForCard(cardId: string): void {
-    this.statementsSignal.update(prev => prev.filter(s => s.cardId !== cardId));
+    this.statementsSignal.update((prev) => prev.filter((s) => s.cardId !== cardId));
   }
 
   getStatementsForCard(cardId: string): Statement[] {
-    return this.statementsSignal().filter(s => s.cardId === cardId);
+    return this.statementsSignal().filter((s) => s.cardId === cardId);
   }
 
   getStatementForMonth(cardId: string, monthStr: string): Statement | undefined {
-    return this.statementsSignal().find(
-      s => s.cardId === cardId && s.monthStr === monthStr
-    );
+    return this.statementsSignal().find((s) => s.cardId === cardId && s.monthStr === monthStr);
   }
 
-  private initializeStatements(): void {
-    this.statementsSignal.set(this.storageService.getStatements());
+  private async initializeStatements(): Promise<void> {
+    const db = this.idb.getDB();
+    const data = await db.getAll<Statement>(STORES.STATEMENTS);
+    this.statementsSignal.set(data);
   }
 
   private setupAutoSave(): void {
     effect(() => {
       if (this.profileService.isLoaded()) {
-        this.storageService.saveStatements(this.statementsSignal());
+        void this.idb.getDB().putAll(STORES.STATEMENTS, this.statementsSignal());
       }
     });
   }

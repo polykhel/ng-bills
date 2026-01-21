@@ -167,7 +167,6 @@ src/app/
 │   ├── firebase-auth.service.ts  # Firebase authentication
 │   ├── firebase-sync.service.ts  # Firebase sync logic
 │   ├── encryption.service.ts     # Data encryption
-│   └── storage.service.ts        # LocalStorage wrapper
 ├── features/               # Feature modules
 │   ├── dashboard/          # Main dashboard view
 │   ├── calendar/           # Calendar view

@@ -1,4 +1,4 @@
-export * from './storage.service';
+export * from './indexeddb.service';
 export * from './profile.service';
 export * from './card.service';
 export * from './statement.service';

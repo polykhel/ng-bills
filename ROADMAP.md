@@ -80,9 +80,11 @@ Objective: define free/premium value.
 - Favor signals/computed for view state; avoid ad hoc globals.
 - Build new features behind clear toggles; maintain backward compatibility until parity is proven.
 - When adding data features, route through StorageService/SyncService; avoid direct localStorage access.
+- This app is not yet in production so don't worry too much about backwards compatibility, no need to maintain
+  localstorage.
 
 **Last Updated**: January 2026  
-**Status**: Planning with Phase 0 in progress# ng-bills Roadmap
+**Status**: Phase 0 done, phase 1 in progress# ng-bills Roadmap
 
 This document outlines planned features and enhancements to transform ng-bills into a comprehensive personal finance management platform.
 
