@@ -961,13 +961,626 @@ interface Debt {
 ## Implementation Priority
 
 ### Phase 0: Foundation (Weeks 1-6) 🏗️
-**Storage Architecture Migration**
+
+#### Part 1: Storage Architecture Migration
 - [ ] Create StorageProvider abstraction layer
 - [ ] Implement IndexedDBProvider
 - [ ] Build LocalStorage → IndexedDB migration tool
 - [ ] Auto-migrate existing users
 - [ ] Test with large datasets
 - [ ] Keep Firebase sync as optional cloud backup
+
+#### Part 2: UI/UX Redesign & Information Architecture 🎨
+
+**Current State Analysis:**
+The existing app is designed around **bill tracking** with these views:
+- Dashboard: Monthly credit card bills
+- Calendar: Due dates for cards
+- Manage: Add/edit cards and installments
+- Sync: Data backup
+
+**New Requirement:**
+Transform into **comprehensive finance management** that handles:
+- All transactions (not just bills)
+- Income tracking
+- Expense tracking
+- Bank balance with available vs committed
+- Budget management
+- Savings goals
+- Planned purchases
+
+**Core Design Principle:**
+> **Transactions are the foundation.** Everything links to transactions:
+> - Credit card charges → Transactions
+> - Cash payments → Transactions  
+> - Income → Transactions
+> - Bills paid → Transactions
+
+---
+
+#### New Information Architecture
+
+**Primary Navigation (Redesigned):**
+
+```
+┌─────────────────────────────────────────────────────┐
+│  ng-bills                    [Month Selector]  [⚙️]  │
+├─────────────────────────────────────────────────────┤
+│  Overview  │  Transactions  │  Bills  │  Budget     │
+│  [active]  │                │         │             │
+└─────────────────────────────────────────────────────┘
+```
+
+**1. Overview (New - Replaces Dashboard)**
+The financial command center - see everything at a glance:
+
+```typescript
+// Component: overview.component.ts
+interface OverviewView {
+  // Top Section: Key Metrics
+  metrics: {
+    availableBalance: number;      // What you can spend now
+    totalBalance: number;           // Bank balance
+    committedBalance: number;       // Money already allocated
+    monthlyIncome: number;          // This month's income
+    monthlyExpenses: number;        // This month's expenses
+    netCashFlow: number;            // Income - Expenses
+  };
+  
+  // Middle Section: Quick Actions
+  quickActions: {
+    addTransaction: () => void;
+    payBill: () => void;
+    viewBudget: () => void;
+  };
+  
+  // Bottom Section: Widgets (Customizable)
+  widgets: [
+    'upcoming-bills',              // Next 7 days
+    'recent-transactions',         // Last 10 transactions
+    'budget-summary',              // Category spending
+    'savings-goals-progress',      // Goal cards
+    'spending-by-category'         // Pie chart
+  ];
+}
+```
+
+Visual Layout:
+```
+┌─────────────────────────────────────────────────────────┐
+│ Overview                              January 2026      │
+├─────────────────────────────────────────────────────────┤
+│                                                         │
+│  ┌──────────┐  ┌──────────┐  ┌──────────┐            │
+│  │💰 $2,300 │  │🏦 $8,500 │  │📊 $6,200│            │
+│  │Available │  │  Total   │  │Committed│            │
+│  └──────────┘  └──────────┘  └──────────┘            │
+│                                                         │
+│  ┌─────────────────────────────────────────┐          │
+│  │ 📈 Cash Flow This Month                 │          │
+│  │ Income:    $7,500  ████████████████░░░  │          │
+│  │ Expenses:  $4,200  ████████░░░░░░░░░░░  │          │
+│  │ Net:       $3,300  ████████████░░░░░░░  │          │
+│  └─────────────────────────────────────────┘          │
+│                                                         │
+│  ┌──────────────────┐  ┌──────────────────┐          │
+│  │ Upcoming Bills   │  │ Budget Status    │          │
+│  │ Jan 23: $1,200   │  │ Food: 80% 🟢     │          │
+│  │ Jan 25: $450     │  │ Transport: 95% 🟡│          │
+│  │ Jan 30: $2,600   │  │ Shopping: 110% 🔴│          │
+│  └──────────────────┘  └──────────────────┘          │
+│                                                         │
+│  [+ Add Transaction]  [Pay Bill]  [View All →]        │
+└─────────────────────────────────────────────────────────┘
+```
+
+**2. Transactions (New - Core Feature)**
+Central hub for all money movement:
+
+```typescript
+// Component: transactions.component.ts
+interface TransactionView {
+  // Filter Bar
+  filters: {
+    dateRange: { start: string; end: string };
+    type: 'all' | 'income' | 'expense';
+    category: string[];
+    paymentMethod: 'all' | 'cash' | 'card' | 'bank_transfer';
+    cardId?: string;  // Filter by specific card
+    searchQuery: string;
+  };
+  
+  // Transaction List
+  transactions: Transaction[];
+  
+  // Summary Stats
+  summary: {
+    totalIncome: number;
+    totalExpenses: number;
+    netChange: number;
+    transactionCount: number;
+  };
+  
+  // Grouped Display Options
+  groupBy: 'date' | 'category' | 'card' | 'none';
+}
+```
+
+Visual Layout:
+```
+┌─────────────────────────────────────────────────────────┐
+│ Transactions                          [+ Add]           │
+├─────────────────────────────────────────────────────────┤
+│ Filters: [Jan 2026 ▼] [All Types ▼] [All Cards ▼] 🔍  │
+├─────────────────────────────────────────────────────────┤
+│                                                         │
+│ Today - Jan 21                                          │
+│ ┌─────────────────────────────────────────────────┐   │
+│ │ 🍔 Lunch at Restaurant        💳 Chase Freedom   │   │
+│ │ Food & Dining                       -$45.00     │   │
+│ │ 12:30 PM                                        │   │
+│ └─────────────────────────────────────────────────┘   │
+│ ┌─────────────────────────────────────────────────┐   │
+│ │ ⛽ Gas Station                💳 Citi Rewards    │   │
+│ │ Transportation                      -$60.00     │   │
+│ │ 8:15 AM                                         │   │
+│ └─────────────────────────────────────────────────┘   │
+│                                                         │
+│ Yesterday - Jan 20                                      │
+│ ┌─────────────────────────────────────────────────┐   │
+│ │ 💰 Salary Payment             🏦 Bank Transfer   │   │
+│ │ Income - Salary                  +$7,500.00     │   │
+│ │ 9:00 AM                                         │   │
+│ └─────────────────────────────────────────────────┘   │
+│                                                         │
+│ Summary: Income $7,500 | Expenses $105 | Net $7,395    │
+└─────────────────────────────────────────────────────────┘
+```
+
+**Key Feature: Transaction → Credit Card Link**
+```typescript
+// When adding transaction with card payment method
+interface TransactionForm {
+  amount: number;
+  description: string;
+  category: Category;
+  paymentMethod: 'cash' | 'card' | 'bank_transfer';
+  
+  // If paymentMethod === 'card'
+  cardId: string;  // Select from user's credit cards
+  
+  // If paymentMethod === 'cash'
+  cardId: null;    // No card association
+  
+  // Auto-linking
+  autoAddToStatement: boolean;  // Add to card's monthly statement
+}
+```
+
+**3. Bills (Redesigned - From Current Dashboard)**
+Focused view for managing credit card bills and installments:
+
+```typescript
+// Component: bills.component.ts
+interface BillsView {
+  // Current month's bills
+  monthlyBills: {
+    creditCards: {
+      card: CreditCard;
+      statement: Statement;
+      transactions: Transaction[];  // Linked transactions
+      amountDue: number;
+      dueDate: string;
+      isPaid: boolean;
+    }[];
+    
+    installments: {
+      installment: Installment | CashInstallment;
+      amount: number;
+      dueDate: string;
+      isPaid: boolean;
+    }[];
+  };
+  
+  // Upcoming bills (next 30 days)
+  upcomingBills: Bill[];
+  
+  // Calendar view toggle
+  viewMode: 'list' | 'calendar';
+}
+```
+
+Visual Layout:
+```
+┌─────────────────────────────────────────────────────────┐
+│ Bills                        January 2026               │
+├─────────────────────────────────────────────────────────┤
+│ [List View] [Calendar View]         Total Due: $5,250  │
+├─────────────────────────────────────────────────────────┤
+│                                                         │
+│ Credit Cards Due This Month                             │
+│ ┌─────────────────────────────────────────────────┐   │
+│ │ Chase Freedom             Due: Jan 25           │   │
+│ │ $1,850.00                 [View Charges]  [Pay] │   │
+│ │ 15 transactions • Shopping, Dining, Gas         │   │
+│ └─────────────────────────────────────────────────┘   │
+│ ┌─────────────────────────────────────────────────┐   │
+│ │ Citi Rewards              Due: Jan 30           │   │
+│ │ $2,600.00                 [View Charges]  [Pay] │   │
+│ │ 22 transactions • Utilities, Subscriptions      │   │
+│ └─────────────────────────────────────────────────┘   │
+│                                                         │
+│ Installments                                            │
+│ ┌─────────────────────────────────────────────────┐   │
+│ │ iPhone 15 Pro (5/12)      Due: Jan 28           │   │
+│ │ $450.00                                   [Pay] │   │
+│ └─────────────────────────────────────────────────┘   │
+└─────────────────────────────────────────────────────────┘
+```
+
+**4. Budget (New)**
+Budget management and category tracking:
+
+```typescript
+// Component: budget.component.ts
+interface BudgetView {
+  currentBudget: Budget;
+  categoryBreakdown: {
+    category: Category;
+    allocated: number;
+    spent: number;  // From transactions
+    remaining: number;
+    percentageUsed: number;
+    transactions: Transaction[];  // Drill-down
+  }[];
+  recommendations: string[];
+}
+```
+
+**5. More (Dropdown/Menu)**
+- Manage Cards & Installments (current Manage page)
+- Savings Goals
+- Planned Purchases
+- Loan Planning
+- Analytics & Reports
+- Settings & Sync
+
+---
+
+#### Transaction-to-Card Linking System
+
+**Core Concept:**
+Every transaction can be linked to a payment method:
+1. **Credit Card** → Links to specific card, adds to statement
+2. **Cash** → No card, just tracks spending
+3. **Bank Transfer** → Direct debit from account
+
+**Implementation:**
+
+```typescript
+// 1. Transaction Service
+class TransactionService {
+  async addTransaction(transaction: Transaction): Promise<void> {
+    // Save transaction
+    await this.storage.saveTransaction(transaction);
+    
+    // If linked to credit card, update statement
+    if (transaction.paymentMethod === 'card' && transaction.cardId) {
+      await this.updateCardStatement(transaction);
+    }
+    
+    // Update bank balance
+    await this.updateBankBalance(transaction);
+    
+    // Update budget category
+    if (transaction.type === 'expense') {
+      await this.updateBudgetSpending(transaction);
+    }
+  }
+  
+  private async updateCardStatement(transaction: Transaction): Promise<void> {
+    const monthStr = format(parseISO(transaction.date), 'yyyy-MM');
+    const statement = await this.statementService.getOrCreateStatement(
+      transaction.cardId!,
+      monthStr
+    );
+    
+    // Add transaction amount to statement
+    statement.amount += transaction.amount;
+    await this.statementService.saveStatement(statement);
+  }
+}
+
+// 2. Card Statement with Transaction Breakdown
+interface EnhancedStatement extends Statement {
+  transactionIds: string[];  // Links to transactions
+}
+
+// Get statement with transactions
+async getStatementWithTransactions(cardId: string, monthStr: string) {
+  const statement = await this.getStatement(cardId, monthStr);
+  const transactions = await this.transactionService.getTransactions({
+    cardId,
+    dateRange: {
+      start: `${monthStr}-01`,
+      end: `${monthStr}-31`
+    }
+  });
+  
+  return {
+    ...statement,
+    transactions,
+    calculatedTotal: transactions.reduce((sum, t) => sum + t.amount, 0)
+  };
+}
+```
+
+**UI Flow: Adding Transaction**
+
+```
+User clicks [+ Add Transaction]
+↓
+Modal/Page Opens:
+┌─────────────────────────────────────┐
+│ Add Transaction                     │
+├─────────────────────────────────────┤
+│ Amount: [_______]                   │
+│ Type: (•) Expense  ( ) Income       │
+│ Description: [___________]          │
+│ Category: [Food & Dining ▼]         │
+│ Date: [Jan 21, 2026 ▼]             │
+│                                     │
+│ Payment Method:                     │
+│ (•) Credit Card                     │
+│     [Chase Freedom ▼]              │
+│     ✓ Add to card statement        │
+│                                     │
+│ ( ) Cash                            │
+│ ( ) Bank Transfer                   │
+│                                     │
+│ Notes: [___________]                │
+│                                     │
+│ [Cancel]              [Save]        │
+└─────────────────────────────────────┘
+```
+
+**Card Statement View with Transactions**
+
+```
+┌─────────────────────────────────────────────────────────┐
+│ Chase Freedom - January 2026                            │
+├─────────────────────────────────────────────────────────┤
+│ Statement Amount: $1,850.00        Due: Jan 25          │
+│ [Mark as Paid]                     [Export CSV]         │
+├─────────────────────────────────────────────────────────┤
+│                                                         │
+│ Transactions (15)                                       │
+│ ┌─────────────────────────────────────────────────┐   │
+│ │ 🍔 Restaurant - Jan 21            -$45.00       │   │
+│ │ 🛒 Grocery Store - Jan 20         -$150.00      │   │
+│ │ ⛽ Gas Station - Jan 19           -$60.00       │   │
+│ │ 💊 Pharmacy - Jan 18              -$25.00       │   │
+│ │ ... and 11 more                                 │   │
+│ └─────────────────────────────────────────────────┘   │
+│                                                         │
+│ By Category:                                            │
+│ Food & Dining:    $580.00 (31%)                        │
+│ Shopping:         $450.00 (24%)                        │
+│ Transportation:   $340.00 (18%)                        │
+│ Healthcare:       $230.00 (12%)                        │
+│ Other:            $250.00 (14%)                        │
+└─────────────────────────────────────────────────────────┘
+```
+
+---
+
+#### Component Refactoring Checklist
+
+**Phase 0.2: UI Component Architecture**
+
+**1. Shared Components (Reusable)**
+```
+src/app/shared/components/
+├── transaction-card.component.ts       # Display single transaction
+├── transaction-list.component.ts       # List with virtual scroll
+├── transaction-form.component.ts       # Add/Edit transaction modal
+├── payment-method-selector.component.ts # Card/Cash/Bank selector
+├── category-selector.component.ts      # Category picker
+├── amount-input.component.ts           # Currency input with validation
+├── date-range-picker.component.ts      # Filter by date range
+├── balance-overview-card.component.ts  # Total/Available/Committed
+├── quick-stats-card.component.ts       # Metric cards
+├── spending-chart.component.ts         # Category pie/bar charts
+└── budget-progress-bar.component.ts    # Category budget bars
+```
+
+**2. Feature Components (Pages)**
+```
+src/app/features/
+├── overview/                           # NEW - Replaces dashboard
+│   ├── overview.component.ts
+│   ├── overview.component.html
+│   └── components/
+│       ├── metrics-cards.component.ts
+│       ├── quick-actions.component.ts
+│       ├── upcoming-bills-widget.component.ts
+│       ├── recent-transactions-widget.component.ts
+│       └── budget-summary-widget.component.ts
+│
+├── transactions/                       # NEW - Core feature
+│   ├── transactions.component.ts
+│   ├── transactions.component.html
+│   └── components/
+│       ├── transaction-filters.component.ts
+│       ├── transaction-summary.component.ts
+│       └── transaction-group.component.ts
+│
+├── bills/                              # RENAMED from dashboard
+│   ├── bills.component.ts             # Focused on bills only
+│   ├── bills.component.html
+│   └── components/
+│       ├── credit-card-bill.component.ts
+│       ├── installment-bill.component.ts
+│       ├── bills-calendar.component.ts
+│       └── bill-detail-modal.component.ts
+│
+├── budget/                             # NEW
+│   ├── budget.component.ts
+│   ├── budget.component.html
+│   └── components/
+│       ├── budget-overview.component.ts
+│       ├── category-budget-card.component.ts
+│       └── budget-form-modal.component.ts
+│
+├── calendar/                           # KEEP - Enhanced
+│   └── (existing calendar view)
+│
+├── manage/                             # KEEP - Cards & Installments
+│   └── (existing manage view)
+│
+└── sync/                               # KEEP
+    └── (existing sync view)
+```
+
+**3. Services (Enhanced)**
+```
+src/app/core/services/
+├── transaction.service.ts              # NEW - Core transaction CRUD
+├── category.service.ts                 # NEW - Category management
+├── budget.service.ts                   # NEW - Budget tracking
+├── commitment.service.ts               # NEW - Available balance logic
+├── card.service.ts                     # ENHANCED - Link to transactions
+├── statement.service.ts                # ENHANCED - Transaction breakdown
+├── bank-balance.service.ts             # ENHANCED - Transaction-based calc
+└── (existing services...)
+```
+
+**4. Routes Update**
+```typescript
+// src/app/app.routes.ts
+export const routes: Routes = [
+  { path: '', redirectTo: '/overview', pathMatch: 'full' },
+  
+  // Primary Navigation
+  { path: 'overview', component: OverviewComponent },
+  { path: 'transactions', component: TransactionsComponent },
+  { path: 'bills', component: BillsComponent },
+  { path: 'budget', component: BudgetComponent },
+  
+  // Secondary Pages
+  { path: 'calendar', component: CalendarComponent },
+  { path: 'manage', component: ManageComponent },
+  { path: 'savings-goals', component: SavingsGoalsComponent },
+  { path: 'planned-purchases', component: PlannedPurchasesComponent },
+  { path: 'loan-planning', component: LoanPlanningComponent },
+  { path: 'analytics', component: AnalyticsComponent },
+  { path: 'sync', component: SyncComponent },
+];
+```
+
+**5. Navigation Component Update**
+```typescript
+// src/app/app.component.html
+<nav class="primary-nav">
+  <a routerLink="/overview" routerLinkActive="active">Overview</a>
+  <a routerLink="/transactions" routerLinkActive="active">Transactions</a>
+  <a routerLink="/bills" routerLinkActive="active">Bills</a>
+  <a routerLink="/budget" routerLinkActive="active">Budget</a>
+  
+  <div class="dropdown">
+    <button>More ▼</button>
+    <div class="menu">
+      <a routerLink="/calendar">Calendar</a>
+      <a routerLink="/manage">Manage Cards</a>
+      <a routerLink="/savings-goals">Savings Goals</a>
+      <a routerLink="/planned-purchases">Planned Purchases</a>
+      <a routerLink="/analytics">Analytics</a>
+      <a routerLink="/sync">Sync & Settings</a>
+    </div>
+  </div>
+</nav>
+```
+
+---
+
+#### Migration Path: Old UI → New UI
+
+**Step-by-Step Refactoring:**
+
+1. **Week 1-2: Create New Components (Parallel)**
+   - Build new Overview page (doesn't break existing)
+   - Build Transaction components
+   - Build Budget components
+   - Keep old Dashboard running
+
+2. **Week 3: Add New Routes**
+   - Add /overview, /transactions, /budget routes
+   - Old /dashboard still works
+   - Users can switch between old/new
+
+3. **Week 4: Data Layer Integration**
+   - Connect new components to services
+   - Ensure transaction → card linking works
+   - Test data flow
+
+4. **Week 5: Rename & Redirect**
+   - Rename Dashboard → Bills
+   - Redirect /dashboard → /overview
+   - Update all internal links
+
+5. **Week 6: Polish & Remove Old Code**
+   - Remove deprecated components
+   - Clean up unused services
+   - Update documentation
+
+**Feature Flag Approach:**
+```typescript
+// Enable gradual rollout
+const UI_VERSION = localStorage.getItem('ui-version') || 'new';
+
+if (UI_VERSION === 'new') {
+  // Use new Overview page
+  defaultRoute = '/overview';
+} else {
+  // Use old Dashboard
+  defaultRoute = '/dashboard';
+}
+
+// Settings toggle
+<button (click)="switchToNewUI()">Try New Interface (Beta)</button>
+```
+
+---
+
+#### Design System Updates
+
+**Color Coding:**
+- 🟢 Green: Income, Savings, Positive
+- 🔴 Red: Expenses, Overbudget, Critical
+- 🟡 Yellow: Warnings, Approaching limit
+- 🔵 Blue: Information, Neutral
+- ⚫ Gray: Inactive, Paid
+
+**Icons:**
+- 💰 Available Balance
+- 🏦 Bank Balance
+- 📊 Committed
+- 💳 Credit Card
+- 💵 Cash
+- 📈 Income
+- 📉 Expense
+- 🍔 Food & Dining
+- 🚗 Transportation
+- 🏠 Housing
+- ... (category icons)
+
+**Typography:**
+- Large amounts: 32px bold (key metrics)
+- Medium amounts: 20px (cards, lists)
+- Small amounts: 16px (details)
+- Labels: 14px (descriptions)
+
+---
 
 ### High Priority (Next 3-6 months)
 1. ✅ **Transaction tracking foundation**
