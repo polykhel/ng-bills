@@ -13,3 +13,5 @@ export * from './sync-utils.service';
 export * from './sync.service';
 export * from './app-state.service';
 export * from './notification.service';
+export * from './transaction.service';
+export * from './category.service';

@@ -6,18 +6,28 @@
       message="Select a profile to view your bills"
     />
   } @else {
-    <!-- Header -->
-    <div class="mb-6">
-      <h1 class="text-2xl font-bold text-slate-900">Bills</h1>
-      <p class="text-slate-600 mt-1">Manage your credit card bills and installments</p>
+    <!-- Header with Create Bill Button -->
+    <div class="flex items-center justify-between mb-6">
+      <div>
+        <h1 class="text-2xl font-bold text-slate-900">Bills & Statements</h1>
+        <p class="text-slate-600 mt-1">Credit card bills auto-generated from your transactions</p>
+      </div>
+      <button
+        type="button"
+        (click)="openBillFormForCreate()"
+        class="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 font-medium transition-colors"
+      >
+        <lucide-angular [img]="Plus" [size]="20" />
+        <span>Create Bill</span>
+      </button>
     </div>
 
     <!-- Summary Metrics -->
     <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
       <app-metric-card
-        [icon]="DollarSign"
+        [icon]="AlertCircle"
         label="Total Due"
-        [value]="'₱' + summary().totalDue.toLocaleString()"
+        [value]="formatCurrency(summary().totalDue)"
         variant="warning"
       />
 
@@ -29,7 +39,7 @@
       />
 
       <app-metric-card
-        [icon]="FileText"
+        [icon]="CheckCircle"
         label="Paid Bills"
         [value]="summary().paidCount.toString()"
         variant="success"
@@ -38,61 +48,61 @@
       <app-metric-card
         [icon]="DollarSign"
         label="Total Paid"
-        [value]="'₱' + summary().totalPaid.toLocaleString()"
+        [value]="formatCurrency(summary().totalPaid)"
         variant="info"
       />
     </div>
 
     <!-- Bills List -->
-    <div class="bg-white rounded-lg border border-slate-200 shadow-sm">
-      <div class="p-6">
-        <app-section-header
-          [icon]="CreditCard"
-          title="Credit Card Bills"
-          [badge]="bills().length > 0 ? bills().length.toString() : undefined"
-        />
-
-        @if (bills().length === 0) {
+    <div class="space-y-4">
+      @if (billsWithDetails().length === 0) {
+        <div class="bg-white rounded-lg border border-slate-200 shadow-sm p-6">
           <app-empty-state
             [icon]="CreditCard"
             title="No credit cards"
-            message="Add credit cards to start tracking your bills"
+            message="Add credit cards in the Manage page to start tracking your bills"
           />
-        } @else {
-          <div class="space-y-3 mt-4">
-            @for (bill of bills(); track bill.cardId) {
-              <div
-                class="flex items-center justify-between p-4 rounded-lg border-2 transition-all"
-                [style.border-color]="bill.color"
-                [class.bg-green-50]="bill.isPaid"
-                [class.bg-white]="!bill.isPaid"
-              >
-                <div class="flex-1">
-                  <div class="flex items-center gap-3">
-                    <div
-                      class="w-1 h-12 rounded-full"
-                      [style.background-color]="bill.color"
-                    ></div>
-                    <div>
-                      <h3 class="font-semibold text-slate-900">{{ bill.cardName }}</h3>
-                      <div class="flex items-center gap-3 mt-1">
-                        <div class="flex items-center gap-1 text-sm text-slate-600">
-                          <lucide-angular [img]="Calendar" [size]="14" />
-                          <span>Due {{ bill.dueDate | date : 'MMM d, yyyy' }}</span>
-                        </div>
-                        @if (bill.isPaid) {
-                          <span
-                            class="px-2 py-0.5 text-xs font-medium bg-green-100 text-green-700 rounded-full"
-                          >
-                            Paid
-                          </span>
-                        } @else {
-                          <span
-                            class="px-2 py-0.5 text-xs font-medium bg-yellow-100 text-yellow-700 rounded-full"
-                          >
-                            Unpaid
-                          </span>
-                        }
+        </div>
+      } @else {
+        @for (bill of billsWithDetails(); track bill.cardId) {
+          <div
+            class="bill-card bg-white rounded-lg border-2 shadow-sm overflow-hidden"
+            [style.border-color]="bill.color"
+            [class.bg-green-50]="bill.isPaid"
+          >
+            <!-- Bill Header -->
+            <div class="p-4">
+              <div class="flex items-center justify-between">
+                <div class="flex items-center gap-3 flex-1">
+                  <div
+                    class="w-1 h-16 rounded-full"
+                    [style.background-color]="bill.color"
+                  ></div>
+                  <div class="flex-1">
+                    <div class="flex items-center gap-2">
+                      <h3 class="text-lg font-semibold text-slate-900">{{ bill.cardName }}</h3>
+                      @if (bill.isPaid) {
+                        <span
+                          class="px-2 py-0.5 text-xs font-medium bg-green-100 text-green-700 rounded-full"
+                        >
+                          Paid
+                        </span>
+                      } @else {
+                        <span
+                          class="px-2 py-0.5 text-xs font-medium bg-yellow-100 text-yellow-700 rounded-full"
+                        >
+                          Unpaid
+                        </span>
+                      }
+                    </div>
+                    <div class="flex items-center gap-4 mt-1">
+                      <div class="flex items-center gap-1 text-sm text-slate-600">
+                        <lucide-angular [img]="Calendar" [size]="14" />
+                        <span>Due {{ bill.dueDate | date : 'MMM d, yyyy' }}</span>
+                      </div>
+                      <div class="flex items-center gap-1 text-sm text-slate-600">
+                        <lucide-angular [img]="FileText" [size]="14" />
+                        <span>{{ bill.transactions.length }} transaction(s)</span>
                       </div>
                     </div>
                   </div>
@@ -101,55 +111,250 @@
                 <div class="flex items-center gap-4">
                   <div class="text-right">
                     <div class="text-2xl font-bold text-slate-900">
-                      ₱{{ bill.amount.toLocaleString() }}
+                      {{ formatCurrency(bill.amount) }}
                     </div>
-                    @if (!bill.hasStatement) {
-                      <div class="text-xs text-slate-500">No statement</div>
+                    @if (bill.isPaid && bill.paidAmount > 0) {
+                      <div class="text-xs text-green-600">Paid: {{ formatCurrency(bill.paidAmount) }}</div>
+                    } @else if (!bill.statement) {
+                      <div class="text-xs text-slate-500">No statement yet</div>
                     }
                   </div>
 
                   <div class="flex gap-2">
-                    @if (!bill.isPaid && bill.hasStatement) {
+                    @if (bill.statement && bill.statement.isEstimated) {
                       <button
                         type="button"
-                        (click)="onMarkAsPaid(bill.cardId)"
-                        class="px-3 py-1.5 text-sm font-medium bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors"
+                        (click)="openBillFormForEdit(bill)"
+                        class="px-3 py-1.5 text-sm font-medium border border-blue-300 text-blue-700 bg-blue-50 rounded-md hover:bg-blue-100 transition-colors"
+                        title="Edit manual bill"
                       >
-                        Mark Paid
+                        Edit
                       </button>
                     }
-                    <button
-                      type="button"
-                      (click)="onViewDetails(bill.cardId)"
-                      class="px-3 py-1.5 text-sm font-medium border border-slate-300 text-slate-700 rounded-md hover:bg-slate-50 transition-colors"
-                    >
-                      Details
-                    </button>
+                    @if (!bill.isPaid && bill.statement) {
+                      <button
+                        type="button"
+                        (click)="openPaymentModal(bill)"
+                        class="px-3 py-1.5 text-sm font-medium bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors"
+                      >
+                        Pay Bill
+                      </button>
+                    } @else if (bill.isPaid && bill.statement) {
+                      <button
+                        type="button"
+                        (click)="markAsUnpaid(bill)"
+                        class="px-3 py-1.5 text-sm font-medium border border-slate-300 text-slate-700 rounded-md hover:bg-slate-50 transition-colors"
+                      >
+                        Mark Unpaid
+                      </button>
+                    }
+                    @if (bill.transactions.length > 0) {
+                      <button
+                        type="button"
+                        (click)="toggleExpand(bill)"
+                        class="px-3 py-1.5 text-sm font-medium border border-slate-300 text-slate-700 rounded-md hover:bg-slate-50 transition-colors flex items-center gap-1"
+                      >
+                        <span>{{ bill.isExpanded ? 'Hide' : 'Show' }} Transactions</span>
+                        <lucide-angular [img]="bill.isExpanded ? ChevronUp : ChevronDown" [size]="16" />
+                      </button>
+                    }
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Transactions List (Expandable) -->
+            @if (bill.isExpanded && bill.transactions.length > 0) {
+              <div class="border-t border-slate-200 bg-slate-50">
+                <div class="p-4">
+                  <h4 class="text-sm font-semibold text-slate-700 mb-3">Linked Transactions</h4>
+                  <div class="bg-white rounded-md border border-slate-200">
+                    @for (transaction of bill.transactions; track transaction.id) {
+                      <div class="transaction-item">
+                        <div class="flex-1">
+                          <div class="font-medium text-slate-900">{{ transaction.description }}</div>
+                          <div class="text-xs text-slate-500 mt-0.5">
+                            {{ formatDate(transaction.date) }}
+                            @if (transaction.notes) {
+                              • {{ transaction.notes }}
+                            }
+                          </div>
+                        </div>
+                        <div class="font-semibold text-red-600">
+                          -{{ formatCurrency(transaction.amount) }}
+                        </div>
+                      </div>
+                    }
                   </div>
                 </div>
               </div>
             }
           </div>
         }
-      </div>
+      }
     </div>
 
-    <!-- Navigate to full dashboard for advanced features -->
+    <!-- Help Text -->
     <div class="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
       <div class="flex items-start gap-3">
         <lucide-angular [img]="FileText" [size]="20" class="text-blue-600 mt-0.5" />
         <div>
-          <h4 class="font-semibold text-blue-900 mb-1">Need more features?</h4>
-          <p class="text-sm text-blue-800 mb-3">
-            The full Dashboard view includes installments, bank balance tracking, advanced sorting, and
-            more. This Bills view is a simplified overview.
+          <h4 class="font-semibold text-blue-900 mb-1">Smart Bill Generation</h4>
+          <p class="text-sm text-blue-800">
+            Bills are automatically generated from your credit card transactions. When you add a transaction with a
+            credit card payment method, it's intelligently linked to the correct monthly statement based on the card's
+            cutoff date. Click "Show Transactions" to see the breakdown.
           </p>
-          <a
-            routerLink="/dashboard"
-            class="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-medium bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+        </div>
+      </div>
+    </div>
+  }
+
+  <!-- Payment Modal -->
+  @if (paymentModal().isOpen) {
+    <div class="payment-modal" (click)="closePaymentModal()">
+      <div class="modal-content" (click)="$event.stopPropagation()">
+        <div class="flex items-center justify-between mb-4">
+          <h3 class="text-lg font-semibold text-slate-900">Record Payment</h3>
+          <button
+            type="button"
+            (click)="closePaymentModal()"
+            class="text-slate-400 hover:text-slate-600"
           >
-            Go to Full Dashboard
-          </a>
+            <lucide-angular [img]="X" [size]="20" />
+          </button>
+        </div>
+
+        <div class="mb-4">
+          <div class="text-sm text-slate-600 mb-2">Card</div>
+          <div class="font-medium text-slate-900">{{ paymentModal().cardName }}</div>
+        </div>
+
+        <div class="mb-4">
+          <label class="block text-sm font-medium text-slate-700 mb-2">Amount Paid</label>
+          <input
+            type="number"
+            [(ngModel)]="paymentModalState().amount"
+            placeholder="0.00"
+            step="0.01"
+            min="0"
+            class="w-full px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+        </div>
+
+        <div class="mb-4">
+          <label class="block text-sm font-medium text-slate-700 mb-2">Payment Date</label>
+          <input
+            type="date"
+            [(ngModel)]="paymentModalState().date"
+            class="w-full px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+        </div>
+
+        <div class="flex gap-2">
+          <button
+            type="button"
+            (click)="recordPayment()"
+            class="flex-1 px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 font-medium"
+          >
+            Record Payment
+          </button>
+          <button
+            type="button"
+            (click)="closePaymentModal()"
+            class="px-4 py-2 border border-slate-300 text-slate-700 rounded-md hover:bg-slate-50"
+          >
+            Cancel
+          </button>
+        </div>
+      </div>
+    </div>
+  }
+
+  <!-- Bill Form Modal (Create/Edit) -->
+  @if (billFormState().isOpen) {
+    <div class="payment-modal" (click)="closeBillForm()">
+      <div class="modal-content" (click)="$event.stopPropagation()">
+        <div class="flex items-center justify-between mb-4">
+          <h3 class="text-lg font-semibold text-slate-900">
+            {{ billFormState().isEditing ? 'Edit Bill' : 'Create Manual Bill' }}
+          </h3>
+          <button
+            type="button"
+            (click)="closeBillForm()"
+            class="text-slate-400 hover:text-slate-600"
+          >
+            <lucide-angular [img]="X" [size]="20" />
+          </button>
+        </div>
+
+        <p class="text-sm text-slate-600 mb-4">
+          Create a bill manually when you don't have time to enter individual transactions. This is useful when you
+          receive a statement and just want to track the total amount.
+        </p>
+
+        <div class="mb-4">
+          <label class="block text-sm font-medium text-slate-700 mb-2">Credit Card</label>
+          <select
+            [(ngModel)]="billFormState().cardId"
+            (ngModelChange)="updateDueDateBasedOnCard(billFormState().cardId)"
+            [disabled]="billFormState().isEditing"
+            class="w-full px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-slate-100"
+          >
+            <option value="">Select a card...</option>
+            @for (card of availableCards; track card.id) {
+              <option [value]="card.id">{{ card.bankName }} {{ card.cardName }}</option>
+            }
+          </select>
+        </div>
+
+        <div class="mb-4">
+          <label class="block text-sm font-medium text-slate-700 mb-2">Bill Amount</label>
+          <input
+            type="number"
+            [(ngModel)]="billFormState().amount"
+            placeholder="0.00"
+            step="0.01"
+            min="0"
+            class="w-full px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+        </div>
+
+        <div class="mb-4">
+          <label class="block text-sm font-medium text-slate-700 mb-2">Due Date (Optional)</label>
+          <input
+            type="date"
+            [(ngModel)]="billFormState().dueDate"
+            class="w-full px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+          <p class="text-xs text-slate-500 mt-1">Defaults to the card's due day if not specified</p>
+        </div>
+
+        <div class="mb-4">
+          <label class="block text-sm font-medium text-slate-700 mb-2">Notes (Optional)</label>
+          <textarea
+            [(ngModel)]="billFormState().notes"
+            rows="3"
+            placeholder="Add any notes about this bill..."
+            class="w-full px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+          ></textarea>
+        </div>
+
+        <div class="flex gap-2">
+          <button
+            type="button"
+            (click)="saveBill()"
+            class="flex-1 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 font-medium"
+          >
+            {{ billFormState().isEditing ? 'Update Bill' : 'Create Bill' }}
+          </button>
+          <button
+            type="button"
+            (click)="closeBillForm()"
+            class="px-4 py-2 border border-slate-300 text-slate-700 rounded-md hover:bg-slate-50"
+          >
+            Cancel
+          </button>
         </div>
       </div>
     </div>

@@ -58,6 +58,14 @@ export class CardService {
     return this.cardsSignal().find((c) => c.id === cardId);
   }
 
+  /**
+   * Synchronous version of getCardById for use in services
+   * Returns card from current signal state
+   */
+  getCardSync(cardId: string): CreditCard | undefined {
+    return this.cardsSignal().find((c) => c.id === cardId);
+  }
+
   private async initializeCards(): Promise<void> {
     const db = this.idb.getDB();
     const loadedCards = await db.getAll<CreditCard>(STORES.CARDS);

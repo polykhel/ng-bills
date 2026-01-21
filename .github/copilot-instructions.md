@@ -68,3 +68,4 @@ Focused guidance for contributing productively to ng-bills (Angular 21, Tailwind
 If any conventions here are unclear or you need deeper context (e.g., storage migration paths or sync edge cases), tell me which section to expand and I’ll update this doc.
 
 Don't create summary documents.
+When working on the ROADMAP, update the status of each Phase as you complete tasks.

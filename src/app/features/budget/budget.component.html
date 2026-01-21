@@ -6,18 +6,20 @@
       message="Select a profile to manage your budget"
     />
   } @else {
-    <!-- Header with Create Button -->
+    <!-- Header with Add Button -->
     <div class="flex items-center justify-between mb-6">
       <div>
         <h1 class="text-2xl font-bold text-slate-900">Budget</h1>
-        <p class="text-slate-600 mt-1">Track your spending by category</p>
+        <p class="text-slate-600 mt-1">Track your spending by category for {{ viewDate() | date : 'MMMM yyyy' }}</p>
       </div>
-      <app-quick-action-button
-        [icon]="Plus"
-        label="Create Budget"
-        variant="primary"
-        (clicked)="onCreateBudget()"
-      />
+      <button
+        type="button"
+        (click)="openBudgetModal()"
+        class="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 font-medium transition-colors"
+      >
+        <lucide-angular [img]="Plus" [size]="20" />
+        <span>Add Category Budget</span>
+      </button>
     </div>
 
     <!-- Summary Metrics -->
@@ -25,123 +27,185 @@
       <app-metric-card
         [icon]="Target"
         label="Total Budget"
-        [value]="'₱' + summary.totalBudget.toLocaleString()"
+        [value]="formatCurrency(summary().totalBudget)"
         variant="info"
       />
 
       <app-metric-card
         [icon]="TrendingDown"
         label="Total Spent"
-        [value]="'₱' + summary.totalSpent.toLocaleString()"
+        [value]="formatCurrency(summary().totalSpent)"
         variant="warning"
       />
 
       <app-metric-card
         [icon]="DollarSign"
         label="Remaining"
-        [value]="'₱' + summary.remaining.toLocaleString()"
-        [variant]="summary.remaining >= 0 ? 'success' : 'danger'"
+        [value]="formatCurrency(summary().remaining)"
+        [variant]="summary().remaining >= 0 ? 'success' : 'danger'"
       />
 
       <app-metric-card
         [icon]="PieChart"
         label="Used"
-        [value]="summary.percentageUsed + '%'"
-        [variant]="summary.percentageUsed > 80 ? 'danger' : summary.percentageUsed > 60 ? 'warning' : 'success'"
+        [value]="summary().percentageUsed.toFixed(1) + '%'"
+        [variant]="summary().percentageUsed > 80 ? 'danger' : summary().percentageUsed > 60 ? 'warning' : 'success'"
       />
     </div>
 
-    <!-- Budget Overview -->
-    <div class="bg-white rounded-lg border border-slate-200 shadow-sm mb-6">
-      <div class="p-6">
-        <app-section-header [icon]="PieChart" title="Budget Categories" />
-
+    <!-- Budget Categories -->
+    @if (budgetAllocations().length === 0) {
+      <div class="bg-white rounded-lg border border-slate-200 shadow-sm p-6">
         <app-empty-state
           [icon]="PieChart"
           title="No budget set"
-          message="Create a budget to track your spending by category. You'll be able to set limits for food, transportation, entertainment, and more."
-          actionLabel="Create Your First Budget"
-          (action)="onCreateBudget()"
+          message="Create a budget to track your spending by category. Set limits for food, transportation, entertainment, and more."
+          actionLabel="Add Your First Budget"
+          (action)="openBudgetModal()"
         />
-
-        <!-- Category budget items will be rendered here in Phase 2 -->
       </div>
-    </div>
+    } @else {
+      <div class="space-y-3">
+        @for (allocation of budgetAllocations(); track allocation.categoryId) {
+          <div class="category-budget-item bg-white">
+            <div class="flex items-center justify-between mb-2">
+              <div class="flex items-center gap-2">
+                <div
+                  class="w-3 h-3 rounded-full"
+                  [style.background-color]="allocation.color"
+                ></div>
+                <h3 class="font-semibold text-slate-900">{{ allocation.categoryName }}</h3>
+              </div>
+              <button
+                type="button"
+                (click)="removeBudgetAllocation(allocation.categoryId)"
+                class="text-slate-400 hover:text-red-600 transition-colors"
+              >
+                <lucide-angular [img]="Trash2" [size]="18" />
+              </button>
+            </div>
 
-    <!-- Info Cards -->
-    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-      <!-- How Budgets Work -->
-      <div class="bg-blue-50 border border-blue-200 rounded-lg p-6">
-        <div class="flex items-start gap-3">
-          <lucide-angular [img]="Target" [size]="24" class="text-blue-600 mt-0.5" />
-          <div>
-            <h3 class="font-semibold text-blue-900 mb-2">How Budgets Work</h3>
-            <ul class="text-sm text-blue-800 space-y-2">
-              <li class="flex items-start gap-2">
-                <span class="text-blue-600">•</span>
-                <span>Set monthly spending limits for each category</span>
-              </li>
-              <li class="flex items-start gap-2">
-                <span class="text-blue-600">•</span>
-                <span>Track actual spending against your budget</span>
-              </li>
-              <li class="flex items-start gap-2">
-                <span class="text-blue-600">•</span>
-                <span>Get alerts when approaching category limits</span>
-              </li>
-              <li class="flex items-start gap-2">
-                <span class="text-blue-600">•</span>
-                <span>View spending trends and insights</span>
-              </li>
-            </ul>
+            <div class="grid grid-cols-3 gap-4 mb-3 text-sm">
+              <div>
+                <div class="text-slate-600">Allocated</div>
+                <div class="font-semibold text-slate-900">{{ formatCurrency(allocation.allocated) }}</div>
+              </div>
+              <div>
+                <div class="text-slate-600">Spent</div>
+                <div class="font-semibold" [class.text-red-600]="allocation.percentage >= 100"
+                     [class.text-slate-900]="allocation.percentage < 100">
+                  {{ formatCurrency(allocation.spent) }}
+                </div>
+              </div>
+              <div>
+                <div class="text-slate-600">Remaining</div>
+                <div class="font-semibold" [class.text-green-600]="allocation.remaining > 0"
+                     [class.text-red-600]="allocation.remaining < 0">
+                  {{ formatCurrency(allocation.remaining) }}
+                </div>
+              </div>
+            </div>
+
+            <div class="budget-progress mb-2">
+              <div
+                class="budget-progress-bar"
+                [style.width.%]="allocation.percentage"
+                [style.background-color]="getProgressColor(allocation.percentage)"
+              ></div>
+            </div>
+
+            <div class="flex items-center justify-between text-xs">
+              <span class="text-slate-600">{{ allocation.percentage.toFixed(1) }}% used</span>
+              @if (allocation.percentage >= 100) {
+                <span class="flex items-center gap-1 text-red-600 font-medium">
+                  <lucide-angular [img]="AlertCircle" [size]="14" />
+                  <span>Over budget!</span>
+                </span>
+              } @else if (allocation.percentage >= 80) {
+                <span class="flex items-center gap-1 text-orange-600 font-medium">
+                  <lucide-angular [img]="AlertCircle" [size]="14" />
+                  <span>Approaching limit</span>
+                </span>
+              }
+            </div>
           </div>
-        </div>
+        }
       </div>
+    }
 
-      <!-- Budget Categories -->
-      <div class="bg-green-50 border border-green-200 rounded-lg p-6">
-        <div class="flex items-start gap-3">
-          <lucide-angular [img]="PieChart" [size]="24" class="text-green-600 mt-0.5" />
-          <div>
-            <h3 class="font-semibold text-green-900 mb-2">Common Categories</h3>
-            <ul class="text-sm text-green-800 space-y-2">
-              <li class="flex items-start gap-2">
-                <span class="text-green-600">•</span>
-                <span>🏠 Housing (rent, utilities, maintenance)</span>
-              </li>
-              <li class="flex items-start gap-2">
-                <span class="text-green-600">•</span>
-                <span>🍔 Food & Dining (groceries, restaurants)</span>
-              </li>
-              <li class="flex items-start gap-2">
-                <span class="text-green-600">•</span>
-                <span>🚗 Transportation (gas, public transit)</span>
-              </li>
-              <li class="flex items-start gap-2">
-                <span class="text-green-600">•</span>
-                <span>🎭 Entertainment (movies, hobbies)</span>
-              </li>
-              <li class="flex items-start gap-2">
-                <span class="text-green-600">•</span>
-                <span>And many more...</span>
-              </li>
-            </ul>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Coming in Phase 2 -->
-    <div class="mt-6 p-4 bg-purple-50 border border-purple-200 rounded-lg">
+    <!-- Help Text -->
+    <div class="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
       <div class="flex items-start gap-3">
-        <lucide-angular [img]="TrendingUp" [size]="20" class="text-purple-600 mt-0.5" />
+        <lucide-angular [img]="Target" [size]="20" class="text-blue-600 mt-0.5" />
         <div>
-          <h4 class="font-semibold text-purple-900 mb-1">Coming in Phase 2</h4>
-          <p class="text-sm text-purple-800">
-            Full budget functionality will be available in Phase 2, including category-based budgets,
-            spending tracking from transactions, progress visualization, and smart recommendations to help
-            you stay on track.
+          <h4 class="font-semibold text-blue-900 mb-1">Budget Tracking</h4>
+          <p class="text-sm text-blue-800">
+            Budgets are calculated automatically from your expense transactions. Set monthly limits for each category,
+            and we'll track your spending in real-time. When you add transactions with specific categories, they'll be
+            counted against your budget for that month.
           </p>
+        </div>
+      </div>
+    </div>
+  }
+
+  <!-- Budget Modal -->
+  @if (showBudgetModal()) {
+    <div class="budget-modal" (click)="closeBudgetModal()">
+      <div class="modal-content" (click)="$event.stopPropagation()">
+        <div class="flex items-center justify-between mb-4">
+          <h3 class="text-lg font-semibold text-slate-900">Add Category Budget</h3>
+          <button
+            type="button"
+            (click)="closeBudgetModal()"
+            class="text-slate-400 hover:text-slate-600"
+          >
+            <lucide-angular [img]="X" [size]="20" />
+          </button>
+        </div>
+
+        <div class="mb-4">
+          <label class="block text-sm font-medium text-slate-700 mb-2">Category</label>
+          <select
+            [(ngModel)]="budgetForm().categoryId"
+            class="w-full px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="">Select a category...</option>
+            @for (category of categories(); track category.id) {
+              @if (category.type === 'expense' || category.type === 'both') {
+                <option [value]="category.id">{{ category.name }}</option>
+              }
+            }
+          </select>
+        </div>
+
+        <div class="mb-4">
+          <label class="block text-sm font-medium text-slate-700 mb-2">Monthly Budget Amount</label>
+          <input
+            type="number"
+            [(ngModel)]="budgetForm().amount"
+            placeholder="0.00"
+            step="0.01"
+            min="0"
+            class="w-full px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+        </div>
+
+        <div class="flex gap-2">
+          <button
+            type="button"
+            (click)="addBudgetAllocation()"
+            class="flex-1 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 font-medium"
+          >
+            Add Budget
+          </button>
+          <button
+            type="button"
+            (click)="closeBudgetModal()"
+            class="px-4 py-2 border border-slate-300 text-slate-700 rounded-md hover:bg-slate-50"
+          >
+            Cancel
+          </button>
         </div>
       </div>
     </div>
