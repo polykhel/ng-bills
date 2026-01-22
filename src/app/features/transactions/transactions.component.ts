@@ -974,23 +974,41 @@ export class TransactionsComponent {
   }
 
   protected getCurrentMonthStr(): string {
+    // For balance management, always use current month (today's date)
+    // This ensures balances are always for the current month regardless of viewDate
     return format(new Date(), 'yyyy-MM');
   }
 
-  protected getBankBalanceForAccount(account: { profileId: string; initialBalance?: number }): number {
+  protected getBankBalanceForAccount(account: { id: string; profileId: string; initialBalance?: number }): number {
     const profile = this.activeProfile();
     if (!profile) return account.initialBalance || 0;
     const monthStr = this.getCurrentMonthStr();
-    return this.bankBalanceService.getBankBalance(account.profileId, monthStr) || account.initialBalance || 0;
+    return this.bankBalanceService.getBankAccountBalance(account.profileId, monthStr, account.id) || account.initialBalance || 0;
   }
 
-  protected async onUpdateBankBalance(bankId: string, value: string): Promise<void> {
+  protected getTotalBankBalance(): number {
+    const profile = this.activeProfile();
+    if (!profile) return 0;
+    const monthStr = this.getCurrentMonthStr();
+    
+    // Sum all account balances, including initialBalance for accounts without stored balances
+    let total = 0;
+    for (const account of this.bankAccounts()) {
+      const storedBalance = this.bankBalanceService.getBankAccountBalance(account.profileId, monthStr, account.id);
+      const accountBalance = storedBalance !== null ? storedBalance : (account.initialBalance || 0);
+      total += accountBalance;
+    }
+    
+    return total;
+  }
+
+  protected async onUpdateBankBalance(bankAccountId: string, value: string): Promise<void> {
     const profile = this.activeProfile();
     if (!profile) return;
 
     const balance = parseFloat(value) || 0;
     const monthStr = this.getCurrentMonthStr();
-    this.bankBalanceService.updateBankBalance(profile.id, monthStr, balance);
+    this.bankBalanceService.updateBankAccountBalance(profile.id, monthStr, bankAccountId, balance);
   }
 
   /**

@@ -90,6 +90,26 @@
               </div>
             }
           </div>
+          
+          <!-- Total Balance (Read-only) -->
+          <div class="mt-6 pt-6 border-t border-slate-300">
+            <div class="flex items-center justify-between">
+              <div>
+                <label class="block text-sm font-semibold text-slate-900 mb-1">Total Balance</label>
+                <p class="text-xs text-slate-500">Sum of all accounts (calculated automatically)</p>
+              </div>
+              <div class="flex items-center gap-2">
+                <span class="text-slate-600">₱</span>
+                <input
+                  type="text"
+                  [value]="getTotalBankBalance().toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })"
+                  readonly
+                  class="px-3 py-2 border border-slate-300 rounded-md text-sm bg-slate-50 text-slate-700 font-semibold cursor-not-allowed"
+                  style="min-width: 150px; text-align: right;"
+                />
+              </div>
+            </div>
+          </div>
         }
       </div>
     }

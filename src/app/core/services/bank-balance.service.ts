@@ -27,7 +27,7 @@ export class BankBalanceService {
 
   updateBankBalance(profileId: string, monthStr: string, balance: number): void {
     this.bankBalancesSignal.update((balances) => {
-      const existing = balances.find((b) => b.profileId === profileId && b.monthStr === monthStr);
+      const existing = balances.find((b) => b.profileId === profileId && b.monthStr === monthStr && !b.bankAccountId);
 
       if (existing) {
         return balances.map((b) => (b.id === existing.id ? { ...b, balance } : b));
@@ -45,9 +45,66 @@ export class BankBalanceService {
     });
   }
 
+  updateBankAccountBalance(profileId: string, monthStr: string, bankAccountId: string, balance: number): void {
+    this.bankBalancesSignal.update((balances) => {
+      const existing = balances.find(
+        (b) => b.profileId === profileId && b.monthStr === monthStr && b.bankAccountId === bankAccountId,
+      );
+
+      if (existing) {
+        return balances.map((b) => (b.id === existing.id ? { ...b, balance } : b));
+      }
+
+      return [
+        ...balances,
+        {
+          id: this.generateId(),
+          profileId,
+          monthStr,
+          bankAccountId,
+          balance,
+        },
+      ];
+    });
+  }
+
+  /**
+   * Get total bank balance for a profile/month
+   * Prioritizes summing account balances, falls back to legacy balance if no account balances exist
+   */
   getBankBalance(profileId: string, monthStr: string): number | null {
+    // First, try to sum all account balances for this profile/month
+    const accountBalances = this.bankBalancesSignal().filter(
+      (b) => b.profileId === profileId && b.monthStr === monthStr && b.bankAccountId,
+    );
+    if (accountBalances.length > 0) {
+      return accountBalances.reduce((sum, b) => sum + b.balance, 0);
+    }
+
+    // For backward compatibility: if there's a legacy balance without bankAccountId, return it
+    const legacyBalance = this.bankBalancesSignal().find(
+      (b) => b.profileId === profileId && b.monthStr === monthStr && !b.bankAccountId,
+    );
+    if (legacyBalance) {
+      return legacyBalance.balance;
+    }
+
+    return null;
+  }
+
+  /**
+   * Get sum of all account balances for a profile/month (ignores legacy balances)
+   */
+  getTotalAccountBalances(profileId: string, monthStr: string): number {
+    const accountBalances = this.bankBalancesSignal().filter(
+      (b) => b.profileId === profileId && b.monthStr === monthStr && b.bankAccountId,
+    );
+    return accountBalances.reduce((sum, b) => sum + b.balance, 0);
+  }
+
+  getBankAccountBalance(profileId: string, monthStr: string, bankAccountId: string): number | null {
     const balance = this.bankBalancesSignal().find(
-      (b) => b.profileId === profileId && b.monthStr === monthStr,
+      (b) => b.profileId === profileId && b.monthStr === monthStr && b.bankAccountId === bankAccountId,
     );
     return balance ? balance.balance : null;
   }

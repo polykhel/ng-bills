@@ -11,8 +11,8 @@ import {
   Plus,
   Target
 } from 'lucide-angular';
-import { startOfDay, differenceInDays, setDate, parseISO, isValid, addMonths, format } from 'date-fns';
-import { AppStateService, ProfileService, CardService, StatementService, BankBalanceService, SavingsGoalService, TransactionService, BudgetService, CategoryService, UtilsService } from '@services';
+import { startOfDay, differenceInDays, setDate, parseISO, isValid, addMonths, format, startOfMonth } from 'date-fns';
+import { AppStateService, ProfileService, CardService, StatementService, BankBalanceService, BankAccountService, SavingsGoalService, TransactionService, BudgetService, CategoryService, UtilsService } from '@services';
 import { 
   MetricCardComponent, 
   QuickActionButtonComponent, 
@@ -59,6 +59,7 @@ export class OverviewComponent {
   private cardService = inject(CardService);
   private statementService = inject(StatementService);
   private bankBalanceService = inject(BankBalanceService);
+  private bankAccountService = inject(BankAccountService);
   private savingsGoalService = inject(SavingsGoalService);
   private transactionService = inject(TransactionService);
   private budgetService = inject(BudgetService);
@@ -82,9 +83,18 @@ export class OverviewComponent {
       };
     }
 
-    // Get bank balance for current month
-    const monthStr = this.viewDate().toISOString().slice(0, 7);
-    const bankBalance = this.bankBalanceService.getBankBalance(profile.id, monthStr);
+    // Get bank balance for current month (always use today's month for balances)
+    // Balances are always current, regardless of viewDate
+    const monthStr = format(startOfMonth(new Date()), 'yyyy-MM');
+    
+    // Sum all account balances, including initialBalance for accounts without stored balances
+    const accounts = this.bankAccountService.activeBankAccounts();
+    let bankBalance = 0;
+    for (const account of accounts) {
+      const storedBalance = this.bankBalanceService.getBankAccountBalance(account.profileId, monthStr, account.id);
+      const accountBalance = storedBalance !== null ? storedBalance : (account.initialBalance || 0);
+      bankBalance += accountBalance;
+    }
     
     // Calculate total bills due this month (committed balance)
     const cards = this.cardService.getCardsForProfiles([profile.id]);
@@ -99,14 +109,14 @@ export class OverviewComponent {
 
     // Calculate monthly income and expenses from transactions
     const viewDate = this.viewDate();
-    const startOfMonth = new Date(viewDate.getFullYear(), viewDate.getMonth(), 1);
-    const endOfMonth = new Date(viewDate.getFullYear(), viewDate.getMonth() + 1, 0);
+    const monthStart = new Date(viewDate.getFullYear(), viewDate.getMonth(), 1);
+    const monthEnd = new Date(viewDate.getFullYear(), viewDate.getMonth() + 1, 0);
     
     const transactions = this.transactionService.getTransactions({
       profileIds: [profile.id],
       dateRange: {
-        start: startOfMonth.toISOString().slice(0, 10),
-        end: endOfMonth.toISOString().slice(0, 10)
+        start: monthStart.toISOString().slice(0, 10),
+        end: monthEnd.toISOString().slice(0, 10)
       }
     });
 

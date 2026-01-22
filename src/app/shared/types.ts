@@ -51,6 +51,7 @@ export interface BankBalance {
   profileId: string;
   monthStr: string;
   balance: number;
+  bankAccountId?: string; // Optional: if provided, balance is for specific account; if not, it's the total for the profile
 }
 
 export interface BankAccount {
