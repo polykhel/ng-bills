@@ -12,9 +12,12 @@ import {
   TrendingUp,
   Wallet,
   X,
+  Building2,
 } from 'lucide-angular';
 import {
   AppStateService,
+  BankAccountService,
+  BankBalanceService,
   CardService,
   CategoryService,
   ProfileService,
@@ -182,13 +185,17 @@ export class TransactionsComponent {
   readonly Edit2 = Edit2;
   readonly Trash2 = Trash2;
   readonly X = X;
+  readonly Building2 = Building2;
 
   private appState = inject(AppStateService);
   protected profileService = inject(ProfileService);
+  protected bankAccountService = inject(BankAccountService);
+  protected bankBalanceService = inject(BankBalanceService);
   // Form state
   protected showForm = false;
   protected editingTransactionId: string | null = null;
   protected formData: Partial<Transaction> = this.getEmptyForm();
+  protected showBankBalanceManagement = false;
   // Filter state - using signals so computed can react to changes
   protected filterType = signal<TransactionType | 'all'>('all');
   protected filterPaymentMethod = signal<PaymentMethod | 'all'>('all');
@@ -310,6 +317,16 @@ export class TransactionsComponent {
   });
   private categoryService = inject(CategoryService);
   protected categories = this.categoryService.categories;
+  // Computed bank accounts: show accounts for selected profiles in multi-profile mode, otherwise active profile
+  protected bankAccounts = computed(() => {
+    const multiMode = this.multiProfileMode();
+    const selectedIds = this.selectedProfileIds();
+    
+    if (multiMode && selectedIds.length > 0) {
+      return this.bankAccountService.getBankAccountsForProfiles(selectedIds);
+    }
+    return this.bankAccountService.activeBankAccounts();
+  });
 
   protected onAddTransaction(): void {
     // If currently editing, clear the form and switch to "new" mode
@@ -341,6 +358,10 @@ export class TransactionsComponent {
       notes: transaction.notes,
       paymentMethod: transaction.paymentMethod,
       cardId: transaction.cardId,
+      bankId: transaction.bankId,
+      fromBankId: transaction.fromBankId,
+      toBankId: transaction.toBankId,
+      transferFee: transaction.transferFee,
       paidByOther: transaction.paidByOther || false,
       paidByOtherProfileId: transaction.paidByOtherProfileId,
       paidByOtherName: transaction.paidByOtherName,
@@ -430,6 +451,10 @@ export class TransactionsComponent {
           notes: this.formData.notes,
           paymentMethod: (this.formData.paymentMethod || 'cash') as PaymentMethod,
           cardId: this.formData.cardId,
+          bankId: this.formData.bankId,
+          fromBankId: this.formData.fromBankId,
+          toBankId: this.formData.toBankId,
+          transferFee: this.formData.transferFee,
           paidByOther: this.formData.paidByOther || false,
           paidByOtherProfileId: this.formData.paidByOtherProfileId,
           paidByOtherName: this.formData.paidByOtherName,
@@ -447,6 +472,10 @@ export class TransactionsComponent {
           notes: this.formData.notes,
           paymentMethod: (this.formData.paymentMethod || 'cash') as PaymentMethod,
           cardId: this.formData.cardId,
+          bankId: this.formData.bankId,
+          fromBankId: this.formData.fromBankId,
+          toBankId: this.formData.toBankId,
+          transferFee: this.formData.transferFee,
           paidByOther: this.formData.paidByOther || false,
           paidByOtherProfileId: this.formData.paidByOtherProfileId,
           paidByOtherName: this.formData.paidByOtherName,
@@ -513,6 +542,122 @@ export class TransactionsComponent {
     return transaction.paidByOtherName || 'Other';
   }
 
+  protected getBankAccountName(bankId: string | undefined): string {
+    if (!bankId) return '-';
+    const account = this.bankAccountService.getBankAccountSync(bankId);
+    return account ? `${account.bankName} - ${account.accountName}` : 'Unknown Account';
+  }
+
+  /**
+   * Calculate running balance for a specific date
+   * Includes all transactions up to and including that date, plus scheduled future transactions
+   */
+  protected getRunningBalance(date: string): number {
+    const profile = this.activeProfile();
+    if (!profile) return 0;
+
+    // Get starting balance for the month
+    const monthStr = date.slice(0, 7); // yyyy-MM
+    const startingBalance = this.bankBalanceService.getBankBalance(profile.id, monthStr) || 0;
+
+    // Get all transactions up to this date
+    const allTransactions = this.transactionService.getTransactions();
+    const profileTransactions = allTransactions.filter((t) => t.profileId === profile.id);
+    
+    // Filter transactions up to and including the target date
+    const transactionsUpToDate = profileTransactions.filter((t) => t.date <= date);
+    
+    // Also include scheduled/recurring transactions that should have occurred by this date
+    const scheduledTransactions = profileTransactions.filter((t) => {
+      if (!t.isRecurring || !t.recurringRule) return false;
+      if (t.date <= date) return false; // Already included in transactionsUpToDate
+      
+      // Check if this is a recurring transaction that should have occurred by the target date
+      // For recurring transactions with nextDate, include if nextDate <= target date
+      if (t.recurringRule.nextDate && t.recurringRule.nextDate <= date) {
+        return true;
+      }
+      
+      // For installments, check if they should have occurred by target date
+      if (t.recurringRule.type === 'installment' && t.recurringRule.startDate) {
+        const startDate = parseISO(t.recurringRule.startDate);
+        const targetDate = parseISO(date);
+        if (startDate <= targetDate) {
+          return true;
+        }
+      }
+      
+      return false;
+    });
+
+    // Combine all relevant transactions (avoid duplicates)
+    const transactionIds = new Set(transactionsUpToDate.map(t => t.id));
+    const uniqueScheduled = scheduledTransactions.filter(t => !transactionIds.has(t.id));
+    const allRelevantTransactions = [...transactionsUpToDate, ...uniqueScheduled];
+    
+    // Sort by date
+    allRelevantTransactions.sort((a, b) => a.date.localeCompare(b.date));
+
+    // Calculate running balance
+    let balance = startingBalance;
+    for (const transaction of allRelevantTransactions) {
+      if (transaction.type === 'income') {
+        // Income adds to balance
+        if (transaction.bankId) {
+          balance += transaction.amount;
+        }
+      } else if (transaction.type === 'expense') {
+        // Expense subtracts from balance
+        if (transaction.paymentMethod === 'bank_transfer' && transaction.bankId) {
+          balance -= transaction.amount;
+        } else if (transaction.paymentMethod === 'bank_to_bank' && transaction.fromBankId) {
+          // Bank-to-bank transfer: subtract from source account
+          balance -= transaction.amount;
+          if (transaction.transferFee) {
+            balance -= transaction.transferFee;
+          }
+        }
+      }
+    }
+
+    return Math.round(balance * 100) / 100; // Round to 2 decimal places
+  }
+
+  /**
+   * Get running balance for the transaction's date
+   */
+  protected getTransactionRunningBalance(transaction: Transaction): number {
+    return this.getRunningBalance(transaction.date);
+  }
+
+  protected onAddBankAccount(): void {
+    this.appState.openModal('bank-account-form', {});
+  }
+
+  protected onEditBankAccount(accountId: string): void {
+    this.appState.openModal('bank-account-form', { accountId });
+  }
+
+  protected getCurrentMonthStr(): string {
+    return format(new Date(), 'yyyy-MM');
+  }
+
+  protected getBankBalanceForAccount(account: { profileId: string; initialBalance?: number }): number {
+    const profile = this.activeProfile();
+    if (!profile) return account.initialBalance || 0;
+    const monthStr = this.getCurrentMonthStr();
+    return this.bankBalanceService.getBankBalance(account.profileId, monthStr) || account.initialBalance || 0;
+  }
+
+  protected async onUpdateBankBalance(bankId: string, value: string): Promise<void> {
+    const profile = this.activeProfile();
+    if (!profile) return;
+
+    const balance = parseFloat(value) || 0;
+    const monthStr = this.getCurrentMonthStr();
+    this.bankBalanceService.updateBankBalance(profile.id, monthStr, balance);
+  }
+
   /**
    * Get context label for shared transactions
    * Shows different context depending on whether you own it or paid for it
@@ -556,6 +701,10 @@ export class TransactionsComponent {
       paidByOther: false,
       paidByOtherProfileId: undefined,
       paidByOtherName: '',
+      bankId: undefined,
+      fromBankId: undefined,
+      toBankId: undefined,
+      transferFee: undefined,
     };
   }
 }

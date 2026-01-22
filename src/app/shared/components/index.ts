@@ -7,6 +7,7 @@ export * from './profile-selector.component';
 export * from './multi-profile-selector.component';
 export * from './profile-form-modal.component';
 export * from './card-form-modal.component';
+export * from './bank-account-form-modal.component';
 export * from './installment-form-modal.component';
 export * from './transfer-card-modal.component';
 export * from './notifications.component';

@@ -4,6 +4,7 @@ import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { CreditCard, LucideAngularModule } from 'lucide-angular';
 import { AppStateService, ProfileService } from './core/services';
 import {
+  BankAccountFormModalComponent,
   CardFormModalComponent,
   InstallmentFormModalComponent,
   MonthNavigatorComponent,
@@ -27,6 +28,7 @@ import {
     MultiProfileSelectorComponent,
     ProfileFormModalComponent,
     CardFormModalComponent,
+    BankAccountFormModalComponent,
     InstallmentFormModalComponent,
     TransferCardModalComponent,
     NotificationsComponent

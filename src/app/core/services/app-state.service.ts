@@ -6,6 +6,7 @@ export type ModalType =
   | 'installment-form'
   | 'profile-form'
   | 'transfer-card'
+  | 'bank-account-form'
   | 'confirm'
   | null;
 

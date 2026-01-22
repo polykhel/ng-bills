@@ -4,6 +4,7 @@ export * from './card.service';
 export * from './statement.service';
 export * from './installment.service';
 export * from './bank-balance.service';
+export * from './bank-account.service';
 export * from './encryption.service';
 export * from './firebase-auth.service';
 export * from './firebase-sync.service';

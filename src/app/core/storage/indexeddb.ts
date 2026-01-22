@@ -4,7 +4,7 @@
  */
 
 const DB_NAME = 'ng-bills';
-const DB_VERSION = 2;
+const DB_VERSION = 3;
 
 export const STORES = {
   PROFILES: 'profiles',
@@ -13,6 +13,7 @@ export const STORES = {
   INSTALLMENTS: 'installments',
   // CASH_INSTALLMENTS removed in Phase 2 - migrated to recurring transactions
   BANK_BALANCES: 'bankBalances',
+  BANK_ACCOUNTS: 'bankAccounts',
   TRANSACTIONS: 'transactions',
   CATEGORIES: 'categories',
   SETTINGS: 'settings',
@@ -78,11 +79,20 @@ export class IndexedDB {
           balanceStore.createIndex('profileMonth', ['profileId', 'monthStr'], { unique: false });
         }
 
+        // Create Bank Accounts store with indexes
+        if (!db.objectStoreNames.contains(STORES.BANK_ACCOUNTS)) {
+          const bankAccountStore = db.createObjectStore(STORES.BANK_ACCOUNTS, { keyPath: 'id' });
+          bankAccountStore.createIndex('profileId', 'profileId', { unique: false });
+        }
+
         // Create Transactions store with indexes
         if (!db.objectStoreNames.contains(STORES.TRANSACTIONS)) {
           const transactionStore = db.createObjectStore(STORES.TRANSACTIONS, { keyPath: 'id' });
           transactionStore.createIndex('profileId', 'profileId', { unique: false });
           transactionStore.createIndex('cardId', 'cardId', { unique: false });
+          transactionStore.createIndex('bankId', 'bankId', { unique: false });
+          transactionStore.createIndex('fromBankId', 'fromBankId', { unique: false });
+          transactionStore.createIndex('toBankId', 'toBankId', { unique: false });
           transactionStore.createIndex('date', 'date', { unique: false });
         }
 

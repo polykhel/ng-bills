@@ -53,9 +53,31 @@ export interface BankBalance {
   balance: number;
 }
 
+export interface BankAccount {
+  id: string;
+  profileId: string;
+  bankName: string;
+  accountName: string;
+  accountNumber?: string;
+  accountType: 'checking' | 'savings' | 'other';
+  color: string;
+  initialBalance?: number;
+  // Metadata fields
+  routingNumber?: string;
+  swiftCode?: string;
+  iban?: string;
+  branchName?: string;
+  branchAddress?: string;
+  phoneNumber?: string;
+  email?: string;
+  notes?: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
 export type TransactionType = 'income' | 'expense';
 
-export type PaymentMethod = 'cash' | 'card' | 'bank_transfer' | 'other';
+export type PaymentMethod = 'cash' | 'card' | 'bank_transfer' | 'bank_to_bank' | 'other';
 
 export interface Category {
   id: string;
@@ -96,6 +118,10 @@ export interface Transaction {
   notes?: string;
   paymentMethod: PaymentMethod;
   cardId?: string; // when paymentMethod is card
+  bankId?: string; // when paymentMethod is bank_transfer or type is income
+  fromBankId?: string; // for bank-to-bank transfers (source account)
+  toBankId?: string; // for bank-to-bank transfers (destination account)
+  transferFee?: number; // optional fee for bank-to-bank transfers
   tags?: string[];
   createdAt?: string;
   updatedAt?: string;

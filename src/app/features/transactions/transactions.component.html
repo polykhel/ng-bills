@@ -12,13 +12,87 @@
         <h1 class="text-2xl font-bold text-slate-900">Transactions</h1>
         <p class="text-slate-600 mt-1">Track your income and expenses</p>
       </div>
-      <app-quick-action-button
-        [icon]="Plus"
-        label="Add Transaction"
-        [variant]="showForm ? 'secondary' : 'primary'"
-        (clicked)="onAddTransaction()"
-      />
+      <div class="flex items-center gap-3">
+        <app-quick-action-button
+          [icon]="Building2"
+          [label]="showBankBalanceManagement ? 'Hide Bank Balance' : 'Manage Bank Balance'"
+          variant="secondary"
+          (clicked)="showBankBalanceManagement = !showBankBalanceManagement"
+        />
+        <app-quick-action-button
+          [icon]="Plus"
+          label="Add Transaction"
+          [variant]="showForm ? 'secondary' : 'primary'"
+          (clicked)="onAddTransaction()"
+        />
+      </div>
     </div>
+
+    <!-- Bank Balance Management -->
+    @if (showBankBalanceManagement) {
+      <div class="bg-white rounded-lg border border-slate-200 shadow-sm p-6 mb-6">
+        <div class="flex items-center justify-between mb-4">
+          <h2 class="text-lg font-semibold text-slate-900">Bank Accounts & Balances</h2>
+          <button
+            type="button"
+            (click)="onAddBankAccount()"
+            class="px-3 py-1.5 text-sm font-medium text-blue-600 bg-blue-50 border border-blue-200 rounded-md hover:bg-blue-100 transition-colors"
+          >
+            + Add Bank Account
+          </button>
+        </div>
+        
+        @if (bankAccounts().length === 0) {
+          <p class="text-slate-500 text-sm">No bank accounts yet. Add one to start tracking balances.</p>
+        } @else {
+          <div class="space-y-4">
+            @for (account of bankAccounts(); track account.id) {
+              <div class="p-4 border border-slate-200 rounded-lg">
+                <div class="flex items-center justify-between mb-2">
+                  <div class="flex items-center gap-3">
+                    <div class="w-4 h-4 rounded-full" [style.background-color]="account.color"></div>
+                    <div>
+                      <h3 class="font-semibold text-slate-900">{{ account.bankName }} - {{ account.accountName }}</h3>
+                      <p class="text-xs text-slate-500">{{ account.accountType }} @if (account.accountNumber) { • {{ account.accountNumber }} }</p>
+                    </div>
+                  </div>
+                  <div class="flex gap-2">
+                    <button
+                      type="button"
+                      (click)="onEditBankAccount(account.id)"
+                      class="text-blue-600 hover:text-blue-700 text-sm"
+                    >
+                      Edit
+                    </button>
+                    <button
+                      type="button"
+                      (click)="bankAccountService.deleteBankAccount(account.id)"
+                      class="text-red-600 hover:text-red-700 text-sm"
+                    >
+                      Delete
+                    </button>
+                  </div>
+                </div>
+                <div class="mt-3">
+                  <label class="block text-xs font-medium text-slate-700 mb-1">Current Balance</label>
+                  <div class="flex items-center gap-2">
+                    <span class="text-slate-600">₱</span>
+                    <input
+                      type="number"
+                      [value]="getBankBalanceForAccount(account)"
+                      (blur)="onUpdateBankBalance(account.id, $any($event.target).value)"
+                      class="flex-1 px-3 py-2 border border-slate-300 rounded-md text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      step="0.01"
+                      placeholder="0.00"
+                    />
+                  </div>
+                </div>
+              </div>
+            }
+          </div>
+        }
+      </div>
+    }
 
     <!-- Add Transaction Form -->
     @if (showForm) {
@@ -63,9 +137,21 @@
               <option value="cash">Cash</option>
               <option value="card">Credit Card</option>
               <option value="bank_transfer">Bank Transfer</option>
+              <option value="bank_to_bank">Bank to Bank Transfer</option>
               <option value="other">Other</option>
             </select>
           </div>
+          @if (formData.type === 'income') {
+            <div class="form-group">
+              <label>Bank Account *</label>
+              <select [(ngModel)]="formData.bankId" required>
+                <option value="">Select a bank account...</option>
+                @for (account of bankAccounts(); track account.id) {
+                  <option [value]="account.id">{{ account.bankName }} - {{ account.accountName }}</option>
+                }
+              </select>
+            </div>
+          }
         </div>
 
         <div class="form-row">
@@ -77,6 +163,37 @@
                 <option [value]="card.id">{{ card.bankName }} {{ card.cardName }}</option>
               }
             </select>
+          </div>
+          <div class="form-group" *ngIf="formData.paymentMethod === 'bank_transfer'">
+            <label>Bank Account</label>
+            <select [(ngModel)]="formData.bankId">
+              <option value="">Select a bank account...</option>
+              @for (account of bankAccounts(); track account.id) {
+                <option [value]="account.id">{{ account.bankName }} - {{ account.accountName }}</option>
+              }
+            </select>
+          </div>
+          <div class="form-group" *ngIf="formData.paymentMethod === 'bank_to_bank'">
+            <label>From Bank Account</label>
+            <select [(ngModel)]="formData.fromBankId">
+              <option value="">Select source account...</option>
+              @for (account of bankAccounts(); track account.id) {
+                <option [value]="account.id">{{ account.bankName }} - {{ account.accountName }}</option>
+              }
+            </select>
+          </div>
+          <div class="form-group" *ngIf="formData.paymentMethod === 'bank_to_bank'">
+            <label>To Bank Account</label>
+            <select [(ngModel)]="formData.toBankId">
+              <option value="">Select destination account...</option>
+              @for (account of bankAccounts(); track account.id) {
+                <option [value]="account.id">{{ account.bankName }} - {{ account.accountName }}</option>
+              }
+            </select>
+          </div>
+          <div class="form-group" *ngIf="formData.paymentMethod === 'bank_to_bank'">
+            <label>Transfer Fee (optional)</label>
+            <input type="number" [(ngModel)]="formData.transferFee" placeholder="0.00" step="0.01" min="0" />
           </div>
           <div class="form-group" *ngIf="formData.paymentMethod === 'card'" style="display: flex; align-items: flex-end; gap: 8px;">
             <label style="flex: 0 0 auto; margin-bottom: 0; display: flex; align-items: center; gap: 4px;">
@@ -174,6 +291,7 @@
             <option value="cash">Cash</option>
             <option value="card">Card</option>
             <option value="bank_transfer">Bank Transfer</option>
+            <option value="bank_to_bank">Bank to Bank</option>
           </select>
           <select [ngModel]="filterCardId()" (ngModelChange)="filterCardId.set($event)" class="px-3 py-1.5 text-sm border border-slate-300 rounded-md">
             <option value="">All Cards</option>
@@ -257,12 +375,22 @@
                 </div>
                 <div class="transaction-meta">
                   {{ formatDate(transaction.date) }}
-                  • {{ transaction.paymentMethod === 'card' ? getCardName(transaction.cardId) : transaction.paymentMethod }}
+                  • {{ transaction.paymentMethod === 'card' ? getCardName(transaction.cardId) : 
+                      transaction.paymentMethod === 'bank_to_bank' ? 
+                        `Transfer: ${getBankAccountName(transaction.fromBankId)} → ${getBankAccountName(transaction.toBankId)}` :
+                        transaction.bankId ? getBankAccountName(transaction.bankId) :
+                        transaction.paymentMethod }}
+                  @if (transaction.transferFee && transaction.transferFee > 0) {
+                    • Fee: ₱{{ transaction.transferFee.toLocaleString() }}
+                  }
                   @if (multiProfileMode() && transaction.profileId) {
                     • {{ getProfileName(transaction.profileId) }}
                   } @else if (!multiProfileMode() && transaction.profileId !== activeProfile()?.id) {
                     • {{ getProfileName(transaction.profileId) }}'s transaction
                   }
+                </div>
+                <div class="transaction-meta text-xs text-blue-600 mt-1">
+                  Running Balance: ₱{{ getTransactionRunningBalance(transaction).toLocaleString() }}
                 </div>
               </div>
               <div
