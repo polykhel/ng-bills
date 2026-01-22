@@ -170,6 +170,32 @@ export class FirebaseSyncService {
   }
 
   /**
+   * Remove undefined values from an object recursively
+   * Firestore doesn't allow undefined values - they must be omitted or null
+   */
+  private removeUndefined<T>(obj: T): T {
+    if (obj === null || obj === undefined) {
+      return obj;
+    }
+
+    if (Array.isArray(obj)) {
+      return obj.map((item) => this.removeUndefined(item)) as T;
+    }
+
+    if (typeof obj === 'object') {
+      const cleaned: any = {};
+      for (const [key, value] of Object.entries(obj)) {
+        if (value !== undefined) {
+          cleaned[key] = this.removeUndefined(value);
+        }
+      }
+      return cleaned as T;
+    }
+
+    return obj;
+  }
+
+  /**
    * Upload all local data to Firestore
    */
   private async uploadAllData(userId: string): Promise<void> {
@@ -191,35 +217,35 @@ export class FirebaseSyncService {
     const profiles = await db.getAll<Profile>(STORES.PROFILES);
     const profilesRef = collection(this.firestore!, `users/${userId}/profiles`);
     for (const profile of profiles) {
-      batch.set(doc(profilesRef, profile.id), profile);
+      batch.set(doc(profilesRef, profile.id), this.removeUndefined(profile));
     }
 
     // Upload cards
     const cards = await db.getAll<CreditCard>(STORES.CARDS);
     const cardsRef = collection(this.firestore!, `users/${userId}/cards`);
     for (const card of cards) {
-      batch.set(doc(cardsRef, card.id), card);
+      batch.set(doc(cardsRef, card.id), this.removeUndefined(card));
     }
 
     // Upload statements
     const statements = await db.getAll<Statement>(STORES.STATEMENTS);
     const statementsRef = collection(this.firestore!, `users/${userId}/statements`);
     for (const statement of statements) {
-      batch.set(doc(statementsRef, statement.id), statement);
+      batch.set(doc(statementsRef, statement.id), this.removeUndefined(statement));
     }
 
     // Upload installments
     const installments = await db.getAll<Installment>(STORES.INSTALLMENTS);
     const installmentsRef = collection(this.firestore!, `users/${userId}/installments`);
     for (const installment of installments) {
-      batch.set(doc(installmentsRef, installment.id), installment);
+      batch.set(doc(installmentsRef, installment.id), this.removeUndefined(installment));
     }
 
     // Upload transactions (includes migrated recurring/installment transactions)
     const transactions = await db.getAll<Transaction>(STORES.TRANSACTIONS);
     const transactionsRef = collection(this.firestore!, `users/${userId}/transactions`);
     for (const transaction of transactions) {
-      batch.set(doc(transactionsRef, transaction.id), transaction);
+      batch.set(doc(transactionsRef, transaction.id), this.removeUndefined(transaction));
     }
 
     // Cash installments removed in Phase 2 - migrated to recurring transactions
@@ -229,7 +255,7 @@ export class FirebaseSyncService {
     const bankBalances = await db.getAll<BankBalance>(STORES.BANK_BALANCES);
     const bankBalancesRef = collection(this.firestore!, `users/${userId}/bankBalances`);
     for (const bankBalance of bankBalances) {
-      batch.set(doc(bankBalancesRef, bankBalance.id), bankBalance);
+      batch.set(doc(bankBalancesRef, bankBalance.id), this.removeUndefined(bankBalance));
     }
 
     // Upload settings
