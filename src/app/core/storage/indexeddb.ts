@@ -4,7 +4,7 @@
  */
 
 const DB_NAME = 'ng-bills';
-const DB_VERSION = 4;
+const DB_VERSION = 5;
 
 export const STORES = {
   PROFILES: 'profiles',
@@ -19,6 +19,8 @@ export const STORES = {
   SETTINGS: 'settings',
   BUDGETS: 'budgets',
   SAVINGS_GOALS: 'savingsGoals',
+  PLANNED_PURCHASES: 'plannedPurchases',
+  LOAN_PLANS: 'loanPlans',
 } as const;
 
 export class IndexedDB {
@@ -121,6 +123,23 @@ export class IndexedDB {
           const goalStore = db.createObjectStore(STORES.SAVINGS_GOALS, { keyPath: 'id' });
           goalStore.createIndex('profileId', 'profileId', { unique: false });
           goalStore.createIndex('priority', 'priority', { unique: false });
+        }
+
+        // Create Planned Purchases store with indexes
+        if (!db.objectStoreNames.contains(STORES.PLANNED_PURCHASES)) {
+          const purchaseStore = db.createObjectStore(STORES.PLANNED_PURCHASES, { keyPath: 'id' });
+          purchaseStore.createIndex('profileId', 'profileId', { unique: false });
+          purchaseStore.createIndex('priority', 'priority', { unique: false });
+          purchaseStore.createIndex('isPurchased', 'isPurchased', { unique: false });
+          purchaseStore.createIndex('targetDate', 'targetDate', { unique: false });
+        }
+
+        // Create Loan Plans store with indexes
+        if (!db.objectStoreNames.contains(STORES.LOAN_PLANS)) {
+          const loanStore = db.createObjectStore(STORES.LOAN_PLANS, { keyPath: 'id' });
+          loanStore.createIndex('profileId', 'profileId', { unique: false });
+          loanStore.createIndex('type', 'type', { unique: false });
+          loanStore.createIndex('status', 'status', { unique: false });
         }
       };
     });

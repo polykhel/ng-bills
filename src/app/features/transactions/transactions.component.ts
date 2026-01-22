@@ -191,9 +191,9 @@ export class TransactionsComponent {
   protected profileService = inject(ProfileService);
   protected bankAccountService = inject(BankAccountService);
   protected bankBalanceService = inject(BankBalanceService);
-  // Form state
-  protected showForm = false;
-  protected editingTransactionId: string | null = null;
+  // Form state - using signals for better change detection
+  protected showForm = signal<boolean>(false);
+  protected editingTransactionId = signal<string | null>(null);
   protected formData: Partial<Transaction> = this.getEmptyForm();
   protected showBankBalanceManagement = false;
   // Filter state - using signals so computed can react to changes
@@ -227,6 +227,21 @@ export class TransactionsComponent {
     };
   });
   private transactionService = inject(TransactionService);
+  // Pre-computed running balances for all transactions (performance optimization)
+  // This avoids recalculating running balance for each transaction in the template
+  private transactionRunningBalances = computed(() => {
+    const transactions = this.filteredTransactions();
+    const balances = new Map<string, number>();
+    
+    // Pre-compute balances for all filtered transactions
+    // Use the original getRunningBalance logic but cache results
+    transactions.forEach(transaction => {
+      balances.set(transaction.id, this.getRunningBalance(transaction.date));
+    });
+    
+    return balances;
+  });
+
   // Computed filtered transactions
   // Shows transactions where:
   // 1. User owns the transaction (profileId matches)
@@ -328,16 +343,43 @@ export class TransactionsComponent {
     return this.bankAccountService.activeBankAccounts();
   });
 
+  // Memoized lookups for performance
+  private cardNameCache = computed(() => {
+    const cardsMap = new Map<string, string>();
+    this.cards().forEach(card => {
+      cardsMap.set(card.id, `${card.bankName} ${card.cardName}`);
+    });
+    return cardsMap;
+  });
+
+  private bankAccountNameCache = computed(() => {
+    const accountsMap = new Map<string, string>();
+    this.bankAccounts().forEach(account => {
+      accountsMap.set(account.id, `${account.bankName} - ${account.accountName}`);
+    });
+    return accountsMap;
+  });
+
+  private profileNameCache = computed(() => {
+    const profilesMap = new Map<string, string>();
+    this.profileService.profiles().forEach(profile => {
+      profilesMap.set(profile.id, profile.name);
+    });
+    return profilesMap;
+  });
+
   protected onAddTransaction(): void {
-    // If currently editing, clear the form and switch to "new" mode
-    if (this.editingTransactionId) {
-      this.editingTransactionId = null;
+    // If currently editing, clear the form and close it
+    if (this.editingTransactionId()) {
+      this.editingTransactionId.set(null);
       this.formData = this.getEmptyForm();
+      this.showForm.set(false);
       return;
     }
     // Otherwise toggle the form
-    this.showForm = !this.showForm;
-    if (!this.showForm) {
+    const currentValue = this.showForm();
+    this.showForm.set(!currentValue);
+    if (!currentValue) {
       this.formData = this.getEmptyForm();
     } else {
       this.formData = this.getEmptyForm();
@@ -348,7 +390,7 @@ export class TransactionsComponent {
     if (event) {
       event.stopPropagation();
     }
-    this.editingTransactionId = transaction.id;
+    this.editingTransactionId.set(transaction.id);
     this.formData = {
       type: transaction.type,
       amount: transaction.amount,
@@ -366,7 +408,7 @@ export class TransactionsComponent {
       paidByOtherProfileId: transaction.paidByOtherProfileId,
       paidByOtherName: transaction.paidByOtherName,
     };
-    this.showForm = true;
+    this.showForm.set(true);
     // Scroll to top to show the form
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
@@ -440,9 +482,10 @@ export class TransactionsComponent {
     if (!profile) return;
 
     try {
-      if (this.editingTransactionId) {
+      const editingId = this.editingTransactionId();
+      if (editingId) {
         // Update existing transaction
-        await this.transactionService.updateTransaction(this.editingTransactionId, {
+        await this.transactionService.updateTransaction(editingId, {
           type: (this.formData.type || 'expense') as TransactionType,
           amount: this.formData.amount || 0,
           date: this.formData.date || new Date().toISOString().split('T')[0],
@@ -485,8 +528,8 @@ export class TransactionsComponent {
         await this.transactionService.addTransaction(transaction);
       }
       
-      this.showForm = false;
-      this.editingTransactionId = null;
+      this.showForm.set(false);
+      this.editingTransactionId.set(null);
       this.formData = this.getEmptyForm();
     } catch (error) {
       console.error('Error saving transaction:', error);
@@ -518,13 +561,11 @@ export class TransactionsComponent {
 
   protected getCardName(cardId: string | undefined): string {
     if (!cardId) return '-';
-    const card = this.cards().find((c) => c.id === cardId);
-    return card ? `${card.bankName} ${card.cardName}` : 'Unknown Card';
+    return this.cardNameCache().get(cardId) ?? 'Unknown Card';
   }
 
   protected getProfileName(profileId: string): string {
-    const profile = this.profileService.profiles().find((p) => p.id === profileId);
-    return profile?.name ?? 'Unknown';
+    return this.profileNameCache().get(profileId) ?? 'Unknown';
   }
 
   /**
@@ -544,8 +585,7 @@ export class TransactionsComponent {
 
   protected getBankAccountName(bankId: string | undefined): string {
     if (!bankId) return '-';
-    const account = this.bankAccountService.getBankAccountSync(bankId);
-    return account ? `${account.bankName} - ${account.accountName}` : 'Unknown Account';
+    return this.bankAccountNameCache().get(bankId) ?? 'Unknown Account';
   }
 
   /**
@@ -624,10 +664,10 @@ export class TransactionsComponent {
   }
 
   /**
-   * Get running balance for the transaction's date
+   * Get running balance for the transaction's date (memoized)
    */
   protected getTransactionRunningBalance(transaction: Transaction): number {
-    return this.getRunningBalance(transaction.date);
+    return this.transactionRunningBalances().get(transaction.id) ?? 0;
   }
 
   protected onAddBankAccount(): void {

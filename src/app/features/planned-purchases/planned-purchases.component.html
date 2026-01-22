@@ -1,0 +1,440 @@
+<div class="max-w-7xl mx-auto px-4 py-6">
+  @if (!activeProfile()) {
+    <app-empty-state
+      [icon]="ShoppingBag"
+      title="No Profile Selected"
+      message="Select a profile to manage your planned purchases"
+    />
+  } @else {
+    <!-- Header -->
+    <div class="flex items-center justify-between mb-6">
+      <div>
+        <h1 class="text-2xl font-bold text-slate-900">Planned Purchases</h1>
+        <p class="text-slate-600 mt-1">Plan future purchases and check affordability</p>
+      </div>
+      <button
+        type="button"
+        (click)="openPurchaseModal()"
+        class="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 font-medium transition-colors"
+      >
+        <lucide-angular [img]="Plus" [size]="20" />
+        <span>New Purchase</span>
+      </button>
+    </div>
+
+    <!-- Summary Metrics -->
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+      <app-metric-card
+        [icon]="ShoppingBag"
+        label="Total Planned"
+        [value]="summary().totalCount.toString()"
+        variant="info"
+      />
+
+      <app-metric-card
+        [icon]="DollarSign"
+        label="Total Estimated"
+        [value]="formatCurrency(summary().totalEstimated)"
+        variant="info"
+      />
+
+      <app-metric-card
+        [icon]="AlertCircle"
+        label="Needs"
+        [value]="summary().needsCount.toString()"
+        variant="danger"
+      />
+
+      <app-metric-card
+        [icon]="CheckCircle2"
+        label="Wants & Wishes"
+        [value]="(summary().wantsCount + summary().wishesCount).toString()"
+        variant="warning"
+      />
+    </div>
+
+    <!-- Purchases Grid -->
+    @if (purchases().length === 0) {
+      <div class="bg-white rounded-lg border border-slate-200 shadow-sm p-6">
+        <app-empty-state
+          [icon]="ShoppingBag"
+          title="No planned purchases yet"
+          message="Add items you're planning to buy. Check affordability and track your wishlist."
+          actionLabel="Add Your First Purchase"
+          (action)="openPurchaseModal()"
+        />
+      </div>
+    } @else {
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        @for (purchase of purchases(); track purchase.id) {
+          <div class="purchase-card bg-white rounded-lg border border-slate-200 shadow-sm p-6">
+            <!-- Purchase Header -->
+            <div class="flex items-start justify-between mb-4">
+              <div class="flex-1">
+                <div class="flex items-center gap-2 mb-2">
+                  <span
+                    class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium"
+                    [style.background-color]="getPriorityColor(purchase.priority) + '20'"
+                    [style.color]="getPriorityColor(purchase.priority)"
+                  >
+                    {{ getPriorityLabel(purchase.priority) }}
+                  </span>
+                </div>
+                <h3 class="font-semibold text-slate-900 mb-1">{{ purchase.name }}</h3>
+                @if (purchase.description) {
+                  <p class="text-sm text-slate-600">{{ purchase.description }}</p>
+                }
+              </div>
+              <div class="flex items-center gap-1">
+                <button
+                  type="button"
+                  (click)="openPurchaseModal(purchase)"
+                  class="text-slate-400 hover:text-blue-600 transition-colors"
+                >
+                  <lucide-angular [img]="Edit2" [size]="18" />
+                </button>
+                <button
+                  type="button"
+                  (click)="deletePurchase(purchase.id)"
+                  class="text-slate-400 hover:text-red-600 transition-colors"
+                >
+                  <lucide-angular [img]="Trash2" [size]="18" />
+                </button>
+              </div>
+            </div>
+
+            <!-- Cost -->
+            <div class="mb-4">
+              <div class="flex items-center justify-between">
+                <span class="text-sm text-slate-600">Estimated Cost</span>
+                <span class="text-lg font-bold text-slate-900">{{ formatCurrency(purchase.estimatedCost) }}</span>
+              </div>
+            </div>
+
+            <!-- Affordability Check -->
+            @if (getAffordabilityInfo(purchase)) {
+              @let affordability = getAffordabilityInfo(purchase)!;
+              <div class="mb-4 p-3 rounded-md" [class.bg-green-50]="affordability.canAfford" [class.bg-red-50]="!affordability.canAfford" [class.border-green-200]="affordability.canAfford" [class.border-red-200]="!affordability.canAfford" [class.border]="true">
+                <div class="flex items-center justify-between mb-2">
+                  <span class="text-sm font-medium" [class.text-green-800]="affordability.canAfford" [class.text-red-800]="!affordability.canAfford">
+                    {{ affordability.canAfford ? 'Can Afford' : 'Cannot Afford' }}
+                  </span>
+                  <span class="text-sm font-semibold" [class.text-green-800]="affordability.canAfford" [class.text-red-800]="!affordability.canAfford">
+                    Available: {{ formatCurrency(affordability.availableBalance) }}
+                  </span>
+                </div>
+                @if (!affordability.canAfford) {
+                  <p class="text-xs" [class.text-red-700]="true">
+                    Shortfall: {{ formatCurrency(affordability.shortfall) }}
+                  </p>
+                }
+                @if (affordability.recommendations.length > 0) {
+                  <ul class="mt-2 space-y-1">
+                    @for (rec of affordability.recommendations; track rec) {
+                      <li class="text-xs" [class.text-green-700]="affordability.canAfford" [class.text-red-700]="!affordability.canAfford">
+                        • {{ rec }}
+                      </li>
+                    }
+                  </ul>
+                }
+              </div>
+            }
+
+            <!-- Details -->
+            <div class="space-y-2 mb-4 text-sm">
+              @if (purchase.targetDate) {
+                <div class="flex items-center justify-between">
+                  <span class="text-slate-600">Target Date</span>
+                  <span class="font-semibold text-slate-900">{{ format(parseISO(purchase.targetDate), 'MMM d, yyyy') }}</span>
+                </div>
+              }
+              @if (purchase.paymentMethod) {
+                <div class="flex items-center justify-between">
+                  <span class="text-slate-600">Payment Method</span>
+                  <span class="font-semibold text-slate-900 capitalize">{{ purchase.paymentMethod }}</span>
+                </div>
+              }
+              @if (purchase.installmentPlan) {
+                <div class="flex items-center justify-between">
+                  <span class="text-slate-600">Monthly Payment</span>
+                  <span class="font-semibold text-slate-900">{{ formatCurrency(purchase.installmentPlan.monthlyPayment) }}</span>
+                </div>
+              }
+            </div>
+
+            <!-- Actions -->
+            <div class="flex gap-2">
+              <button
+                type="button"
+                (click)="openMarkPurchasedModal(purchase)"
+                class="flex-1 px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 font-medium text-sm transition-colors"
+              >
+                Mark as Purchased
+              </button>
+            </div>
+          </div>
+        }
+      </div>
+    }
+  }
+
+  <!-- Purchase Modal -->
+  @if (showPurchaseModal()) {
+    <div class="purchase-modal" (click)="closePurchaseModal()">
+      <div class="modal-content" (click)="$event.stopPropagation()">
+        <div class="flex items-center justify-between mb-4">
+          <h3 class="text-lg font-semibold text-slate-900">
+            {{ editingPurchase() ? 'Edit Purchase' : 'New Planned Purchase' }}
+          </h3>
+          <button
+            type="button"
+            (click)="closePurchaseModal()"
+            class="text-slate-400 hover:text-slate-600"
+          >
+            <lucide-angular [img]="X" [size]="20" />
+          </button>
+        </div>
+
+        <div class="space-y-4">
+          <div>
+            <label class="block text-sm font-medium text-slate-700 mb-2">Item Name *</label>
+            <input
+              type="text"
+              [(ngModel)]="purchaseForm().name"
+              placeholder="e.g., New Laptop, iPhone 15"
+              class="w-full px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+
+          <div>
+            <label class="block text-sm font-medium text-slate-700 mb-2">Description (Optional)</label>
+            <textarea
+              [(ngModel)]="purchaseForm().description"
+              placeholder="Add details about this purchase..."
+              rows="3"
+              class="w-full px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            ></textarea>
+          </div>
+
+          <div class="grid grid-cols-2 gap-4">
+            <div>
+              <label class="block text-sm font-medium text-slate-700 mb-2">Estimated Cost *</label>
+              <input
+                type="number"
+                [(ngModel)]="purchaseForm().estimatedCost"
+                placeholder="0.00"
+                step="0.01"
+                min="0"
+                class="w-full px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+
+            <div>
+              <label class="block text-sm font-medium text-slate-700 mb-2">Priority</label>
+              <select
+                [(ngModel)]="purchaseForm().priority"
+                class="w-full px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                @for (option of priorityOptions; track option.value) {
+                  <option [value]="option.value">{{ option.label }}</option>
+                }
+              </select>
+            </div>
+          </div>
+
+          <div>
+            <label class="block text-sm font-medium text-slate-700 mb-2">Target Date (Optional)</label>
+            <input
+              type="date"
+              [(ngModel)]="purchaseForm().targetDate"
+              class="w-full px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+
+          <div>
+            <label class="block text-sm font-medium text-slate-700 mb-2">Category</label>
+            <select
+              [(ngModel)]="purchaseForm().category"
+              class="w-full px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              @for (option of categoryOptions; track option.value) {
+                <option [value]="option.value">{{ option.label }}</option>
+              }
+            </select>
+          </div>
+
+          <div>
+            <label class="block text-sm font-medium text-slate-700 mb-2">Payment Method</label>
+            <select
+              [(ngModel)]="purchaseForm().paymentMethod"
+              class="w-full px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="">Not decided</option>
+              <option value="cash">Cash</option>
+              <option value="card">Credit Card</option>
+              <option value="installment">Installment</option>
+            </select>
+          </div>
+
+          @if (purchaseForm().paymentMethod === 'installment') {
+            <div class="grid grid-cols-2 gap-4">
+              <div>
+                <label class="block text-sm font-medium text-slate-700 mb-2">Months</label>
+                <input
+                  type="number"
+                  [(ngModel)]="purchaseForm().installmentMonths"
+                  placeholder="12"
+                  min="1"
+                  class="w-full px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              <div>
+                <label class="block text-sm font-medium text-slate-700 mb-2">Interest Rate % (Optional)</label>
+                <input
+                  type="number"
+                  [(ngModel)]="purchaseForm().installmentInterestRate"
+                  placeholder="0"
+                  step="0.01"
+                  min="0"
+                  class="w-full px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+            </div>
+          }
+
+          <div>
+            <label class="block text-sm font-medium text-slate-700 mb-2">Notes (Optional)</label>
+            <textarea
+              [(ngModel)]="purchaseForm().notes"
+              placeholder="Add research notes, links, etc..."
+              rows="3"
+              class="w-full px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            ></textarea>
+          </div>
+
+          <div>
+            <label class="block text-sm font-medium text-slate-700 mb-2">Links (Optional, one per line)</label>
+            <textarea
+              [(ngModel)]="purchaseForm().links"
+              placeholder="https://example.com/product"
+              rows="2"
+              class="w-full px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            ></textarea>
+          </div>
+
+          <div>
+            <label class="block text-sm font-medium text-slate-700 mb-2">Tags (Optional, comma-separated)</label>
+            <input
+              type="text"
+              [(ngModel)]="purchaseForm().tags"
+              placeholder="electronics, urgent, gift"
+              class="w-full px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+        </div>
+
+        <div class="flex gap-2 mt-6">
+          <button
+            type="button"
+            (click)="savePurchase()"
+            class="flex-1 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 font-medium"
+          >
+            {{ editingPurchase() ? 'Update Purchase' : 'Create Purchase' }}
+          </button>
+          <button
+            type="button"
+            (click)="closePurchaseModal()"
+            class="px-4 py-2 border border-slate-300 text-slate-700 rounded-md hover:bg-slate-50"
+          >
+            Cancel
+          </button>
+        </div>
+      </div>
+    </div>
+  }
+
+  <!-- Mark as Purchased Modal -->
+  @if (showMarkPurchasedModal()) {
+    <div class="purchase-modal" (click)="closeMarkPurchasedModal()">
+      <div class="modal-content" (click)="$event.stopPropagation()">
+        <div class="flex items-center justify-between mb-4">
+          <h3 class="text-lg font-semibold text-slate-900">Mark as Purchased</h3>
+          <button
+            type="button"
+            (click)="closeMarkPurchasedModal()"
+            class="text-slate-400 hover:text-slate-600"
+          >
+            <lucide-angular [img]="X" [size]="20" />
+          </button>
+        </div>
+
+        <div class="space-y-4">
+          <div>
+            <label class="block text-sm font-medium text-slate-700 mb-2">Actual Cost *</label>
+            <input
+              type="number"
+              [(ngModel)]="markPurchasedForm().actualCost"
+              placeholder="0.00"
+              step="0.01"
+              min="0"
+              class="w-full px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+
+          <div>
+            <label class="block text-sm font-medium text-slate-700 mb-2">Purchase Date *</label>
+            <input
+              type="date"
+              [(ngModel)]="markPurchasedForm().purchasedDate"
+              class="w-full px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+
+          <div>
+            <label class="block text-sm font-medium text-slate-700 mb-2">Payment Method *</label>
+            <select
+              [(ngModel)]="markPurchasedForm().paymentMethod"
+              class="w-full px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="cash">Cash</option>
+              <option value="card">Credit Card</option>
+              <option value="bank_transfer">Bank Transfer</option>
+            </select>
+          </div>
+
+          @if (markPurchasedForm().paymentMethod === 'card') {
+            <div>
+              <label class="block text-sm font-medium text-slate-700 mb-2">Credit Card</label>
+              <select
+                [(ngModel)]="markPurchasedForm().cardId"
+                class="w-full px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">Select a card</option>
+                @for (card of cardService.activeCards(); track card.id) {
+                  <option [value]="card.id">{{ card.bankName }} - {{ card.cardName }}</option>
+                }
+              </select>
+            </div>
+          }
+        </div>
+
+        <div class="flex gap-2 mt-6">
+          <button
+            type="button"
+            (click)="markAsPurchased()"
+            class="flex-1 px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 font-medium"
+          >
+            Mark as Purchased
+          </button>
+          <button
+            type="button"
+            (click)="closeMarkPurchasedModal()"
+            class="px-4 py-2 border border-slate-300 text-slate-700 rounded-md hover:bg-slate-50"
+          >
+            Cancel
+          </button>
+        </div>
+      </div>
+    </div>
+  }
+</div>

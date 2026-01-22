@@ -22,7 +22,7 @@
         <app-quick-action-button
           [icon]="Plus"
           label="Add Transaction"
-          [variant]="showForm ? 'secondary' : 'primary'"
+          [variant]="showForm() ? 'secondary' : 'primary'"
           (clicked)="onAddTransaction()"
         />
       </div>
@@ -95,9 +95,9 @@
     }
 
     <!-- Add Transaction Form -->
-    @if (showForm) {
+    @if (showForm()) {
       <div class="transaction-form">
-        <h3 class="font-semibold text-slate-900 mb-4">{{ editingTransactionId ? 'Edit Transaction' : 'New Transaction' }}</h3>
+        <h3 class="font-semibold text-slate-900 mb-4">{{ editingTransactionId() ? 'Edit Transaction' : 'New Transaction' }}</h3>
 
         <div class="form-row">
           <div class="form-group">
@@ -155,52 +155,64 @@
         </div>
 
         <div class="form-row">
-          <div class="form-group" *ngIf="formData.paymentMethod === 'card'">
-            <label>Card</label>
-            <select [(ngModel)]="formData.cardId">
-              <option value="">Select a card...</option>
-              @for (card of cards(); track card.id) {
-                <option [value]="card.id">{{ card.bankName }} {{ card.cardName }}</option>
-              }
-            </select>
-          </div>
-          <div class="form-group" *ngIf="formData.paymentMethod === 'bank_transfer'">
-            <label>Bank Account</label>
-            <select [(ngModel)]="formData.bankId">
-              <option value="">Select a bank account...</option>
-              @for (account of bankAccounts(); track account.id) {
-                <option [value]="account.id">{{ account.bankName }} - {{ account.accountName }}</option>
-              }
-            </select>
-          </div>
-          <div class="form-group" *ngIf="formData.paymentMethod === 'bank_to_bank'">
-            <label>From Bank Account</label>
-            <select [(ngModel)]="formData.fromBankId">
-              <option value="">Select source account...</option>
-              @for (account of bankAccounts(); track account.id) {
-                <option [value]="account.id">{{ account.bankName }} - {{ account.accountName }}</option>
-              }
-            </select>
-          </div>
-          <div class="form-group" *ngIf="formData.paymentMethod === 'bank_to_bank'">
-            <label>To Bank Account</label>
-            <select [(ngModel)]="formData.toBankId">
-              <option value="">Select destination account...</option>
-              @for (account of bankAccounts(); track account.id) {
-                <option [value]="account.id">{{ account.bankName }} - {{ account.accountName }}</option>
-              }
-            </select>
-          </div>
-          <div class="form-group" *ngIf="formData.paymentMethod === 'bank_to_bank'">
-            <label>Transfer Fee (optional)</label>
-            <input type="number" [(ngModel)]="formData.transferFee" placeholder="0.00" step="0.01" min="0" />
-          </div>
-          <div class="form-group" *ngIf="formData.paymentMethod === 'card'" style="display: flex; align-items: flex-end; gap: 8px;">
-            <label style="flex: 0 0 auto; margin-bottom: 0; display: flex; align-items: center; gap: 4px;">
-              <input type="checkbox" [(ngModel)]="formData.paidByOther" />
-              <span>Other person paid</span>
-            </label>
-          </div>
+          @if (formData.paymentMethod === 'card') {
+            <div class="form-group">
+              <label>Card</label>
+              <select [(ngModel)]="formData.cardId">
+                <option value="">Select a card...</option>
+                @for (card of cards(); track card.id) {
+                  <option [value]="card.id">{{ card.bankName }} {{ card.cardName }}</option>
+                }
+              </select>
+            </div>
+          }
+          @if (formData.paymentMethod === 'bank_transfer') {
+            <div class="form-group">
+              <label>Bank Account</label>
+              <select [(ngModel)]="formData.bankId">
+                <option value="">Select a bank account...</option>
+                @for (account of bankAccounts(); track account.id) {
+                  <option [value]="account.id">{{ account.bankName }} - {{ account.accountName }}</option>
+                }
+              </select>
+            </div>
+          }
+          @if (formData.paymentMethod === 'bank_to_bank') {
+            <div class="form-group">
+              <label>From Bank Account</label>
+              <select [(ngModel)]="formData.fromBankId">
+                <option value="">Select source account...</option>
+                @for (account of bankAccounts(); track account.id) {
+                  <option [value]="account.id">{{ account.bankName }} - {{ account.accountName }}</option>
+                }
+              </select>
+            </div>
+          }
+          @if (formData.paymentMethod === 'bank_to_bank') {
+            <div class="form-group">
+              <label>To Bank Account</label>
+              <select [(ngModel)]="formData.toBankId">
+                <option value="">Select destination account...</option>
+                @for (account of bankAccounts(); track account.id) {
+                  <option [value]="account.id">{{ account.bankName }} - {{ account.accountName }}</option>
+                }
+              </select>
+            </div>
+          }
+          @if (formData.paymentMethod === 'bank_to_bank') {
+            <div class="form-group">
+              <label>Transfer Fee (optional)</label>
+              <input type="number" [(ngModel)]="formData.transferFee" placeholder="0.00" step="0.01" min="0" />
+            </div>
+          }
+          @if (formData.paymentMethod === 'card') {
+            <div class="form-group" style="display: flex; align-items: flex-end; gap: 8px;">
+              <label style="flex: 0 0 auto; margin-bottom: 0; display: flex; align-items: center; gap: 4px;">
+                <input type="checkbox" [(ngModel)]="formData.paidByOther" />
+                <span>Other person paid</span>
+              </label>
+            </div>
+          }
         </div>
 
         @if (formData.paidByOther) {

@@ -233,3 +233,95 @@ export interface SavingsGoal {
   createdAt?: string;
   updatedAt?: string;
 }
+
+export interface PlannedPurchase {
+  id: string;
+  profileId: string;
+  name: string;
+  description?: string;
+  estimatedCost: number;
+  priority: 'need' | 'want' | 'wish';
+  
+  // Timeline
+  targetDate?: string;
+  isPurchased: boolean;
+  purchasedDate?: string;
+  actualCost?: number;
+  
+  // Financing
+  paymentMethod?: 'cash' | 'card' | 'installment';
+  installmentPlan?: {
+    months: number;
+    monthlyPayment: number;
+    interestRate?: number;
+  };
+  
+  // Research
+  links: string[];
+  notes: string;
+  tags: string[];
+  
+  // Categorization
+  category: string;
+  
+  // Metadata
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface BudgetImpact {
+  currentMonthlyIncome: number;
+  currentMonthlyExpenses: number;
+  currentMonthlyDebt: number;
+  
+  newMonthlyPayment: number;
+  newTotalMonthlyDebt: number;
+  newDebtToIncomeRatio: number;
+  
+  remainingAfterLoan: number;
+  percentageOfIncomeUsed: number;
+  
+  recommendations: string[];
+  warnings: string[];
+}
+
+export interface LoanPlan {
+  id: string;
+  profileId: string;
+  name: string;
+  type: 'mortgage' | 'auto' | 'personal' | 'student' | 'other';
+  
+  // Loan details
+  totalAmount: number;
+  downPayment: number;
+  loanAmount: number;  // totalAmount - downPayment
+  interestRate: number;  // Annual percentage rate
+  termMonths: number;
+  
+  // Calculated values
+  monthlyPayment: number;
+  totalInterest: number;
+  totalCost: number;
+  
+  // Additional costs (for mortgages/auto)
+  propertyTax?: number;  // Monthly
+  insurance?: number;  // Monthly
+  pmi?: number;  // Private mortgage insurance
+  hoa?: number;  // HOA fees
+  maintenance?: number;  // Estimated monthly maintenance
+  
+  // Affordability analysis
+  affordabilityScore: number;  // 0-100
+  monthlyIncomeRequired: number;
+  debtToIncomeRatio: number;
+  impactOnBudget: BudgetImpact;
+  
+  // Status
+  status: 'planning' | 'saving_for_down_payment' | 'approved' | 'active' | 'completed';
+  targetDate?: string;
+  notes: string;
+  
+  // Metadata
+  createdAt?: string;
+  updatedAt?: string;
+}

@@ -17,3 +17,5 @@ export * from './transaction.service';
 export * from './category.service';
 export * from './budget.service';
 export * from './savings-goal.service';
+export * from './planned-purchase.service';
+export * from './loan-plan.service';

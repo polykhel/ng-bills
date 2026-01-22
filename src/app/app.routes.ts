@@ -69,4 +69,18 @@ export const routes: Routes = [
         m => m.SavingsGoalsComponent
       ),
   },
+  {
+    path: 'planned-purchases',
+    loadComponent: () =>
+      import('./features/planned-purchases/planned-purchases.component').then(
+        m => m.PlannedPurchasesComponent
+      ),
+  },
+  {
+    path: 'loan-planning',
+    loadComponent: () =>
+      import('./features/loan-planning/loan-planning.component').then(
+        m => m.LoanPlanningComponent
+      ),
+  },
 ];

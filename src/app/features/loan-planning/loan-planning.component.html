@@ -1,0 +1,424 @@
+<div class="max-w-7xl mx-auto px-4 py-6">
+  @if (!activeProfile()) {
+    <app-empty-state
+      [icon]="Calculator"
+      title="No Profile Selected"
+      message="Select a profile to plan loans"
+    />
+  } @else {
+    <!-- Header -->
+    <div class="flex items-center justify-between mb-6">
+      <div>
+        <h1 class="text-2xl font-bold text-slate-900">Loan Planning</h1>
+        <p class="text-slate-600 mt-1">Plan loans and check affordability based on your finances</p>
+      </div>
+      <button
+        type="button"
+        (click)="openLoanModal()"
+        class="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 font-medium transition-colors"
+      >
+        <lucide-angular [img]="Plus" [size]="20" />
+        <span>New Loan Plan</span>
+      </button>
+    </div>
+
+    <!-- Summary Metrics -->
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+      <app-metric-card
+        [icon]="Calculator"
+        label="Total Plans"
+        [value]="summary().totalLoans.toString()"
+        variant="info"
+      />
+
+      <app-metric-card
+        [icon]="DollarSign"
+        label="Total Loan Amount"
+        [value]="formatCurrency(summary().totalLoanAmount)"
+        variant="info"
+      />
+
+      <app-metric-card
+        [icon]="TrendingUp"
+        label="Monthly Payments"
+        [value]="formatCurrency(summary().totalMonthlyPayments)"
+        variant="warning"
+      />
+
+      <app-metric-card
+        [icon]="CheckCircle2"
+        label="Avg Affordability"
+        [value]="summary().avgAffordability.toFixed(0)"
+        [variant]="summary().avgAffordability >= 80 ? 'success' : summary().avgAffordability >= 60 ? 'warning' : 'danger'"
+      />
+    </div>
+
+    <!-- Loans Grid -->
+    @if (loans().length === 0) {
+      <div class="bg-white rounded-lg border border-slate-200 shadow-sm p-6">
+        <app-empty-state
+          [icon]="Calculator"
+          title="No loan plans yet"
+          message="Create loan scenarios to check affordability, calculate payments, and compare options."
+          actionLabel="Create Your First Loan Plan"
+          (action)="openLoanModal()"
+        />
+      </div>
+    } @else {
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        @for (loan of loans(); track loan.id) {
+          <div class="loan-card bg-white rounded-lg border border-slate-200 shadow-sm p-6">
+            <!-- Loan Header -->
+            <div class="flex items-start justify-between mb-4">
+              <div class="flex-1">
+                <div class="flex items-center gap-2 mb-2">
+                  <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                    {{ loan.type }}
+                  </span>
+                  <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-slate-100 text-slate-800">
+                    {{ loan.status }}
+                  </span>
+                </div>
+                <h3 class="font-semibold text-slate-900 mb-1">{{ loan.name }}</h3>
+              </div>
+              <div class="flex items-center gap-1">
+                <button
+                  type="button"
+                  (click)="openLoanModal(loan)"
+                  class="text-slate-400 hover:text-blue-600 transition-colors"
+                >
+                  <lucide-angular [img]="Edit2" [size]="18" />
+                </button>
+                <button
+                  type="button"
+                  (click)="deleteLoan(loan.id)"
+                  class="text-slate-400 hover:text-red-600 transition-colors"
+                >
+                  <lucide-angular [img]="Trash2" [size]="18" />
+                </button>
+              </div>
+            </div>
+
+            <!-- Affordability Score -->
+            <div class="mb-4">
+              <div class="flex items-center justify-between mb-2">
+                <span class="text-sm font-medium text-slate-700">Affordability Score</span>
+                <span class="affordability-badge" [ngClass]="getAffordabilityClass(loan.affordabilityScore)">
+                  {{ loan.affordabilityScore }} - {{ getAffordabilityLabel(loan.affordabilityScore) }}
+                </span>
+              </div>
+            </div>
+
+            <!-- Loan Details -->
+            <div class="space-y-2 mb-4 text-sm">
+              <div class="flex items-center justify-between">
+                <span class="text-slate-600">Loan Amount</span>
+                <span class="font-semibold text-slate-900">{{ formatCurrency(loan.loanAmount) }}</span>
+              </div>
+              <div class="flex items-center justify-between">
+                <span class="text-slate-600">Down Payment</span>
+                <span class="font-semibold text-slate-900">{{ formatCurrency(loan.downPayment) }}</span>
+              </div>
+              <div class="flex items-center justify-between">
+                <span class="text-slate-600">Monthly Payment</span>
+                <span class="font-semibold text-slate-900">{{ formatCurrency(loan.monthlyPayment) }}</span>
+              </div>
+              <div class="flex items-center justify-between">
+                <span class="text-slate-600">Total Interest</span>
+                <span class="font-semibold text-slate-900">{{ formatCurrency(loan.totalInterest) }}</span>
+              </div>
+              <div class="flex items-center justify-between">
+                <span class="text-slate-600">Total Cost</span>
+                <span class="font-semibold text-slate-900">{{ formatCurrency(loan.totalCost) }}</span>
+              </div>
+              <div class="flex items-center justify-between">
+                <span class="text-slate-600">Debt-to-Income Ratio</span>
+                <span class="font-semibold" [class.text-red-600]="loan.debtToIncomeRatio > 43" [class.text-slate-900]="loan.debtToIncomeRatio <= 43">
+                  {{ loan.debtToIncomeRatio.toFixed(1) }}%
+                </span>
+              </div>
+            </div>
+
+            <!-- Budget Impact -->
+            @if (loan.impactOnBudget) {
+              <div class="mb-4 p-3 bg-slate-50 rounded-md border border-slate-200">
+                <h4 class="text-sm font-semibold text-slate-900 mb-2">Budget Impact</h4>
+                <div class="space-y-1 text-xs">
+                  <div class="flex items-center justify-between">
+                    <span class="text-slate-600">Remaining After Loan</span>
+                    <span class="font-semibold" [class.text-red-600]="loan.impactOnBudget.remainingAfterLoan < 0" [class.text-slate-900]="loan.impactOnBudget.remainingAfterLoan >= 0">
+                      {{ formatCurrency(loan.impactOnBudget.remainingAfterLoan) }}
+                    </span>
+                  </div>
+                  <div class="flex items-center justify-between">
+                    <span class="text-slate-600">% of Income Used</span>
+                    <span class="font-semibold text-slate-900">{{ loan.impactOnBudget.percentageOfIncomeUsed.toFixed(1) }}%</span>
+                  </div>
+                </div>
+              </div>
+            }
+
+            <!-- Recommendations -->
+            @if (loan.impactOnBudget && loan.impactOnBudget.recommendations.length > 0) {
+              <div class="mb-4">
+                <h4 class="text-xs font-semibold text-slate-700 mb-2">Recommendations</h4>
+                <ul class="space-y-1">
+                  @for (rec of loan.impactOnBudget.recommendations; track rec) {
+                    <li class="text-xs text-slate-600">• {{ rec }}</li>
+                  }
+                </ul>
+              </div>
+            }
+
+            <!-- Warnings -->
+            @if (loan.impactOnBudget && loan.impactOnBudget.warnings.length > 0) {
+              <div class="mb-4 p-3 bg-red-50 rounded-md border border-red-200">
+                <h4 class="text-xs font-semibold text-red-800 mb-2">Warnings</h4>
+                <ul class="space-y-1">
+                  @for (warning of loan.impactOnBudget.warnings; track warning) {
+                    <li class="text-xs text-red-700">• {{ warning }}</li>
+                  }
+                </ul>
+              </div>
+            }
+          </div>
+        }
+      </div>
+    }
+  }
+
+  <!-- Loan Modal -->
+  @if (showLoanModal()) {
+    <div class="loan-modal" (click)="closeLoanModal()">
+      <div class="modal-content" (click)="$event.stopPropagation()">
+        <div class="flex items-center justify-between mb-4">
+          <h3 class="text-lg font-semibold text-slate-900">
+            {{ editingLoan() ? 'Edit Loan Plan' : 'New Loan Plan' }}
+          </h3>
+          <button
+            type="button"
+            (click)="closeLoanModal()"
+            class="text-slate-400 hover:text-slate-600"
+          >
+            <lucide-angular [img]="X" [size]="20" />
+          </button>
+        </div>
+
+        <div class="space-y-4">
+          <div>
+            <label class="block text-sm font-medium text-slate-700 mb-2">Loan Name *</label>
+            <input
+              type="text"
+              [(ngModel)]="loanForm().name"
+              placeholder="e.g., Home Mortgage, Car Loan"
+              class="w-full px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+
+          <div class="grid grid-cols-2 gap-4">
+            <div>
+              <label class="block text-sm font-medium text-slate-700 mb-2">Loan Type *</label>
+              <select
+                [(ngModel)]="loanForm().type"
+                class="w-full px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                @for (option of loanTypeOptions; track option.value) {
+                  <option [value]="option.value">{{ option.label }}</option>
+                }
+              </select>
+            </div>
+
+            <div>
+              <label class="block text-sm font-medium text-slate-700 mb-2">Status</label>
+              <select
+                [(ngModel)]="loanForm().status"
+                class="w-full px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                @for (option of statusOptions; track option.value) {
+                  <option [value]="option.value">{{ option.label }}</option>
+                }
+              </select>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-2 gap-4">
+            <div>
+              <label class="block text-sm font-medium text-slate-700 mb-2">Total Amount *</label>
+              <input
+                type="number"
+                [(ngModel)]="loanForm().totalAmount"
+                placeholder="0.00"
+                step="0.01"
+                min="0"
+                class="w-full px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+
+            <div>
+              <label class="block text-sm font-medium text-slate-700 mb-2">Down Payment *</label>
+              <input
+                type="number"
+                [(ngModel)]="loanForm().downPayment"
+                placeholder="0.00"
+                step="0.01"
+                min="0"
+                class="w-full px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+          </div>
+
+          <div class="grid grid-cols-2 gap-4">
+            <div>
+              <label class="block text-sm font-medium text-slate-700 mb-2">Interest Rate (%) *</label>
+              <input
+                type="number"
+                [(ngModel)]="loanForm().interestRate"
+                placeholder="6.5"
+                step="0.01"
+                min="0"
+                class="w-full px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+
+            <div>
+              <label class="block text-sm font-medium text-slate-700 mb-2">Term (Months) *</label>
+              <input
+                type="number"
+                [(ngModel)]="loanForm().termMonths"
+                placeholder="360"
+                min="1"
+                class="w-full px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+          </div>
+
+          <!-- Additional Costs (for mortgages/auto) -->
+          @if (loanForm().type === 'mortgage' || loanForm().type === 'auto') {
+            <div class="border-t pt-4">
+              <h4 class="text-sm font-semibold text-slate-900 mb-3">Additional Monthly Costs</h4>
+              <div class="grid grid-cols-2 gap-4">
+                @if (loanForm().type === 'mortgage') {
+                  <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-2">Property Tax</label>
+                    <input
+                      type="number"
+                      [(ngModel)]="loanForm().propertyTax"
+                      placeholder="0.00"
+                      step="0.01"
+                      min="0"
+                      class="w-full px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                  <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-2">Home Insurance</label>
+                    <input
+                      type="number"
+                      [(ngModel)]="loanForm().insurance"
+                      placeholder="0.00"
+                      step="0.01"
+                      min="0"
+                      class="w-full px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                  <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-2">PMI</label>
+                    <input
+                      type="number"
+                      [(ngModel)]="loanForm().pmi"
+                      placeholder="0.00"
+                      step="0.01"
+                      min="0"
+                      class="w-full px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                  <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-2">HOA Fees</label>
+                    <input
+                      type="number"
+                      [(ngModel)]="loanForm().hoa"
+                      placeholder="0.00"
+                      step="0.01"
+                      min="0"
+                      class="w-full px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                  <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-2">Maintenance</label>
+                    <input
+                      type="number"
+                      [(ngModel)]="loanForm().maintenance"
+                      placeholder="0.00"
+                      step="0.01"
+                      min="0"
+                      class="w-full px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                }
+                @if (loanForm().type === 'auto') {
+                  <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-2">Car Insurance</label>
+                    <input
+                      type="number"
+                      [(ngModel)]="loanForm().insurance"
+                      placeholder="0.00"
+                      step="0.01"
+                      min="0"
+                      class="w-full px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                  <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-2">Maintenance</label>
+                    <input
+                      type="number"
+                      [(ngModel)]="loanForm().maintenance"
+                      placeholder="0.00"
+                      step="0.01"
+                      min="0"
+                      class="w-full px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                }
+              </div>
+            </div>
+          }
+
+          <div>
+            <label class="block text-sm font-medium text-slate-700 mb-2">Target Date (Optional)</label>
+            <input
+              type="date"
+              [(ngModel)]="loanForm().targetDate"
+              class="w-full px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+
+          <div>
+            <label class="block text-sm font-medium text-slate-700 mb-2">Notes (Optional)</label>
+            <textarea
+              [(ngModel)]="loanForm().notes"
+              placeholder="Add notes about this loan..."
+              rows="3"
+              class="w-full px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            ></textarea>
+          </div>
+        </div>
+
+        <div class="flex gap-2 mt-6">
+          <button
+            type="button"
+            (click)="saveLoan()"
+            class="flex-1 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 font-medium"
+          >
+            {{ editingLoan() ? 'Update Loan Plan' : 'Create Loan Plan' }}
+          </button>
+          <button
+            type="button"
+            (click)="closeLoanModal()"
+            class="px-4 py-2 border border-slate-300 text-slate-700 rounded-md hover:bg-slate-50"
+          >
+            Cancel
+          </button>
+        </div>
+      </div>
+    </div>
+  }
+</div>
