@@ -13,6 +13,10 @@ import {
   Wallet,
   X,
   Building2,
+  Search,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown,
 } from 'lucide-angular';
 import {
   AppStateService,
@@ -25,7 +29,7 @@ import {
 } from '@services';
 import { EmptyStateComponent, MetricCardComponent, QuickActionButtonComponent } from '@components';
 import type { PaymentMethod, Transaction, TransactionFilter, TransactionType } from '@shared/types';
-import { format, parseISO, startOfMonth, endOfMonth } from 'date-fns';
+import { format, parseISO, startOfMonth, endOfMonth, addMonths, subMonths, differenceInCalendarMonths, setDate } from 'date-fns';
 
 /**
  * Transactions Page Component
@@ -187,6 +191,10 @@ export class TransactionsComponent {
   readonly Trash2 = Trash2;
   readonly X = X;
   readonly Building2 = Building2;
+  readonly Search = Search;
+  readonly ArrowUpDown = ArrowUpDown;
+  readonly ArrowUp = ArrowUp;
+  readonly ArrowDown = ArrowDown;
 
   private appState = inject(AppStateService);
   protected profileService = inject(ProfileService);
@@ -197,12 +205,32 @@ export class TransactionsComponent {
   protected editingTransactionId = signal<string | null>(null);
   protected formData: Partial<Transaction> = this.getEmptyForm();
   protected showBankBalanceManagement = false;
+  // Recurring/installment form state
+  protected isRecurringTransaction = signal<boolean>(false);
+  protected recurringType = signal<'installment' | 'subscription' | 'custom'>('subscription');
+  protected installmentMode = signal<'date' | 'term'>('date');
+  protected recurringFormData = {
+    // Installment fields
+    totalPrincipal: undefined as number | undefined,
+    totalTerms: undefined as number | undefined,
+    monthlyAmortization: undefined as number | undefined,
+    startDate: undefined as string | undefined,
+    currentTerm: undefined as number | undefined,
+    interestRate: undefined as number | undefined,
+    // Subscription/Custom fields
+    frequency: 'monthly' as 'monthly' | 'weekly' | 'biweekly' | 'quarterly' | 'yearly',
+    nextDate: undefined as string | undefined,
+  };
   // Filter state - using signals so computed can react to changes
   protected filterType = signal<TransactionType | 'all'>('all');
   protected filterPaymentMethod = signal<PaymentMethod | 'all'>('all');
   protected filterCardId = signal<string | ''>('');
   protected filterRecurring = signal<boolean | 'all'>('all');
   protected showAllTransactions = signal<boolean>(false);
+  // Search and sort state
+  protected searchQuery = signal<string>('');
+  protected sortField = signal<'date' | 'amount' | 'description'>('date');
+  protected sortDirection = signal<'asc' | 'desc'>('asc');
 
   protected activeProfile = this.profileService.activeProfile;
   protected viewDate = this.appState.viewDate;
@@ -228,21 +256,6 @@ export class TransactionsComponent {
     };
   });
   private transactionService = inject(TransactionService);
-  private cdr = inject(ChangeDetectorRef);
-  
-  constructor() {
-    // Watch for transaction changes and trigger change detection for OnPush
-    effect(() => {
-      // Read the transactions signal to establish dependency
-      const transactions = this.transactionService.transactions();
-      // Also read other signals that might affect the view
-      this.activeProfile();
-      this.multiProfileMode();
-      this.selectedProfileIds();
-      // Manually trigger change detection for OnPush
-      this.cdr.markForCheck();
-    });
-  }
   
   // Pre-computed running balances for all transactions (performance optimization)
   // This avoids recalculating running balance for each transaction in the template
@@ -334,9 +347,69 @@ export class TransactionsComponent {
       });
     }
 
+    // Apply search filter
+    const searchQuery = this.searchQuery().trim().toLowerCase();
+    if (searchQuery) {
+      relevantTransactions = relevantTransactions.filter((t) => {
+        const description = t.description.toLowerCase();
+        const notes = t.notes?.toLowerCase() || '';
+        const amount = t.amount.toString();
+        return description.includes(searchQuery) || 
+               notes.includes(searchQuery) || 
+               amount.includes(searchQuery);
+      });
+    }
+
+    // Apply sorting
+    const sortField = this.sortField();
+    const sortDirection = this.sortDirection();
+    const sortMultiplier = sortDirection === 'asc' ? 1 : -1;
+
+    relevantTransactions = [...relevantTransactions].sort((a, b) => {
+      switch (sortField) {
+        case 'date':
+          return (a.date.localeCompare(b.date)) * sortMultiplier;
+        case 'amount':
+          return (a.amount - b.amount) * sortMultiplier;
+        case 'description':
+          return a.description.localeCompare(b.description) * sortMultiplier;
+        default:
+          return 0;
+      }
+    });
+
     return relevantTransactions;
   });
   private cardService = inject(CardService);
+  
+  /**
+   * Get card's due date for the current month
+   */
+  protected getCardDueDate(cardId: string | undefined): string | undefined {
+    if (!cardId) return undefined;
+    const card = this.cardService.getCardById(cardId);
+    if (!card) return undefined;
+    const currentMonth = startOfMonth(this.viewDate());
+    const dueDate = setDate(currentMonth, card.dueDay);
+    return format(dueDate, 'yyyy-MM-dd');
+  }
+  
+  /**
+   * When card is selected for an installment, auto-set start date to card's due date
+   */
+  protected onCardChangeForInstallment(): void {
+    if (this.isRecurringTransaction() && 
+        this.recurringType() === 'installment' && 
+        this.formData.paymentMethod === 'card' && 
+        this.formData.cardId) {
+      const cardDueDate = this.getCardDueDate(this.formData.cardId);
+      if (cardDueDate && !this.recurringFormData.startDate) {
+        this.recurringFormData.startDate = cardDueDate;
+        this.installmentMode.set('date');
+        this.onStartDateChange(); // Recalculate current term
+      }
+    }
+  }
   // Computed cards: show cards for selected profiles in multi-profile mode, otherwise active profile
   protected cards = computed(() => {
     const multiMode = this.multiProfileMode();
@@ -390,6 +463,7 @@ export class TransactionsComponent {
     if (this.editingTransactionId()) {
       this.editingTransactionId.set(null);
       this.formData = this.getEmptyForm();
+      this.resetRecurringForm();
       this.showForm.set(false);
       return;
     }
@@ -398,8 +472,10 @@ export class TransactionsComponent {
     this.showForm.set(!currentValue);
     if (!currentValue) {
       this.formData = this.getEmptyForm();
+      this.resetRecurringForm();
     } else {
       this.formData = this.getEmptyForm();
+      this.resetRecurringForm();
     }
   }
 
@@ -425,6 +501,70 @@ export class TransactionsComponent {
       paidByOtherProfileId: transaction.paidByOtherProfileId,
       paidByOtherName: transaction.paidByOtherName,
     };
+    
+    // Load recurring/installment data if present
+    if (transaction.isRecurring && transaction.recurringRule) {
+      this.isRecurringTransaction.set(true);
+      this.recurringType.set(transaction.recurringRule.type || 'subscription');
+      
+      if (transaction.recurringRule.type === 'installment') {
+        // Calculate current term from startDate if available
+        let calculatedCurrentTerm = transaction.recurringRule.currentTerm;
+        if (transaction.recurringRule.startDate) {
+          const startDate = parseISO(transaction.recurringRule.startDate);
+          const currentMonth = startOfMonth(this.viewDate());
+          const startMonth = startOfMonth(startDate);
+          const diff = differenceInCalendarMonths(currentMonth, startMonth);
+          calculatedCurrentTerm = Math.max(1, diff + 1);
+        }
+        
+        // If charged to a card, use card's current due date for the start date
+        let startDate = transaction.recurringRule.startDate;
+        if (transaction.paymentMethod === 'card' && transaction.cardId) {
+          const cardDueDate = this.getCardDueDate(transaction.cardId);
+          if (cardDueDate) {
+            // Preserve the original month but use card's due day
+            const originalDate = transaction.recurringRule.startDate ? parseISO(transaction.recurringRule.startDate) : new Date();
+            const card = this.cardService.getCardById(transaction.cardId);
+            if (card) {
+              startDate = format(setDate(originalDate, card.dueDay), 'yyyy-MM-dd');
+            }
+          }
+        }
+        
+        this.recurringFormData = {
+          totalPrincipal: transaction.recurringRule.totalPrincipal,
+          totalTerms: transaction.recurringRule.totalTerms,
+          monthlyAmortization: transaction.amount, // Use transaction amount as monthly amort
+          startDate: startDate,
+          currentTerm: calculatedCurrentTerm,
+          interestRate: transaction.recurringRule.interestRate,
+          frequency: transaction.recurringRule.frequency || 'monthly',
+          nextDate: transaction.recurringRule.nextDate,
+        };
+        // Determine mode based on whether we have startDate or need to calculate from currentTerm
+        if (startDate) {
+          this.installmentMode.set('date');
+        } else if (transaction.recurringRule.currentTerm) {
+          this.installmentMode.set('term');
+        }
+      } else {
+        // Subscription or custom
+        this.recurringFormData = {
+          totalPrincipal: undefined,
+          totalTerms: undefined,
+          monthlyAmortization: undefined,
+          startDate: undefined,
+          currentTerm: undefined,
+          interestRate: undefined,
+          frequency: transaction.recurringRule.frequency || 'monthly',
+          nextDate: transaction.recurringRule.nextDate || transaction.date,
+        };
+      }
+    } else {
+      this.resetRecurringForm();
+    }
+    
     this.showForm.set(true);
     // Scroll to top to show the form
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -437,6 +577,24 @@ export class TransactionsComponent {
     this.filterCardId.set('');
     this.filterRecurring.set('all');
     this.showAllTransactions.set(false);
+    this.searchQuery.set('');
+    this.sortField.set('date');
+    this.sortDirection.set('desc');
+  }
+
+  protected onSortChange(field: 'date' | 'amount' | 'description'): void {
+    if (this.sortField() === field) {
+      // Toggle direction if same field
+      this.sortDirection.set(this.sortDirection() === 'asc' ? 'desc' : 'asc');
+    } else {
+      // Set new field with default direction
+      this.sortField.set(field);
+      this.sortDirection.set(field === 'date' ? 'desc' : 'asc');
+    }
+  }
+
+  protected shouldShowRunningBalance(): boolean {
+    return this.sortField() === 'date';
   }
 
   /**
@@ -495,16 +653,131 @@ export class TransactionsComponent {
       return;
     }
 
+    // Validate recurring transaction fields if enabled
+    if (this.isRecurringTransaction()) {
+      if (this.recurringType() === 'installment') {
+        if (!this.recurringFormData.totalPrincipal || this.recurringFormData.totalPrincipal <= 0) {
+          alert('Please enter a valid total principal amount for the installment');
+          return;
+        }
+        if (!this.recurringFormData.totalTerms || this.recurringFormData.totalTerms <= 0) {
+          alert('Please enter a valid number of terms (months) for the installment');
+          return;
+        }
+        if (this.installmentMode() === 'date' && !this.recurringFormData.startDate) {
+          alert('Please enter a start date for the installment');
+          return;
+        }
+        if (this.installmentMode() === 'term' && (!this.recurringFormData.currentTerm || this.recurringFormData.currentTerm <= 0)) {
+          alert('Please enter a valid current term number');
+          return;
+        }
+      } else {
+        // Subscription or custom
+        if (!this.recurringFormData.nextDate) {
+          alert('Please enter the next payment date for the recurring transaction');
+          return;
+        }
+      }
+    }
+
     const profile = this.activeProfile();
     if (!profile) return;
 
     try {
       const editingId = this.editingTransactionId();
+      
+      // Get existing transaction if editing
+      let existingTransaction: Transaction | undefined;
+      if (editingId) {
+        existingTransaction = this.transactionService.transactions().find(t => t.id === editingId);
+      }
+      
+      // Calculate recurring rule if this is a recurring transaction
+      let recurringRule = undefined;
+      let transactionAmount = this.formData.amount || 0;
+      
+      if (this.isRecurringTransaction()) {
+        if (this.recurringType() === 'installment') {
+          // Installment type
+          // Calculate start date based on mode
+          let calculatedStartDate = this.recurringFormData.startDate;
+          
+          // If charged to a card, use card's due date if start date not explicitly set
+          if (this.formData.paymentMethod === 'card' && this.formData.cardId) {
+            const cardDueDate = this.getCardDueDate(this.formData.cardId);
+            if (cardDueDate && (!calculatedStartDate || this.installmentMode() === 'date' && !this.recurringFormData.startDate)) {
+              calculatedStartDate = cardDueDate;
+            }
+          }
+          
+          if (this.installmentMode() === 'term') {
+            const currentTerm = this.recurringFormData.currentTerm || 1;
+            const backDate = subMonths(this.viewDate(), currentTerm - 1);
+            calculatedStartDate = format(backDate, 'yyyy-MM-dd');
+          }
+          
+          // Calculate monthly amortization if not provided
+          const monthlyAmort = this.recurringFormData.monthlyAmortization ||
+            (this.recurringFormData.totalPrincipal! / this.recurringFormData.totalTerms!);
+          
+          // Use monthly amortization as transaction amount
+          transactionAmount = monthlyAmort;
+          
+          // Calculate end date
+          const startDateObj = parseISO(calculatedStartDate!);
+          const endDate = format(addMonths(startDateObj, this.recurringFormData.totalTerms!), 'yyyy-MM-dd');
+          
+          // Calculate current term from startDate
+          let calculatedCurrentTerm: number;
+          if (this.installmentMode() === 'term') {
+            // Use the manually entered current term
+            calculatedCurrentTerm = this.recurringFormData.currentTerm || 1;
+          } else {
+            // Calculate from startDate and current viewDate
+            const currentMonth = startOfMonth(this.viewDate());
+            const startMonth = startOfMonth(startDateObj);
+            const diff = differenceInCalendarMonths(currentMonth, startMonth);
+            calculatedCurrentTerm = Math.max(1, diff + 1);
+          }
+          
+          // Generate installment group ID (preserve existing if editing, otherwise create new)
+          const installmentGroupId = editingId && existingTransaction?.recurringRule?.installmentGroupId
+            ? existingTransaction.recurringRule.installmentGroupId
+            : `installment_${crypto.randomUUID()}`;
+          
+          recurringRule = {
+            type: 'installment' as const,
+            frequency: 'monthly' as const,
+            totalPrincipal: this.recurringFormData.totalPrincipal,
+            currentTerm: calculatedCurrentTerm,
+            totalTerms: this.recurringFormData.totalTerms,
+            startDate: calculatedStartDate,
+            endDate,
+            interestRate: this.recurringFormData.interestRate || 0,
+            installmentGroupId,
+          };
+        } else {
+          // Subscription or custom type
+          recurringRule = {
+            type: this.recurringType() as 'subscription' | 'custom',
+            frequency: this.recurringFormData.frequency,
+            nextDate: this.recurringFormData.nextDate,
+          };
+          // For subscription/custom, use the entered amount
+          transactionAmount = this.formData.amount || 0;
+          // Use nextDate as the transaction date for subscription/custom
+          if (this.recurringFormData.nextDate && !editingId) {
+            this.formData.date = this.recurringFormData.nextDate;
+          }
+        }
+      }
+      
       if (editingId) {
         // Update existing transaction
         await this.transactionService.updateTransaction(editingId, {
           type: (this.formData.type || 'expense') as TransactionType,
-          amount: this.formData.amount || 0,
+          amount: transactionAmount,
           date: this.formData.date || new Date().toISOString().split('T')[0],
           categoryId: this.formData.categoryId || 'uncategorized',
           description: this.formData.description || '',
@@ -518,6 +791,8 @@ export class TransactionsComponent {
           paidByOther: this.formData.paidByOther || false,
           paidByOtherProfileId: this.formData.paidByOtherProfileId,
           paidByOtherName: this.formData.paidByOtherName,
+          isRecurring: this.isRecurringTransaction(),
+          recurringRule,
         });
       } else {
         // Create new transaction
@@ -525,7 +800,7 @@ export class TransactionsComponent {
           id: crypto.randomUUID(),
           profileId: profile.id,
           type: (this.formData.type || 'expense') as TransactionType,
-          amount: this.formData.amount || 0,
+          amount: transactionAmount,
           date: this.formData.date || new Date().toISOString().split('T')[0],
           categoryId: this.formData.categoryId || 'uncategorized',
           description: this.formData.description || '',
@@ -539,6 +814,8 @@ export class TransactionsComponent {
           paidByOther: this.formData.paidByOther || false,
           paidByOtherProfileId: this.formData.paidByOtherProfileId,
           paidByOtherName: this.formData.paidByOtherName,
+          isRecurring: this.isRecurringTransaction(),
+          recurringRule,
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
         };
@@ -548,6 +825,7 @@ export class TransactionsComponent {
       this.showForm.set(false);
       this.editingTransactionId.set(null);
       this.formData = this.getEmptyForm();
+      this.resetRecurringForm();
     } catch (error) {
       console.error('Error saving transaction:', error);
       alert('Failed to save transaction');
@@ -763,5 +1041,92 @@ export class TransactionsComponent {
       toBankId: undefined,
       transferFee: undefined,
     };
+  }
+
+  protected resetRecurringForm(): void {
+    this.isRecurringTransaction.set(false);
+    this.recurringType.set('subscription');
+    this.installmentMode.set('date');
+    this.recurringFormData = {
+      totalPrincipal: undefined,
+      totalTerms: undefined,
+      monthlyAmortization: undefined,
+      startDate: undefined,
+      currentTerm: undefined,
+      interestRate: undefined,
+      frequency: 'monthly',
+      nextDate: undefined,
+    };
+  }
+
+  protected setInstallmentMode(mode: 'date' | 'term'): void {
+    this.installmentMode.set(mode);
+    // When switching to 'date' mode, calculate currentTerm from startDate if available
+    if (mode === 'date' && this.recurringFormData.startDate) {
+      this.onStartDateChange();
+    }
+  }
+
+  protected onRecurringTypeChange(type: 'installment' | 'subscription' | 'custom'): void {
+    this.recurringType.set(type);
+    // Reset fields that don't apply to the new type
+    if (type === 'subscription' || type === 'custom') {
+      // Clear installment-specific fields
+      this.recurringFormData.totalPrincipal = undefined;
+      this.recurringFormData.totalTerms = undefined;
+      this.recurringFormData.monthlyAmortization = undefined;
+      this.recurringFormData.startDate = undefined;
+      this.recurringFormData.currentTerm = undefined;
+      this.recurringFormData.interestRate = undefined;
+      // Set default nextDate to transaction date if not set
+      if (!this.recurringFormData.nextDate) {
+        this.recurringFormData.nextDate = this.formData.date || new Date().toISOString().split('T')[0];
+      }
+    } else {
+      // Clear subscription-specific fields
+      this.recurringFormData.nextDate = undefined;
+    }
+  }
+
+  protected getCalculatedStartDate(): string {
+    if (this.installmentMode() === 'term' && this.recurringFormData.currentTerm) {
+      const backDate = subMonths(this.viewDate(), this.recurringFormData.currentTerm - 1);
+      return format(backDate, 'MMMM yyyy');
+    }
+    return '';
+  }
+
+  protected getFormattedViewDate(): string {
+    return format(this.viewDate(), 'MMMM yyyy');
+  }
+
+  /**
+   * Calculate current term from startDate when in 'date' mode
+   */
+  protected calculateCurrentTermFromStartDate(): number | undefined {
+    if (this.installmentMode() === 'date' && this.recurringFormData.startDate) {
+      try {
+        const startDate = parseISO(this.recurringFormData.startDate);
+        const currentMonth = startOfMonth(this.viewDate());
+        const startMonth = startOfMonth(startDate);
+        const diff = differenceInCalendarMonths(currentMonth, startMonth);
+        return Math.max(1, diff + 1);
+      } catch {
+        return undefined;
+      }
+    }
+    return undefined;
+  }
+
+  /**
+   * Update currentTerm when startDate changes in 'date' mode
+   */
+  protected onStartDateChange(): void {
+    if (this.installmentMode() === 'date') {
+      const calculatedTerm = this.calculateCurrentTermFromStartDate();
+      if (calculatedTerm !== undefined) {
+        this.recurringFormData.currentTerm = calculatedTerm;
+      }
+    }
   }
 }

@@ -1,5 +1,5 @@
 import { effect, Injectable, signal } from '@angular/core';
-import { addMonths, format, parseISO, startOfMonth } from 'date-fns';
+import { addMonths, format, parseISO, startOfMonth, setDate, differenceInCalendarMonths } from 'date-fns';
 import { IndexedDBService, STORES } from './indexeddb.service';
 import { ProfileService } from './profile.service';
 import { CardService } from './card.service';
@@ -25,6 +25,8 @@ export class TransactionService {
   // Public signals
   transactions = this.transactionsSignal.asReadonly();
 
+  private previousCards: Map<string, number> = new Map(); // Track previous dueDay values
+
   constructor(
     private idb: IndexedDBService,
     private profileService: ProfileService,
@@ -33,6 +35,37 @@ export class TransactionService {
   ) {
     void this.initializeTransactions();
     this.setupAutoSave();
+    this.setupCardChangeWatcher();
+  }
+
+  /**
+   * Watch for card due date changes and sync installments
+   */
+  private setupCardChangeWatcher(): void {
+    effect(() => {
+      const cards = this.cardService.cards();
+      
+      // Check each card for dueDay changes
+      for (const card of cards) {
+        const previousDueDay = this.previousCards.get(card.id);
+        
+        // If dueDay changed, sync installments
+        if (previousDueDay !== undefined && previousDueDay !== card.dueDay) {
+          void this.syncInstallmentsForCard(card.id, card.dueDay);
+        }
+        
+        // Update tracking
+        this.previousCards.set(card.id, card.dueDay);
+      }
+      
+      // Remove cards that no longer exist
+      const currentCardIds = new Set(cards.map(c => c.id));
+      for (const cardId of this.previousCards.keys()) {
+        if (!currentCardIds.has(cardId)) {
+          this.previousCards.delete(cardId);
+        }
+      }
+    });
   }
 
   /**
@@ -352,6 +385,65 @@ export class TransactionService {
       const progress = this.getInstallmentProgress(t.recurringRule?.installmentGroupId || '');
       return !progress.isComplete;
     });
+  }
+
+  /**
+   * Update all installment transactions for a card when card's due date changes
+   * Recalculates startDate and endDate based on new due date, preserving the original month
+   */
+  async syncInstallmentsForCard(cardId: string, newDueDay: number): Promise<void> {
+    const allTransactions = this.transactionsSignal();
+    const cardInstallments = allTransactions.filter(
+      (t) =>
+        t.isRecurring &&
+        t.recurringRule?.type === 'installment' &&
+        t.cardId === cardId &&
+        t.recurringRule.startDate,
+    );
+
+    if (cardInstallments.length === 0) {
+      return;
+    }
+
+    const transactionUpdates: Array<{ id: string; updates: Partial<Transaction> }> = [];
+
+    for (const transaction of cardInstallments) {
+      if (!transaction.recurringRule?.startDate) continue;
+
+      const oldStartDate = parseISO(transaction.recurringRule.startDate);
+      
+      // Preserve the original month/year, just change the day to the new due day
+      const newStartDate = setDate(oldStartDate, newDueDay);
+
+      // Recalculate end date based on total terms
+      const totalTerms = transaction.recurringRule.totalTerms || 0;
+      const newEndDate = addMonths(newStartDate, totalTerms);
+
+      // Recalculate current term based on new start date and current date
+      const currentMonth = startOfMonth(new Date());
+      const newStartMonth = startOfMonth(newStartDate);
+      const diff = differenceInCalendarMonths(currentMonth, newStartMonth);
+      const newCurrentTerm = Math.max(1, diff + 1);
+
+      transactionUpdates.push({
+        id: transaction.id,
+        updates: {
+          date: format(newStartDate, 'yyyy-MM-dd'),
+          recurringRule: {
+            ...transaction.recurringRule,
+            startDate: format(newStartDate, 'yyyy-MM-dd'),
+            endDate: format(newEndDate, 'yyyy-MM-dd'),
+            currentTerm: newCurrentTerm,
+          },
+          updatedAt: new Date().toISOString(),
+        },
+      });
+    }
+
+    // Apply all updates
+    for (const { id, updates } of transactionUpdates) {
+      await this.updateTransaction(id, updates);
+    }
   }
 
   /**

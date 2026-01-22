@@ -109,7 +109,19 @@
           </div>
           <div class="form-group">
             <label>Amount *</label>
-            <input type="number" [(ngModel)]="formData.amount" placeholder="0.00" step="0.01" min="0" />
+            <input 
+              type="number" 
+              [(ngModel)]="formData.amount" 
+              placeholder="0.00" 
+              step="0.01" 
+              min="0"
+              [disabled]="isRecurringTransaction() && recurringType() === 'installment'"
+            />
+            @if (isRecurringTransaction() && recurringType() === 'installment') {
+              <small style="color: rgb(100, 116, 139); font-size: 11px; margin-top: 4px; display: block;">
+                Amount will be set to monthly amortization
+              </small>
+            }
           </div>
           <div class="form-group">
             <label>Date *</label>
@@ -158,12 +170,20 @@
           @if (formData.paymentMethod === 'card') {
             <div class="form-group">
               <label>Card</label>
-              <select [(ngModel)]="formData.cardId">
+              <select 
+                [(ngModel)]="formData.cardId"
+                (ngModelChange)="onCardChangeForInstallment()"
+              >
                 <option value="">Select a card...</option>
                 @for (card of cards(); track card.id) {
                   <option [value]="card.id">{{ card.bankName }} {{ card.cardName }}</option>
                 }
               </select>
+              @if (isRecurringTransaction() && recurringType() === 'installment' && formData.cardId) {
+                <small style="color: rgb(100, 116, 139); font-size: 11px; margin-top: 4px; display: block;">
+                  Installment will use this card's due date ({{ getCardDueDate(formData.cardId) | date:'MMM d' }})
+                </small>
+              }
             </div>
           }
           @if (formData.paymentMethod === 'bank_transfer') {
@@ -242,6 +262,194 @@
           <textarea [(ngModel)]="formData.notes" placeholder="Optional notes..." rows="2"></textarea>
         </div>
 
+        <!-- Recurring Transaction Section -->
+        <div class="border-t border-slate-200 pt-4 mt-4">
+          <div class="form-group" style="display: flex; align-items: center; gap: 8px; margin-bottom: 16px;">
+            <input 
+              type="checkbox" 
+              id="isRecurring"
+              [checked]="isRecurringTransaction()"
+              (change)="isRecurringTransaction.set($any($event.target).checked)"
+            />
+            <label for="isRecurring" style="margin-bottom: 0; font-weight: 600; cursor: pointer;">
+              This is a recurring transaction
+            </label>
+          </div>
+
+          @if (isRecurringTransaction()) {
+            <div class="space-y-4" style="background: rgb(249, 250, 251); padding: 16px; border-radius: 8px;">
+              <!-- Recurring Type Selector -->
+              <div class="form-group">
+                <label>Recurring Type *</label>
+                <select 
+                  [ngModel]="recurringType()" 
+                  (ngModelChange)="onRecurringTypeChange($event)"
+                  [ngModelOptions]="{standalone: true}"
+                >
+                  <option value="subscription">Subscription/Bill (e.g., Electricity, Water, Internet)</option>
+                  <option value="installment">Installment (Fixed terms with total amount)</option>
+                  <option value="custom">Custom Recurring</option>
+                </select>
+                <small style="color: rgb(100, 116, 139); font-size: 11px; margin-top: 4px; display: block;">
+                  @if (recurringType() === 'subscription') {
+                    For ongoing monthly bills that repeat indefinitely
+                  } @else if (recurringType() === 'installment') {
+                    For purchases with fixed number of payments (e.g., 12-month installment plan)
+                  } @else {
+                    For custom recurring transactions
+                  }
+                </small>
+              </div>
+
+              <!-- Subscription/Custom Fields -->
+              @if (recurringType() === 'subscription' || recurringType() === 'custom') {
+                <div class="form-row">
+                  <div class="form-group">
+                    <label>Frequency *</label>
+                    <select [(ngModel)]="recurringFormData.frequency">
+                      <option value="monthly">Monthly</option>
+                      <option value="weekly">Weekly</option>
+                      <option value="biweekly">Bi-weekly</option>
+                      <option value="quarterly">Quarterly</option>
+                      <option value="yearly">Yearly</option>
+                    </select>
+                  </div>
+                  <div class="form-group">
+                    <label>Next Payment Date *</label>
+                    <input 
+                      type="date" 
+                      [(ngModel)]="recurringFormData.nextDate"
+                    />
+                    <small style="color: rgb(100, 116, 139); font-size: 11px; margin-top: 4px; display: block;">
+                      When is the next occurrence of this transaction?
+                    </small>
+                  </div>
+                </div>
+              }
+
+              <!-- Installment Fields -->
+              @if (recurringType() === 'installment') {
+                <div class="form-row">
+                  <div class="form-group">
+                    <label>Total Principal Amount *</label>
+                    <input 
+                      type="number" 
+                      [(ngModel)]="recurringFormData.totalPrincipal" 
+                      placeholder="0.00" 
+                      step="0.01" 
+                      min="0.01"
+                    />
+                  </div>
+                  <div class="form-group">
+                    <label>Total Terms (Months) *</label>
+                    <input 
+                      type="number" 
+                      [(ngModel)]="recurringFormData.totalTerms" 
+                      placeholder="12, 24, 36" 
+                      min="1"
+                    />
+                  </div>
+                  <div class="form-group">
+                    <label>Monthly Amortization (Optional)</label>
+                    <input 
+                      type="number" 
+                      [(ngModel)]="recurringFormData.monthlyAmortization" 
+                      placeholder="Auto-calculated if blank" 
+                      step="0.01" 
+                      min="0"
+                    />
+                    <small style="color: rgb(100, 116, 139); font-size: 11px; margin-top: 4px; display: block;">
+                      Leave blank to auto-calculate (Principal ÷ Terms)
+                    </small>
+                  </div>
+                </div>
+
+                <div class="form-row">
+                  <div class="form-group">
+                    <label>Interest Rate (Optional)</label>
+                    <input 
+                      type="number" 
+                      [(ngModel)]="recurringFormData.interestRate" 
+                      placeholder="0.00" 
+                      step="0.01" 
+                      min="0"
+                    />
+                    <small style="color: rgb(100, 116, 139); font-size: 11px; margin-top: 4px; display: block;">
+                      Annual percentage rate (0 for 0% financing)
+                    </small>
+                  </div>
+                </div>
+
+                <div style="border-top: 1px solid rgb(226, 232, 240); padding-top: 16px; margin-top: 16px;">
+                  <h4 style="font-size: 14px; font-weight: 600; margin-bottom: 12px; color: rgb(15, 23, 42);">
+                    How to Determine Start Date?
+                  </h4>
+                  <div style="display: flex; gap: 8px; margin-bottom: 16px;">
+                    <button
+                      type="button"
+                      (click)="setInstallmentMode('date')"
+                      [ngClass]="installmentMode() === 'date' ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'"
+                      style="flex: 1; padding: 8px 16px; border: none; border-radius: 6px; font-size: 14px; font-weight: 500; cursor: pointer; transition: all 0.2s;"
+                    >
+                      Set Start Date
+                    </button>
+                    <button
+                      type="button"
+                      (click)="setInstallmentMode('term')"
+                      [ngClass]="installmentMode() === 'term' ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'"
+                      style="flex: 1; padding: 8px 16px; border: none; border-radius: 6px; font-size: 14px; font-weight: 500; cursor: pointer; transition: all 0.2s;"
+                    >
+                      Set Current Term
+                    </button>
+                  </div>
+
+                  @if (installmentMode() === 'date') {
+                    <div class="form-group">
+                      <label>Start Date (First Payment Month) *</label>
+                      <input 
+                        type="date" 
+                        [(ngModel)]="recurringFormData.startDate"
+                        (ngModelChange)="onStartDateChange()"
+                      />
+                      @if (recurringFormData.startDate && calculateCurrentTermFromStartDate()) {
+                        <div style="margin-top: 8px; padding: 12px; background: rgb(239, 246, 255); border: 1px solid rgb(191, 219, 254); border-radius: 6px;">
+                          <p style="font-size: 12px; color: rgb(30, 64, 175); margin: 0;">
+                            <span style="font-weight: 600;">Calculated Current Term:</span>
+                            {{ calculateCurrentTermFromStartDate() }} / {{ recurringFormData.totalTerms || '?' }}
+                            <span style="color: rgb(148, 163, 184);"> (for {{ getFormattedViewDate() }})</span>
+                          </p>
+                        </div>
+                      }
+                    </div>
+                  }
+
+                  @if (installmentMode() === 'term') {
+                    <div class="form-group">
+                      <label>Current Term (Month # for {{ getFormattedViewDate() }}) *</label>
+                      <input 
+                        type="number" 
+                        [(ngModel)]="recurringFormData.currentTerm" 
+                        [max]="recurringFormData.totalTerms || 12"
+                        min="1"
+                        placeholder="e.g. 5"
+                      />
+                      @if (recurringFormData.currentTerm && recurringFormData.currentTerm > 0 && recurringFormData.currentTerm <= (recurringFormData.totalTerms || 12)) {
+                        <div style="margin-top: 8px; padding: 12px; background: rgb(239, 246, 255); border: 1px solid rgb(191, 219, 254); border-radius: 6px;">
+                          <p style="font-size: 12px; color: rgb(30, 64, 175); margin: 0;">
+                            <span style="font-weight: 600;">Calculated Start Date:</span>
+                            {{ getCalculatedStartDate() }}
+                            <span style="color: rgb(148, 163, 184);"> (Term 1)</span>
+                          </p>
+                        </div>
+                      }
+                    </div>
+                  }
+                </div>
+              }
+            </div>
+          }
+        </div>
+
         <div class="form-actions">
           <button class="btn btn-primary" (click)="onSubmitTransaction()">Save Transaction</button>
           <button class="btn btn-secondary" (click)="onAddTransaction()">Cancel</button>
@@ -280,9 +488,61 @@
       />
     </div>
 
-    <!-- Filters Bar -->
+    <!-- Search and Sort Bar -->
     <div class="bg-white rounded-lg border border-slate-200 shadow-sm p-4 mb-6">
-      <div class="flex items-center justify-between gap-4">
+      <div class="flex items-center gap-4 mb-4">
+        <div class="flex-1 relative">
+          <lucide-angular [img]="Search" [size]="18" class="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400" />
+          <input
+            type="text"
+            [value]="searchQuery()"
+            (input)="searchQuery.set($any($event.target).value)"
+            placeholder="Search transactions by description, notes, or amount..."
+            class="w-full pl-10 pr-4 py-2 border border-slate-300 rounded-md text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+          />
+        </div>
+        <div class="flex items-center gap-2">
+          <span class="text-sm font-medium text-slate-700">Sort by:</span>
+          <div class="flex items-center gap-1">
+            <button
+              type="button"
+              (click)="onSortChange('date')"
+              [ngClass]="sortField() === 'date' ? 'bg-blue-100 text-blue-700 border-blue-300' : 'bg-slate-50 text-slate-700 border-slate-300'"
+              class="px-3 py-1.5 text-sm border rounded-md transition-colors hover:bg-slate-100 flex items-center gap-1"
+            >
+              Date
+              @if (sortField() === 'date') {
+                <lucide-angular [img]="sortDirection() === 'asc' ? ArrowUp : ArrowDown" [size]="14" />
+              }
+            </button>
+            <button
+              type="button"
+              (click)="onSortChange('amount')"
+              [ngClass]="sortField() === 'amount' ? 'bg-blue-100 text-blue-700 border-blue-300' : 'bg-slate-50 text-slate-700 border-slate-300'"
+              class="px-3 py-1.5 text-sm border rounded-md transition-colors hover:bg-slate-100 flex items-center gap-1"
+            >
+              Amount
+              @if (sortField() === 'amount') {
+                <lucide-angular [img]="sortDirection() === 'asc' ? ArrowUp : ArrowDown" [size]="14" />
+              }
+            </button>
+            <button
+              type="button"
+              (click)="onSortChange('description')"
+              [ngClass]="sortField() === 'description' ? 'bg-blue-100 text-blue-700 border-blue-300' : 'bg-slate-50 text-slate-700 border-slate-300'"
+              class="px-3 py-1.5 text-sm border rounded-md transition-colors hover:bg-slate-100 flex items-center gap-1"
+            >
+              Description
+              @if (sortField() === 'description') {
+                <lucide-angular [img]="sortDirection() === 'asc' ? ArrowUp : ArrowDown" [size]="14" />
+              }
+            </button>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Filters Bar -->
+      <div class="flex items-center justify-between gap-4 border-t border-slate-200 pt-4">
         <div class="flex items-center gap-2 flex-wrap">
           <span class="text-sm font-medium text-slate-700">Filters:</span>
           <button
@@ -401,9 +661,11 @@
                     • {{ getProfileName(transaction.profileId) }}'s transaction
                   }
                 </div>
-                <div class="transaction-meta text-xs text-blue-600 mt-1">
-                  Running Balance: ₱{{ getTransactionRunningBalance(transaction).toLocaleString() }}
-                </div>
+                @if (shouldShowRunningBalance()) {
+                  <div class="transaction-meta text-xs text-blue-600 mt-1">
+                    Running Balance: ₱{{ getTransactionRunningBalance(transaction).toLocaleString() }}
+                  </div>
+                }
               </div>
               <div
                 [ngClass]="['transaction-amount', transaction.type === 'income' ? 'amount-income' : 'amount-expense']">
