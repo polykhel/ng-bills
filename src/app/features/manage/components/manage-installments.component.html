@@ -1,69 +1,83 @@
-<div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
-  <div class="flex justify-between items-center mb-6">
-    <h2 class="text-lg font-bold text-slate-800 flex items-center gap-2">
-      <lucide-icon [img]="List" class="w-5 h-5"></lucide-icon>
+<div class="bg-white rounded-lg border border-slate-200 shadow-sm p-4 md:p-6">
+  <div class="flex items-center justify-between mb-6">
+    <h2 class="text-xl font-bold text-slate-900 flex items-center gap-2">
+      <lucide-angular [img]="List" [size]="20" />
       All Installments
     </h2>
     <button
-      (click)="addInstallment.emit()"
-      class="flex items-center gap-2 bg-white border border-slate-300 text-slate-700 px-4 py-2 rounded-lg text-sm font-medium hover:bg-slate-50 transition"
-      type="button">
-      <lucide-icon [img]="Plus" class="w-4 h-4"></lucide-icon>
+      type="button"
+      (click)="openAddInstallment()"
+      class="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors"
+    >
+      <lucide-angular [img]="Plus" [size]="16" />
       Add Installment
     </button>
   </div>
 
   <div class="overflow-x-auto">
     <table class="min-w-full text-sm">
-      <thead class="text-xs uppercase text-slate-600">
-      <tr>
-        <th class="px-3 py-2 text-left">
-          <button (click)="sort.emit('name')" class="font-bold hover:text-slate-900" type="button">Item</button>
-        </th>
-        <th class="px-3 py-2 text-left">
-          <button (click)="sort.emit('card')" class="font-bold hover:text-slate-900" type="button">Card</button>
-        </th>
-        <th class="px-3 py-2 text-left">
-          <button (click)="sort.emit('startDate')" class="font-bold hover:text-slate-900" type="button">Start Date
-          </button>
-        </th>
-        <th class="px-3 py-2 text-left">
-          <button (click)="sort.emit('progress')" class="font-bold hover:text-slate-900" type="button">Progress</button>
-        </th>
-        <th class="px-3 py-2 text-left">Monthly</th>
-        <th class="px-3 py-2 text-right">Action</th>
-      </tr>
+      <thead class="bg-slate-50 border-b border-slate-200">
+        <tr>
+          <th class="px-4 py-3 text-left text-xs font-semibold text-slate-700 uppercase tracking-wider">
+            <button type="button" (click)="handleInstSort('name')" class="hover:text-slate-900 transition-colors">Item</button>
+          </th>
+          <th class="px-4 py-3 text-left text-xs font-semibold text-slate-700 uppercase tracking-wider">
+            <button type="button" (click)="handleInstSort('card')" class="hover:text-slate-900 transition-colors">Card</button>
+          </th>
+          <th class="px-4 py-3 text-left text-xs font-semibold text-slate-700 uppercase tracking-wider">
+            <button type="button" (click)="handleInstSort('startDate')" class="hover:text-slate-900 transition-colors">Start Date</button>
+          </th>
+          <th class="px-4 py-3 text-left text-xs font-semibold text-slate-700 uppercase tracking-wider">
+            <button type="button" (click)="handleInstSort('progress')" class="hover:text-slate-900 transition-colors">Progress</button>
+          </th>
+          <th class="px-4 py-3 text-left text-xs font-semibold text-slate-700 uppercase tracking-wider">Monthly</th>
+          <th class="px-4 py-3 text-right text-xs font-semibold text-slate-700 uppercase tracking-wider">Actions</th>
+        </tr>
       </thead>
-      <tbody class="divide-y divide-slate-100">
-      <tr *ngFor="let inst of installments; trackBy: trackInst" class="text-slate-700">
-        <td class="px-3 py-2 font-medium text-slate-800">{{ inst.name }}</td>
-        <td class="px-3 py-2 text-slate-600">{{ cardLabel(inst.cardId) }}</td>
-        <td class="px-3 py-2 text-slate-600">{{ formatDate(inst.startDate) }}</td>
-        <td class="px-3 py-2">
-          <div class="flex items-center gap-2">
-            <span class="text-xs font-mono w-14 text-right">{{ progressLabel(inst) }}</span>
-            <div *ngIf="isActive(inst)" class="w-16 h-1.5 bg-slate-100 rounded-full overflow-hidden">
-              <div [style.width]="progressWidth(inst)" class="h-full bg-blue-500 rounded-full"></div>
-            </div>
-          </div>
-        </td>
-        <td class="px-3 py-2 font-semibold text-slate-800">{{ utils.formatCurrency(inst.monthlyAmortization) }}</td>
-        <td class="px-3 py-2 text-right">
-          <div class="flex justify-end gap-2">
-            <button (click)="editInstallment.emit(inst)" class="text-slate-400 hover:text-blue-500" title="Edit"
-                    type="button">
-              <lucide-icon [img]="Pencil" class="w-4 h-4"></lucide-icon>
-            </button>
-            <button (click)="deleteInstallment.emit(inst.id)" class="text-slate-400 hover:text-rose-500" title="Delete"
-                    type="button">
-              <lucide-icon [img]="Trash2" class="w-4 h-4"></lucide-icon>
-            </button>
-          </div>
-        </td>
-      </tr>
-      <tr *ngIf="installments.length === 0">
-        <td class="px-3 py-4 text-center text-slate-400" colspan="6">No installments found.</td>
-      </tr>
+      <tbody class="bg-white divide-y divide-slate-200">
+        @for (inst of sortedInstallments(); track inst.id) {
+          <tr class="hover:bg-slate-50 transition-colors">
+            <td class="px-4 py-3 font-medium text-slate-900">{{ inst.name }}</td>
+            <td class="px-4 py-3 text-slate-600">{{ cardLabel(inst.cardId) }}</td>
+            <td class="px-4 py-3 text-slate-600">{{ formatDate(inst.startDate) }}</td>
+            <td class="px-4 py-3">
+              <div class="flex items-center gap-2">
+                <span class="text-xs font-mono w-14 text-right text-slate-600">{{ progressLabel(inst) }}</span>
+                @if (isActive(inst)) {
+                  <div class="w-16 h-1.5 bg-slate-200 rounded-full overflow-hidden">
+                    <div [style.width]="progressWidth(inst)" class="h-full bg-blue-500 rounded-full transition-all"></div>
+                  </div>
+                }
+              </div>
+            </td>
+            <td class="px-4 py-3 font-semibold text-slate-900">{{ utils.formatCurrency(inst.monthlyAmortization) }}</td>
+            <td class="px-4 py-3 text-right">
+              <div class="flex justify-end gap-2">
+                <button
+                  type="button"
+                  (click)="openEditInstallment(inst)"
+                  class="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
+                  title="Edit"
+                >
+                  <lucide-angular [img]="Pencil" [size]="14" />
+                </button>
+                <button
+                  type="button"
+                  (click)="handleDeleteInstallment(inst.id)"
+                  class="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
+                  title="Delete"
+                >
+                  <lucide-angular [img]="Trash2" [size]="14" />
+                </button>
+              </div>
+            </td>
+          </tr>
+        }
+        @if (sortedInstallments().length === 0) {
+          <tr>
+            <td class="px-4 py-8 text-center text-slate-400" colspan="6">No installments found.</td>
+          </tr>
+        }
       </tbody>
     </table>
   </div>

@@ -1,0 +1,158 @@
+<div class="bg-white rounded-lg border border-slate-200 shadow-sm p-4 md:p-6">
+  <div class="flex items-center justify-between mb-6">
+    <div class="flex items-center gap-4">
+      <h2 class="text-xl font-bold text-slate-900 flex items-center gap-2">
+        <lucide-angular [img]="Tag" [size]="20" />
+        Categories
+      </h2>
+      <div class="flex gap-2">
+        <button
+          type="button"
+          (click)="filterType.set('all')"
+          [ngClass]="filterType() === 'all' ? 'bg-blue-100 text-blue-700 border-blue-300' : 'bg-slate-50 text-slate-700 border-slate-300'"
+          class="px-3 py-1.5 text-sm border rounded-md transition-colors"
+        >
+          All
+        </button>
+        <button
+          type="button"
+          (click)="filterType.set('expense')"
+          [ngClass]="filterType() === 'expense' ? 'bg-blue-100 text-blue-700 border-blue-300' : 'bg-slate-50 text-slate-700 border-slate-300'"
+          class="px-3 py-1.5 text-sm border rounded-md transition-colors"
+        >
+          Expenses
+        </button>
+        <button
+          type="button"
+          (click)="filterType.set('income')"
+          [ngClass]="filterType() === 'income' ? 'bg-blue-100 text-blue-700 border-blue-300' : 'bg-slate-50 text-slate-700 border-slate-300'"
+          class="px-3 py-1.5 text-sm border rounded-md transition-colors"
+        >
+          Income
+        </button>
+      </div>
+    </div>
+    <button
+      type="button"
+      (click)="onAddCategory()"
+      class="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors"
+    >
+      <lucide-angular [img]="Plus" [size]="16" />
+      {{ editingCategoryId ? 'Cancel' : 'Add Category' }}
+    </button>
+  </div>
+
+  <!-- Add/Edit Category Form -->
+  @if (showForm()) {
+    <div #categoryForm class="bg-slate-50 rounded-lg border border-slate-200 p-4 mb-6">
+      <h3 class="font-semibold text-slate-900 mb-4">{{ editingCategoryId ? 'Edit Category' : 'New Category' }}</h3>
+      
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div class="form-group">
+          <label class="text-sm font-medium text-slate-700 mb-2 block">Name *</label>
+          <input
+            type="text"
+            [(ngModel)]="formData.name"
+            placeholder="Category name"
+            class="w-full px-3 py-2 border border-slate-300 rounded-md text-sm"
+          />
+        </div>
+        <div class="form-group">
+          <label class="text-sm font-medium text-slate-700 mb-2 block">Type *</label>
+          <select
+            [(ngModel)]="formData.type"
+            class="w-full px-3 py-2 border border-slate-300 rounded-md text-sm"
+          >
+            <option value="expense">Expense</option>
+            <option value="income">Income</option>
+            <option value="both">Both</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="text-sm font-medium text-slate-700 mb-2 block">Icon (optional)</label>
+          <input
+            type="text"
+            [(ngModel)]="formData.icon"
+            placeholder="e.g., home, car, shopping-cart"
+            class="w-full px-3 py-2 border border-slate-300 rounded-md text-sm"
+          />
+          <p class="text-xs text-slate-500 mt-1">Icon name from Lucide icons</p>
+        </div>
+        <div class="form-group">
+          <label class="text-sm font-medium text-slate-700 mb-2 block">Color</label>
+          <input
+            type="color"
+            [(ngModel)]="formData.color"
+            class="w-full h-10 border border-slate-300 rounded-md cursor-pointer"
+          />
+        </div>
+      </div>
+      
+      <div class="flex gap-2 mt-4">
+        <button
+          type="button"
+          (click)="onSubmitCategory()"
+          class="px-4 py-2 bg-blue-600 text-white rounded-md text-sm font-medium hover:bg-blue-700 transition-colors"
+        >
+          {{ editingCategoryId ? 'Update' : 'Create' }} Category
+        </button>
+        <button
+          type="button"
+          (click)="onAddCategory()"
+          class="px-4 py-2 bg-white border border-slate-300 text-slate-700 rounded-md text-sm font-medium hover:bg-slate-50 transition-colors"
+        >
+          Cancel
+        </button>
+      </div>
+    </div>
+  }
+
+  <!-- Categories Grid -->
+  <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+    @for (category of filteredCategories(); track category.id) {
+      <div class="relative group bg-slate-50 rounded-lg p-4 border border-slate-200 hover:border-slate-300 transition-all">
+        <div class="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition">
+            <button
+              type="button"
+              (click)="onEditCategory(category, $event)"
+              class="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
+              title="Edit Category"
+            >
+              <lucide-angular [img]="Pencil" [size]="14" />
+            </button>
+            <button
+              type="button"
+              (click)="onDeleteCategory(category.id, $event)"
+              class="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
+              title="Delete Category"
+            >
+              <lucide-angular [img]="Trash2" [size]="14" />
+            </button>
+        </div>
+        <div class="flex items-center gap-3">
+          <div
+            [style.backgroundColor]="category.color || '#3b82f6'"
+            class="w-10 h-10 rounded-lg flex items-center justify-center text-white font-bold text-sm shadow-sm"
+          >
+            @if (category.icon) {
+              <span class="text-lg">{{ getIconEmoji(category.icon) }}</span>
+            } @else {
+              {{ category.name.charAt(0).toUpperCase() }}
+            }
+          </div>
+          <div class="flex-1 min-w-0">
+            <h3 class="font-semibold text-slate-900 truncate">{{ category.name }}</h3>
+            <p class="text-xs text-slate-500">
+              {{ category.type === 'both' ? 'Expense & Income' : category.type === 'expense' ? 'Expense' : 'Income' }}
+            </p>
+          </div>
+        </div>
+      </div>
+    }
+    @if (filteredCategories().length === 0) {
+      <div class="col-span-full text-center text-slate-400 py-8">
+        No categories found.
+      </div>
+    }
+  </div>
+</div>

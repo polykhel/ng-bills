@@ -1,5 +1,5 @@
 <div class="max-w-7xl mx-auto px-4 py-6">
-  @if (!activeProfile()) {
+  @if (!activeProfile() && (!multiProfileMode() || selectedProfileIds().length === 0)) {
     <app-empty-state
       [icon]="FileText"
       title="No Profile Selected"
@@ -23,7 +23,7 @@
     <!-- Add Transaction Form -->
     @if (showForm) {
       <div class="transaction-form">
-        <h3 class="font-semibold text-slate-900 mb-4">New Transaction</h3>
+        <h3 class="font-semibold text-slate-900 mb-4">{{ editingTransactionId ? 'Edit Transaction' : 'New Transaction' }}</h3>
 
         <div class="form-row">
           <div class="form-group">
@@ -156,24 +156,32 @@
       <div class="flex items-center justify-between gap-4">
         <div class="flex items-center gap-2 flex-wrap">
           <span class="text-sm font-medium text-slate-700">Filters:</span>
-          <select [(ngModel)]="filterType" class="px-3 py-1.5 text-sm border border-slate-300 rounded-md">
+          <button
+            type="button"
+            (click)="showAllTransactions.set(!showAllTransactions())"
+            [ngClass]="showAllTransactions() ? 'bg-blue-100 text-blue-700 border-blue-300' : 'bg-slate-50 text-slate-700 border-slate-300'"
+            class="px-3 py-1.5 text-sm border rounded-md transition-colors hover:bg-slate-100"
+          >
+            {{ showAllTransactions() ? 'All Time' : 'Current Month' }}
+          </button>
+          <select [ngModel]="filterType()" (ngModelChange)="filterType.set($event)" class="px-3 py-1.5 text-sm border border-slate-300 rounded-md">
             <option value="all">All Types</option>
             <option value="income">Income</option>
             <option value="expense">Expense</option>
           </select>
-          <select [(ngModel)]="filterPaymentMethod" class="px-3 py-1.5 text-sm border border-slate-300 rounded-md">
+          <select [ngModel]="filterPaymentMethod()" (ngModelChange)="filterPaymentMethod.set($event)" class="px-3 py-1.5 text-sm border border-slate-300 rounded-md">
             <option value="all">All Methods</option>
             <option value="cash">Cash</option>
             <option value="card">Card</option>
             <option value="bank_transfer">Bank Transfer</option>
           </select>
-          <select [(ngModel)]="filterCardId" class="px-3 py-1.5 text-sm border border-slate-300 rounded-md">
+          <select [ngModel]="filterCardId()" (ngModelChange)="filterCardId.set($event)" class="px-3 py-1.5 text-sm border border-slate-300 rounded-md">
             <option value="">All Cards</option>
             @for (card of cards(); track card.id) {
               <option [value]="card.id">{{ card.bankName }} {{ card.cardName }}</option>
             }
           </select>
-          <select [(ngModel)]="filterRecurring" class="px-3 py-1.5 text-sm border border-slate-300 rounded-md">
+          <select [ngModel]="filterRecurring()" (ngModelChange)="filterRecurring.set($event)" class="px-3 py-1.5 text-sm border border-slate-300 rounded-md">
             <option [value]="'all'">All Transactions</option>
             <option [value]="true">Recurring Only</option>
             <option [value]="false">One-time Only</option>
@@ -181,7 +189,7 @@
         </div>
         <button
           type="button"
-          (click)="onFilter()"
+          (click)="onFilter(); $event.stopPropagation()"
           class="flex items-center gap-2 px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-100 rounded-md transition-colors"
         >
           <lucide-angular [img]="X" [size]="16" />
@@ -250,7 +258,9 @@
                 <div class="transaction-meta">
                   {{ formatDate(transaction.date) }}
                   • {{ transaction.paymentMethod === 'card' ? getCardName(transaction.cardId) : transaction.paymentMethod }}
-                  @if (transaction.profileId !== activeProfile()?.id) {
+                  @if (multiProfileMode() && transaction.profileId) {
+                    • {{ getProfileName(transaction.profileId) }}
+                  } @else if (!multiProfileMode() && transaction.profileId !== activeProfile()?.id) {
                     • {{ getProfileName(transaction.profileId) }}'s transaction
                   }
                 </div>
@@ -260,10 +270,10 @@
                 {{ transaction.type === 'income' ? '+' : '-' }}₱{{ transaction.amount.toLocaleString() }}
               </div>
               <div class="transaction-actions">
-                <button class="icon-btn" title="Edit">
+                <button type="button" class="icon-btn" (click)="onEditTransaction(transaction, $event)" title="Edit">
                   <lucide-angular [img]="Edit2" [size]="18" />
                 </button>
-                <button class="icon-btn" (click)="onDeleteTransaction(transaction.id)" title="Delete">
+                <button type="button" class="icon-btn" (click)="onDeleteTransaction(transaction.id, $event)" title="Delete">
                   <lucide-angular [img]="Trash2" [size]="18" />
                 </button>
               </div>

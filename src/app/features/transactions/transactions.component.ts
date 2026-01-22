@@ -1,4 +1,4 @@
-import { Component, computed, inject } from '@angular/core';
+import { Component, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import {
@@ -22,7 +22,7 @@ import {
 } from '@services';
 import { EmptyStateComponent, MetricCardComponent, QuickActionButtonComponent } from '@components';
 import type { PaymentMethod, Transaction, TransactionFilter, TransactionType } from '@shared/types';
-import { format, parseISO } from 'date-fns';
+import { format, parseISO, startOfMonth, endOfMonth } from 'date-fns';
 
 /**
  * Transactions Page Component
@@ -158,6 +158,16 @@ import { format, parseISO } from 'date-fns';
         cursor: pointer;
         padding: 4px;
         color: rgb(100, 116, 139);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: color 0.2s, background-color 0.2s;
+      }
+
+      .icon-btn:hover {
+        color: rgb(15, 23, 42);
+        background-color: rgb(241, 245, 249);
+        border-radius: 4px;
       }
     `,
   ],
@@ -177,15 +187,19 @@ export class TransactionsComponent {
   protected profileService = inject(ProfileService);
   // Form state
   protected showForm = false;
+  protected editingTransactionId: string | null = null;
   protected formData: Partial<Transaction> = this.getEmptyForm();
-  // Filter state
-  protected filterType: TransactionType | 'all' = 'all';
+  // Filter state - using signals so computed can react to changes
+  protected filterType = signal<TransactionType | 'all'>('all');
+  protected filterPaymentMethod = signal<PaymentMethod | 'all'>('all');
+  protected filterCardId = signal<string | ''>('');
+  protected filterRecurring = signal<boolean | 'all'>('all');
+  protected showAllTransactions = signal<boolean>(false);
 
   protected activeProfile = this.profileService.activeProfile;
   protected viewDate = this.appState.viewDate;
-  protected filterPaymentMethod: PaymentMethod | 'all' = 'all';
-  protected filterCardId: string | '' = '';
-  protected filterRecurring: boolean | 'all' = 'all';
+  protected multiProfileMode = this.appState.multiProfileMode;
+  protected selectedProfileIds = this.appState.selectedProfileIds;
   // Computed summary
   protected summary = computed(() => {
     const transactions = this.filteredTransactions();
@@ -210,63 +224,139 @@ export class TransactionsComponent {
   // Shows transactions where:
   // 1. User owns the transaction (profileId matches)
   // 2. User paid for it (paidByOtherProfileId matches current profile)
+  // In multi-profile mode: shows transactions from selected profiles
   protected filteredTransactions = computed(() => {
+    const multiMode = this.multiProfileMode();
+    const selectedIds = this.selectedProfileIds();
     const profile = this.activeProfile();
-    if (!profile) return [];
 
     // Get all transactions from transaction service
     const allTransactions = this.transactionService.getTransactions();
 
-    // Filter to transactions relevant to this profile
-    let relevantTransactions = allTransactions.filter((t) => {
-      // Include if this profile owns the transaction
-      if (t.profileId === profile.id) return true;
-      // Include if this profile paid for it (shared expense)
-      if (t.paidByOtherProfileId === profile.id) return true;
-      return false;
-    });
+    // Filter to transactions relevant to selected profiles
+    let relevantTransactions: Transaction[];
+    
+    if (multiMode && selectedIds.length > 0) {
+      // Multi-profile mode: show transactions from selected profiles
+      relevantTransactions = allTransactions.filter((t) => {
+        // Include if transaction belongs to one of the selected profiles
+        if (selectedIds.includes(t.profileId)) return true;
+        // Include if one of the selected profiles paid for it (shared expense)
+        if (t.paidByOtherProfileId && selectedIds.includes(t.paidByOtherProfileId)) return true;
+        return false;
+      });
+    } else {
+      // Single profile mode: show transactions for active profile
+      if (!profile) return [];
+      
+      relevantTransactions = allTransactions.filter((t) => {
+        // Include if this profile owns the transaction
+        if (t.profileId === profile.id) return true;
+        // Include if this profile paid for it (shared expense)
+        if (t.paidByOtherProfileId === profile.id) return true;
+        return false;
+      });
+    }
 
     // Apply additional filters
-    if (this.filterType !== 'all') {
-      relevantTransactions = relevantTransactions.filter((t) => t.type === this.filterType);
+    const filterType = this.filterType();
+    if (filterType !== 'all') {
+      relevantTransactions = relevantTransactions.filter((t) => t.type === filterType);
     }
 
-    if (this.filterPaymentMethod !== 'all') {
+    const filterPaymentMethod = this.filterPaymentMethod();
+    if (filterPaymentMethod !== 'all') {
       relevantTransactions = relevantTransactions.filter(
-        (t) => t.paymentMethod === this.filterPaymentMethod,
+        (t) => t.paymentMethod === filterPaymentMethod,
       );
     }
 
-    if (this.filterCardId) {
-      relevantTransactions = relevantTransactions.filter((t) => t.cardId === this.filterCardId);
+    const filterCardId = this.filterCardId();
+    if (filterCardId) {
+      relevantTransactions = relevantTransactions.filter((t) => t.cardId === filterCardId);
     }
 
-    if (this.filterRecurring !== 'all') {
+    const filterRecurring = this.filterRecurring();
+    if (filterRecurring !== 'all') {
       relevantTransactions = relevantTransactions.filter(
-        (t) => Boolean(t.isRecurring) === this.filterRecurring,
+        (t) => Boolean(t.isRecurring) === filterRecurring,
       );
+    }
+
+    // Filter by month if not showing all transactions
+    const showAll = this.showAllTransactions();
+    if (!showAll) {
+      const currentDate = this.viewDate();
+      const monthStart = format(startOfMonth(currentDate), 'yyyy-MM-dd');
+      const monthEnd = format(endOfMonth(currentDate), 'yyyy-MM-dd');
+      
+      relevantTransactions = relevantTransactions.filter((t) => {
+        return t.date >= monthStart && t.date <= monthEnd;
+      });
     }
 
     return relevantTransactions;
   });
   private cardService = inject(CardService);
-  protected cards = this.cardService.cards;
+  // Computed cards: show cards for selected profiles in multi-profile mode, otherwise active profile
+  protected cards = computed(() => {
+    const multiMode = this.multiProfileMode();
+    const selectedIds = this.selectedProfileIds();
+    
+    if (multiMode && selectedIds.length > 0) {
+      return this.cardService.getCardsForProfiles(selectedIds);
+    }
+    return this.cardService.activeCards();
+  });
   private categoryService = inject(CategoryService);
   protected categories = this.categoryService.categories;
 
   protected onAddTransaction(): void {
+    // If currently editing, clear the form and switch to "new" mode
+    if (this.editingTransactionId) {
+      this.editingTransactionId = null;
+      this.formData = this.getEmptyForm();
+      return;
+    }
+    // Otherwise toggle the form
     this.showForm = !this.showForm;
     if (!this.showForm) {
+      this.formData = this.getEmptyForm();
+    } else {
       this.formData = this.getEmptyForm();
     }
   }
 
+  protected onEditTransaction(transaction: Transaction, event?: Event): void {
+    if (event) {
+      event.stopPropagation();
+    }
+    this.editingTransactionId = transaction.id;
+    this.formData = {
+      type: transaction.type,
+      amount: transaction.amount,
+      date: transaction.date,
+      categoryId: transaction.categoryId,
+      description: transaction.description,
+      notes: transaction.notes,
+      paymentMethod: transaction.paymentMethod,
+      cardId: transaction.cardId,
+      paidByOther: transaction.paidByOther || false,
+      paidByOtherProfileId: transaction.paidByOtherProfileId,
+      paidByOtherName: transaction.paidByOtherName,
+    };
+    this.showForm = true;
+    // Scroll to top to show the form
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
   protected onFilter(): void {
     // Reset filters
-    this.filterType = 'all';
-    this.filterPaymentMethod = 'all';
-    this.filterCardId = '';
-    this.filterRecurring = 'all';
+    this.filterType.set('all');
+    this.filterPaymentMethod.set('all');
+    this.filterCardId.set('');
+    this.filterRecurring.set('all');
+    this.showAllTransactions.set(false);
   }
 
   /**
@@ -328,35 +418,57 @@ export class TransactionsComponent {
     const profile = this.activeProfile();
     if (!profile) return;
 
-    const transaction: Transaction = {
-      id: crypto.randomUUID(),
-      profileId: profile.id,
-      type: (this.formData.type || 'expense') as TransactionType,
-      amount: this.formData.amount || 0,
-      date: this.formData.date || new Date().toISOString().split('T')[0],
-      categoryId: this.formData.categoryId || 'uncategorized',
-      description: this.formData.description || '',
-      notes: this.formData.notes,
-      paymentMethod: (this.formData.paymentMethod || 'cash') as PaymentMethod,
-      cardId: this.formData.cardId,
-      paidByOther: this.formData.paidByOther || false,
-      paidByOtherProfileId: this.formData.paidByOtherProfileId,
-      paidByOtherName: this.formData.paidByOtherName,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
-
     try {
-      await this.transactionService.addTransaction(transaction);
+      if (this.editingTransactionId) {
+        // Update existing transaction
+        await this.transactionService.updateTransaction(this.editingTransactionId, {
+          type: (this.formData.type || 'expense') as TransactionType,
+          amount: this.formData.amount || 0,
+          date: this.formData.date || new Date().toISOString().split('T')[0],
+          categoryId: this.formData.categoryId || 'uncategorized',
+          description: this.formData.description || '',
+          notes: this.formData.notes,
+          paymentMethod: (this.formData.paymentMethod || 'cash') as PaymentMethod,
+          cardId: this.formData.cardId,
+          paidByOther: this.formData.paidByOther || false,
+          paidByOtherProfileId: this.formData.paidByOtherProfileId,
+          paidByOtherName: this.formData.paidByOtherName,
+        });
+      } else {
+        // Create new transaction
+        const transaction: Transaction = {
+          id: crypto.randomUUID(),
+          profileId: profile.id,
+          type: (this.formData.type || 'expense') as TransactionType,
+          amount: this.formData.amount || 0,
+          date: this.formData.date || new Date().toISOString().split('T')[0],
+          categoryId: this.formData.categoryId || 'uncategorized',
+          description: this.formData.description || '',
+          notes: this.formData.notes,
+          paymentMethod: (this.formData.paymentMethod || 'cash') as PaymentMethod,
+          cardId: this.formData.cardId,
+          paidByOther: this.formData.paidByOther || false,
+          paidByOtherProfileId: this.formData.paidByOtherProfileId,
+          paidByOtherName: this.formData.paidByOtherName,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        };
+        await this.transactionService.addTransaction(transaction);
+      }
+      
       this.showForm = false;
+      this.editingTransactionId = null;
       this.formData = this.getEmptyForm();
     } catch (error) {
-      console.error('Error adding transaction:', error);
-      alert('Failed to add transaction');
+      console.error('Error saving transaction:', error);
+      alert('Failed to save transaction');
     }
   }
 
-  protected async onDeleteTransaction(id: string): Promise<void> {
+  protected async onDeleteTransaction(id: string, event?: Event): Promise<void> {
+    if (event) {
+      event.stopPropagation();
+    }
     if (!confirm('Delete this transaction?')) return;
 
     try {

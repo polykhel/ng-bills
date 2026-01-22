@@ -1,23 +1,15 @@
-<div class="flex flex-col gap-2 md:gap-3">
-  <app-manage-cards
-    (addCard)="openAddCard()"
-    (changeSort)="handleCardSort($event)"
-    (deleteCard)="handleDeleteCard($event)"
-    (editCard)="openEditCard($event)"
-    (transferCard)="openTransferCard($event)"
-    [cards]="sortedManageCards"
-    [currentSort]="manageCardSort"
-    [multiProfileMode]="multiProfileMode"
-    [profileName]="activeProfileName"
-  ></app-manage-cards>
+<div class="max-w-7xl mx-auto px-4 py-6">
+  <div class="mb-6">
+    <h1 class="text-2xl font-bold text-slate-900">Manage</h1>
+    <p class="text-slate-600 mt-1">Manage your cards and categories</p>
+  </div>
 
-  <app-manage-installments
-    (addInstallment)="openAddInstallment()"
-    (deleteInstallment)="handleDeleteInstallment($event)"
-    (editInstallment)="openEditInstallment($event)"
-    (sort)="handleInstSort($event)"
-    [cards]="cardOptions"
-    [installments]="sortedManageInstallments"
-    [viewDate]="viewDate"
-  ></app-manage-installments>
+  <div class="flex flex-col gap-6">
+    <app-manage-cards
+      [multiProfileMode]="multiProfileMode()"
+      [profileName]="activeProfileName()"
+    ></app-manage-cards>
+
+    <app-manage-categories></app-manage-categories>
+  </div>
 </div>
