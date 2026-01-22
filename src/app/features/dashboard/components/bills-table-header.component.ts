@@ -1,4 +1,4 @@
-import { Component, EventEmitter, Input, Output } from '@angular/core';
+import { ChangeDetectionStrategy, Component, EventEmitter, Input, Output } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { CheckCircle2, Copy, FileSpreadsheet, LucideAngularModule } from 'lucide-angular';
 import { format } from 'date-fns';
@@ -11,6 +11,7 @@ import type { ColumnVisibilityState } from './bills-table.component';
 @Component({
   selector: 'app-bills-table-header',
   standalone: true,
+  changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [CommonModule, LucideAngularModule, ColumnVisibilityMenuComponent],
   templateUrl: './bills-table-header.component.html',
 })

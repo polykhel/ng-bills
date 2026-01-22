@@ -17,6 +17,7 @@ Focused guidance for contributing productively to ng-bills (Angular 21, Tailwind
 - Prefer Angular Signals for app/UI state. Example: `AppStateService` in [src/app/core/services/app-state.service.ts](../src/app/core/services/app-state.service.ts) exposes `viewDate`, `multiProfileMode`, and modal state via `signal()`/`computed()`.
 - Domain types are defined in [src/app/shared/types.ts](../src/app/shared/types.ts) (`Profile`, `CreditCard`, `Statement`, `Installment`, `CashInstallment`, `BankBalance`). Keep new data structures aligned with these interfaces and ids as strings.
 - Date logic relies on date-fns (e.g., `UtilsService` in [src/app/core/services/utils.service.ts](../src/app/core/services/utils.service.ts)). Reuse helpers instead of ad hoc math.
+- Always use OnPush strategy.
 
 ## Storage & Sync
 

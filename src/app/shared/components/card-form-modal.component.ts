@@ -1,4 +1,4 @@
-import { Component, effect, OnInit, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, effect, OnInit, signal } from '@angular/core';
 
 import { FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { AppStateService, CardService, ProfileService } from '@services';
@@ -8,6 +8,7 @@ import type { CreditCard } from '../types';
 @Component({
   selector: 'app-card-form-modal',
   standalone: true,
+  changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [ReactiveFormsModule, ModalComponent],
   templateUrl: './card-form-modal.component.html',
 })

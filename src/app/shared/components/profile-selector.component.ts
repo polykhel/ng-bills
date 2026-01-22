@@ -1,4 +1,4 @@
-import { Component, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { CheckCircle2, LucideAngularModule, Pencil, User, UserPlus } from 'lucide-angular';
@@ -7,6 +7,7 @@ import { AppStateService, ProfileService } from '@services';
 @Component({
   selector: 'app-profile-selector',
   standalone: true,
+  changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [CommonModule, FormsModule, LucideAngularModule],
   templateUrl: './profile-selector.component.html',
 })

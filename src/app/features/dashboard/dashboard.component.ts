@@ -1,4 +1,4 @@
-import { Component, OnInit } from '@angular/core';
+import { ChangeDetectionStrategy, Component, OnInit } from '@angular/core';
 
 import { format, isValid, parseISO, setDate, differenceInDays, startOfDay } from 'date-fns';
 import {
@@ -26,6 +26,7 @@ interface BalanceStatus {
 @Component({
   selector: 'app-dashboard',
   standalone: true,
+  changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [StatsCardsComponent, BankBalanceToggleComponent, BillsTableHeaderComponent, BillsTableComponent],
   templateUrl: './dashboard.component.html',
 })

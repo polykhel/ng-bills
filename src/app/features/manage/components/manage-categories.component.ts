@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { Component, computed, inject, signal, ViewChild, ElementRef } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, signal, ViewChild, ElementRef } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { LucideAngularModule, Pencil, Plus, Tag, Trash2 } from 'lucide-angular';
 import { CategoryService } from '@services';
@@ -8,6 +8,7 @@ import type { Category, TransactionType } from '@shared/types';
 @Component({
   selector: 'app-manage-categories',
   standalone: true,
+  changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [CommonModule, FormsModule, LucideAngularModule],
   templateUrl: './manage-categories.component.html',
 })

@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { Component, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { List, LucideAngularModule, Pencil, Plus, Trash2 } from 'lucide-angular';
 import type { Installment, SortConfig } from '@shared/types';
 import {
@@ -13,6 +13,7 @@ import {
 @Component({
   selector: 'app-manage-installments',
   standalone: true,
+  changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [CommonModule, LucideAngularModule],
   templateUrl: './manage-installments.component.html',
 })

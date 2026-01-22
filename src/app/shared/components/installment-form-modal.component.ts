@@ -1,4 +1,4 @@
-import { Component, computed, effect, OnInit, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, effect, OnInit, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { format, subMonths } from 'date-fns';
@@ -10,6 +10,7 @@ import type { Installment } from '../types';
 @Component({
   selector: 'app-installment-form-modal',
   standalone: true,
+  changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [CommonModule, ReactiveFormsModule, LucideAngularModule, ModalComponent],
   templateUrl: './installment-form-modal.component.html',
 })

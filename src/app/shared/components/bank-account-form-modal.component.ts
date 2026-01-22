@@ -1,4 +1,4 @@
-import { Component, effect, OnInit, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, effect, OnInit, signal } from '@angular/core';
 import { FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { AppStateService, BankAccountService, ProfileService } from '@services';
 import { ModalComponent } from './modal.component';
@@ -7,6 +7,7 @@ import type { BankAccount } from '../types';
 @Component({
   selector: 'app-bank-account-form-modal',
   standalone: true,
+  changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [ReactiveFormsModule, ModalComponent],
   templateUrl: './bank-account-form-modal.component.html',
 })

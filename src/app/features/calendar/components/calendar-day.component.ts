@@ -1,4 +1,4 @@
-import { Component, Input } from '@angular/core';
+import { ChangeDetectionStrategy, Component, Input } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { UtilsService } from '@services';
 
@@ -27,6 +27,7 @@ export interface CashInstallmentDueItem {
 @Component({
   selector: 'app-calendar-day',
   standalone: true,
+  changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [CommonModule],
   templateUrl: './calendar-day.component.html',
 })

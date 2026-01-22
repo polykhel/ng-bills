@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { Component, computed, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
 import { ManageCardsComponent } from './components/manage-cards.component';
 import { ManageCategoriesComponent } from './components/manage-categories.component';
 import { AppStateService, ProfileService } from '@services';
@@ -7,6 +7,7 @@ import { AppStateService, ProfileService } from '@services';
 @Component({
   selector: 'app-manage',
   standalone: true,
+  changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [CommonModule, ManageCardsComponent, ManageCategoriesComponent],
   templateUrl: './manage.component.html',
 })

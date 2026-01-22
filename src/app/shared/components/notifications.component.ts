@@ -1,4 +1,4 @@
-import { Component } from '@angular/core';
+import { ChangeDetectionStrategy, Component } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { LucideAngularModule, AlertTriangle, AlertCircle, CheckCircle, Info, X } from 'lucide-angular';
 import { NotificationService, type Notification } from '@core/services';
@@ -6,6 +6,7 @@ import { NotificationService, type Notification } from '@core/services';
 @Component({
   selector: 'app-notifications',
   standalone: true,
+  changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [CommonModule, LucideAngularModule],
   template: `
     <div class="notifications-container">

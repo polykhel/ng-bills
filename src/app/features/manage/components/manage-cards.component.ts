@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { Component, computed, inject, Input, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, Input, signal } from '@angular/core';
 import { ArrowRightLeft, CreditCard as RawCardIcon, LucideAngularModule, Pencil, Plus, Trash2 } from 'lucide-angular';
 import {
   AppStateService,
@@ -16,6 +16,7 @@ const CardIcon = RawCardIcon;
 @Component({
   selector: 'app-manage-cards',
   standalone: true,
+  changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [CommonModule, LucideAngularModule],
   templateUrl: './manage-cards.component.html',
 })

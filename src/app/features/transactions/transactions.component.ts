@@ -1,4 +1,4 @@
-import { Component, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, ChangeDetectorRef, Component, computed, effect, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import {
@@ -35,6 +35,7 @@ import { format, parseISO, startOfMonth, endOfMonth } from 'date-fns';
 @Component({
   selector: 'app-transactions',
   standalone: true,
+  changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     CommonModule,
     FormsModule,
@@ -227,6 +228,22 @@ export class TransactionsComponent {
     };
   });
   private transactionService = inject(TransactionService);
+  private cdr = inject(ChangeDetectorRef);
+  
+  constructor() {
+    // Watch for transaction changes and trigger change detection for OnPush
+    effect(() => {
+      // Read the transactions signal to establish dependency
+      const transactions = this.transactionService.transactions();
+      // Also read other signals that might affect the view
+      this.activeProfile();
+      this.multiProfileMode();
+      this.selectedProfileIds();
+      // Manually trigger change detection for OnPush
+      this.cdr.markForCheck();
+    });
+  }
+  
   // Pre-computed running balances for all transactions (performance optimization)
   // This avoids recalculating running balance for each transaction in the template
   private transactionRunningBalances = computed(() => {
@@ -252,8 +269,8 @@ export class TransactionsComponent {
     const selectedIds = this.selectedProfileIds();
     const profile = this.activeProfile();
 
-    // Get all transactions from transaction service
-    const allTransactions = this.transactionService.getTransactions();
+    // Get all transactions from transaction service signal (required for OnPush)
+    const allTransactions = this.transactionService.transactions();
 
     // Filter to transactions relevant to selected profiles
     let relevantTransactions: Transaction[];
@@ -600,8 +617,8 @@ export class TransactionsComponent {
     const monthStr = date.slice(0, 7); // yyyy-MM
     const startingBalance = this.bankBalanceService.getBankBalance(profile.id, monthStr) || 0;
 
-    // Get all transactions up to this date
-    const allTransactions = this.transactionService.getTransactions();
+    // Get all transactions up to this date (use signal for OnPush compatibility)
+    const allTransactions = this.transactionService.transactions();
     const profileTransactions = allTransactions.filter((t) => t.profileId === profile.id);
     
     // Filter transactions up to and including the target date

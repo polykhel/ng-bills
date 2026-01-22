@@ -1,4 +1,4 @@
-import { Component, EventEmitter, Input, Output } from '@angular/core';
+import { ChangeDetectionStrategy, Component, EventEmitter, Input, Output } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ArrowUpDown, LucideAngularModule } from 'lucide-angular';
 import type { SortConfig } from '../types';
@@ -6,6 +6,7 @@ import type { SortConfig } from '../types';
 @Component({
   selector: 'app-sortable-header',
   standalone: true,
+  changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [CommonModule, LucideAngularModule],
   templateUrl: './sortable-header.component.html',
 })

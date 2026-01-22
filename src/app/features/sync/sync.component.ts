@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { Component, inject, OnInit } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject, OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import {
   AlertCircle,
@@ -25,6 +25,7 @@ import { firebaseConfig, isFirebaseConfigured } from '@environments/firebase';
 @Component({
   selector: 'app-sync',
   standalone: true,
+  changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [CommonModule, FormsModule, LucideAngularModule],
   templateUrl: './sync.component.html',
 })

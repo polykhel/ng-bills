@@ -1,4 +1,4 @@
-import { Component } from '@angular/core';
+import { ChangeDetectionStrategy, Component } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import {
   eachDayOfInterval,
@@ -40,6 +40,7 @@ interface CalendarDayView {
 @Component({
   selector: 'app-calendar',
   standalone: true,
+  changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [CommonModule, CalendarHeaderComponent, CalendarDayComponent],
   templateUrl: './calendar.component.html',
 })

@@ -1,4 +1,4 @@
-import { Component } from '@angular/core';
+import { ChangeDetectionStrategy, Component } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { CheckCircle2, Circle, LucideAngularModule, Users } from 'lucide-angular';
 import { AppStateService, ProfileService } from '@services';
@@ -6,6 +6,7 @@ import { AppStateService, ProfileService } from '@services';
 @Component({
   selector: 'app-multi-profile-selector',
   standalone: true,
+  changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [CommonModule, LucideAngularModule],
   templateUrl: './multi-profile-selector.component.html',
 })

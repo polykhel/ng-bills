@@ -1,4 +1,4 @@
-import { Component, input, output } from '@angular/core';
+import { ChangeDetectionStrategy, Component, input, output } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { LucideAngularModule, LucideIconData, ChevronRight } from 'lucide-angular';
 
@@ -9,6 +9,7 @@ import { LucideAngularModule, LucideIconData, ChevronRight } from 'lucide-angula
 @Component({
   selector: 'app-section-header',
   standalone: true,
+  changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [CommonModule, LucideAngularModule],
   template: `
     <div class="flex items-center justify-between mb-4">

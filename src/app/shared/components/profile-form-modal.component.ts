@@ -1,4 +1,4 @@
-import { Component, OnInit } from '@angular/core';
+import { ChangeDetectionStrategy, Component, OnInit } from '@angular/core';
 
 import { FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { AppStateService, ProfileService } from '@services';
@@ -7,6 +7,7 @@ import { ModalComponent } from './modal.component';
 @Component({
   selector: 'app-profile-form-modal',
   standalone: true,
+  changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [ReactiveFormsModule, ModalComponent],
   templateUrl: './profile-form-modal.component.html',
 })

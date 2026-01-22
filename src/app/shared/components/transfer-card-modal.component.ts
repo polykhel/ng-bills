@@ -1,4 +1,4 @@
-import { Component, effect, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, effect, signal } from '@angular/core';
 
 import { FormsModule } from '@angular/forms';
 import { AppStateService, CardService, ProfileService } from '@services';
@@ -8,6 +8,7 @@ import type { CreditCard } from '../types';
 @Component({
   selector: 'app-transfer-card-modal',
   standalone: true,
+  changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [FormsModule, ModalComponent],
   templateUrl: './transfer-card-modal.component.html',
 })

@@ -1,4 +1,4 @@
-import { Component, input } from '@angular/core';
+import { ChangeDetectionStrategy, Component, input } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { LucideAngularModule, LucideIconData } from 'lucide-angular';
 
@@ -11,6 +11,7 @@ export type MetricVariant = 'default' | 'success' | 'warning' | 'danger' | 'info
 @Component({
   selector: 'app-metric-card',
   standalone: true,
+  changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [CommonModule, LucideAngularModule],
   template: `
     <div [class]="cardClasses()">

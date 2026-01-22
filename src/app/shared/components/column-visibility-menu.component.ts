@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { Component, EventEmitter, Input, Output } from '@angular/core';
+import { ChangeDetectionStrategy, Component, EventEmitter, Input, Output } from '@angular/core';
 
 export interface ColumnVisibilityOption {
   key: string;
@@ -11,6 +11,7 @@ export interface ColumnVisibilityOption {
 @Component({
   selector: 'app-column-visibility-menu',
   standalone: true,
+  changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [CommonModule],
   templateUrl: './column-visibility-menu.component.html',
 })
