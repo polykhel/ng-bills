@@ -5,10 +5,10 @@ import { ManageInstallmentsComponent } from './components/manage-installments.co
 import {
   AppStateService,
   CardService,
-  CashInstallmentService,
   InstallmentService,
   ProfileService,
   StatementService,
+  TransactionService,
   UtilsService,
 } from '@services';
 import type { CreditCard, Installment, SortConfig } from '@shared/types';
@@ -29,7 +29,7 @@ export class ManageComponent {
     private cardService: CardService,
     private statementService: StatementService,
     private installmentService: InstallmentService,
-    private cashInstallmentService: CashInstallmentService,
+    private transactionService: TransactionService,
     private utils: UtilsService,
   ) {
   }
@@ -152,7 +152,10 @@ export class ManageComponent {
     if (this.cardService.deleteCard(cardId)) {
       this.statementService.deleteStatementsForCard(cardId);
       this.installmentService.deleteInstallmentsForCard(cardId);
-      this.cashInstallmentService.deleteCashInstallmentsForCard(cardId);
+      // Phase 2: Delete cash installment transactions for this card
+      void this.transactionService.deleteTransactionsWhere(
+        (tx) => tx.cardId !== undefined && tx.cardId === cardId && tx.paymentMethod === 'cash' && Boolean(tx.isRecurring) && tx.recurringRule?.type === 'installment'
+      );
     }
   }
 
@@ -166,7 +169,10 @@ export class ManageComponent {
 
   handleDeleteInstallment(installmentId: string): void {
     if (this.installmentService.deleteInstallment(installmentId)) {
-      this.cashInstallmentService.deleteCashInstallmentsForInstallment(installmentId);
+      // Phase 2: Delete cash installment transactions linked to this installment
+      void this.transactionService.deleteTransactionsWhere(
+        (tx) => Boolean(tx.recurringRule?.installmentGroupId === `installment-${installmentId}` && tx.paymentMethod === 'cash')
+      );
     }
   }
 }

@@ -3,7 +3,6 @@ export * from './profile.service';
 export * from './card.service';
 export * from './statement.service';
 export * from './installment.service';
-export * from './cash-installment.service';
 export * from './bank-balance.service';
 export * from './encryption.service';
 export * from './firebase-auth.service';

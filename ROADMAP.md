@@ -124,9 +124,9 @@ The following entities violate the "transactions-first" principle and are **lega
 
 These are maintained for backward compatibility but will be removed in Phase 2. All new installment tracking should use the Transaction model with `isRecurring: true` and appropriate `recurringRule` metadata.
 
-## Phase 2: Recurring Transactions & Legacy Migration ⏳ IN PROGRESS
+## Phase 2: Recurring Transactions & Legacy Migration ✅ COMPLETED
 
-**Status: NOT STARTED**
+**Status: COMPLETED (Jan 22, 2026)**
 
 **Objective:** Migrate legacy Installment/CashInstallment entities to recurring transactions and centralize card/profile management.
 
@@ -176,18 +176,20 @@ interface Transaction {
 **Implementation Steps:**
 
 1. ✅ Transaction model already supports recurring installments (Phase 1 complete)
-2. ⏳ Create migration script to convert existing `Installment` → `Transaction` with `isRecurring: true`
-3. ⏳ Create migration script to convert existing `CashInstallment` → `Transaction` with `isRecurring: true` and `paymentMethod: 'cash'`
-4. ⏳ **Remove `CashInstallment` entity entirely** from types.ts
-5. ⏳ **Remove `CashInstallmentService`** from codebase
-6. ⏳ Update TransactionService to handle installment logic (auto-generate monthly payments)
-7. ⏳ Add installment badge/filter in Transactions page
-8. ⏳ Show installment progress in transaction cards (e.g., "5/12 payments")
-9. ⏳ Deprecate InstallmentService (or migrate its logic to TransactionService)
-10. ⏳ Update Bills page to recognize installment transactions
-11. ⏳ Update Dashboard/Calendar to show recurring transactions instead of installments
-12. ⏳ Remove CASH_INSTALLMENTS store from IndexedDB schema
-13. ⏳ Update sync services to handle migrated data
+2. ✅ Create migration script to convert existing `Installment` → `Transaction` with `isRecurring: true`
+3. ✅ Create migration script to convert existing `CashInstallment` → `Transaction` with `isRecurring: true` and `paymentMethod: 'cash'`
+4. ✅ **Remove `CashInstallment` entity entirely** from types.ts
+5. ✅ **Remove `CashInstallmentService`** from codebase
+6. ✅ Update TransactionService to handle installment logic (auto-generate monthly payments)
+7. ✅ Add installment badge/filter in Transactions page
+8. ✅ Show installment progress in transaction cards (e.g., "5/12 payments") with visual progress bars
+9. ⚠️ InstallmentService still exists for legacy installments (can be deprecated in future)
+10. ✅ Update Bills page to recognize installment transactions
+11. ✅ Update Dashboard/Calendar to show recurring transactions instead of installments
+12. ✅ Remove CASH_INSTALLMENTS store from IndexedDB schema
+13. ✅ Update sync services to handle migrated data
+14. ✅ Implement payment tracking for cash installments
+15. ✅ Enhanced installment progress visualization with color-coded badges and progress bars
 
 **Benefits:**
 
@@ -231,19 +233,21 @@ interface Transaction {
 
 **Acceptance Criteria (Phase 2):**
 
-- ⏳ Can migrate all existing Installments → recurring transactions
-- ⏳ Can migrate all existing CashInstallments → recurring transactions (paymentMethod: 'cash')
-- ⏳ Installment progress shown in transaction view (e.g., "5/12 payments")
-- ⏳ Installments appear in budget calculations automatically
-- ⏳ Installment payments auto-link to card statements
-- ⏳ **CashInstallment entity removed from codebase** (types.ts, services, components)
-- ⏳ **CashInstallmentService removed** from codebase
-- ⏳ InstallmentService deprecated or migrated to TransactionService
-- ⏳ Can manage cards, profiles, and accounts from centralized UI
-- ⏳ Card transfer between profiles works
-- ⏳ Migration preserves all historical installment data
-- ⏳ Build succeeds without CashInstallment references
-- ⏳ All components updated to use Transaction model for installments
+- ✅ Can migrate all existing Installments → recurring transactions
+- ✅ Can migrate all existing CashInstallments → recurring transactions (paymentMethod: 'cash')
+- ✅ Installment progress shown in transaction view (e.g., "5/12 (42%)") with visual progress bars
+- ✅ Installments appear in budget calculations automatically
+- ✅ Installment payments auto-link to card statements
+- ✅ **CashInstallment entity removed from codebase** (types.ts, services, components)
+- ✅ **CashInstallmentService removed** from codebase
+- ⚠️ InstallmentService still exists for legacy installments (backward compatibility)
+- ✅ Can manage cards, profiles, and accounts from centralized UI
+- ✅ Card transfer between profiles works
+- ✅ Migration preserves all historical installment data
+- ✅ Build succeeds without CashInstallment references
+- ✅ All components updated to use Transaction model for installments
+- ✅ Payment tracking implemented for cash installments (isPaid, paidDate, paidAmount)
+- ✅ Enhanced visualization with color-coded status badges and progress indicators
 
 ## Phase 3: Budgeting & Goals
 
@@ -266,33 +270,33 @@ Objective: plan future buys and loans using real data.
 - Integration: convert planned purchase to installment/transaction when purchased; link to budgets/goals.
 - Acceptance: can create scenarios, see affordability outputs, and log purchase to transactions/installments.
 
-## Phase 4: Analytics & Insights
+## Phase 5: Analytics & Insights
 Objective: actionable dashboards and reports.
 - Visuals: spending trends, category breakdowns, income vs expenses, cash-flow waterfall, YoY/MoM comparisons.
 - Reports: monthly and annual summaries, export (CSV/PDF stub), scheduled report hooks.
 - Insights: rule/AI hints (overspend alerts, trend deltas, budget suggestions).
 - Acceptance: charts render from demo data; insights list generates from rules; exports download placeholder files.
 
-## Phase 5: Sync & Collaboration
+## Phase 6: Sync & Collaboration
 Objective: reliable sync and multi-user readiness.
 - Firestore sync polish: conflict handling strategy, status indicator, last sync time, selective sync toggles.
 - Collaboration: profile sharing roles (view/edit/admin), shared budgets/goals, household rollup view.
 - Acceptance: sync toggle works; conflicts surface UI choices; shared profile mock supports basic role checks.
 
-## Phase 6: Automation & Integrations
+## Phase 7: Automation & Integrations
 Objective: reduce manual entry.
 - Recurring detection and auto-entry with approval.
 - Receipt OCR hook (API placeholder) with amount/date/vendor extraction.
 - Bank integration placeholder (Plaid-style) behind feature flag; reconciliation flow design.
 - Acceptance: recurring rules execute; OCR stub populates fields; bank connector mocked with sample data.
 
-## Phase 7: Mobile & PWA
+## Phase 8: Mobile & PWA
 Objective: excellent mobile experience.
 - PWA: installability, offline-first, push hooks for due bills/budget alerts.
 - Mobile UX: quick-add transaction widget, camera path for receipts, touch-friendly lists, biometric gate.
 - Acceptance: passes Lighthouse PWA checks; offline transaction queue works; mobile layout verified.
 
-## Phase 8: Monetization
+## Phase 9: Monetization
 Objective: define free/premium value.
 - Free: basic transactions, simple budget, manual sync, single profile, limited history.
 - Premium: unlimited history, advanced budgeting/analytics, purchase planner, goals, priority sync, receipt OCR, exports/reports; family tier with shared profiles.
@@ -2720,13 +2724,17 @@ Have suggestions? Open an issue or contribute to the discussion!
 ---
 
 **Last Updated**: January 22, 2026  
-**Version**: 2.2  
-**Status**: Phase 0 & 1 Complete, Phase 2 (Legacy Migration) Pending
+**Version**: 3.0  
+**Status**: Phase 0, 1 & 2 Complete
 
 **Current State Summary:**
 - ✅ Phase 0: UI/IA Refactor - COMPLETE
 - ✅ Phase 1: Transaction Layer - COMPLETE
-- ⏳ Phase 2: Legacy Migration - NOT STARTED
-  - ⚠️ **Critical**: CashInstallment and Installment entities are legacy code that need migration
-  - ⚠️ CashInstallment type should NOT exist per transactions-first principle
-  - Transaction model already supports recurring installments (ready for migration)
+- ✅ Phase 2: Legacy Migration - COMPLETE
+  - ✅ All Installments and CashInstallments migrated to recurring Transactions
+  - ✅ CashInstallment entity and service removed from codebase
+  - ✅ CASH_INSTALLMENTS store removed from IndexedDB
+  - ✅ Payment tracking implemented for cash installments
+  - ✅ Enhanced installment progress visualization with color-coded badges
+  - ✅ All components updated to use Transaction model
+  - ✅ Sync services updated to handle migrated data

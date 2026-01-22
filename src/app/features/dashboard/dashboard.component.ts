@@ -5,11 +5,11 @@ import {
   AppStateService,
   BankBalanceService,
   CardService,
-  CashInstallmentService,
   InstallmentService,
   NotificationService,
   ProfileService,
   StatementService,
+  TransactionService,
   UtilsService,
 } from '@services';
 import { StatsCardsComponent } from './components/stats-cards.component';
@@ -43,7 +43,7 @@ export class DashboardComponent implements OnInit {
     private cardService: CardService,
     private statementService: StatementService,
     private installmentService: InstallmentService,
-    private cashInstallmentService: CashInstallmentService,
+    private transactionService: TransactionService,
     private bankBalanceService: BankBalanceService,
     private notificationService: NotificationService,
     public utils: UtilsService,
@@ -119,13 +119,19 @@ export class DashboardComponent implements OnInit {
       .filter(inst => inst.status.isActive);
   }
 
-  get cashInstallments() {
-    return this.cashInstallmentService.cashInstallments();
-  }
-
+  // Get cash installments from recurring transactions (Phase 2 migration)
   get activeCashInstallments() {
-    return this.cashInstallments.filter(ci => {
-      const dueDate = parseISO(ci.dueDate);
+    const allTransactions = this.transactionService.getTransactions({
+      isRecurring: true,
+      recurringType: 'installment',
+    });
+    
+    // Filter for cash payment method and current month
+    return allTransactions.filter(tx => {
+      if (tx.paymentMethod !== 'cash') return false;
+      if (!tx.recurringRule?.type || tx.recurringRule.type !== 'installment') return false;
+      
+      const dueDate = parseISO(tx.date);
       if (!isValid(dueDate)) return false;
       return format(dueDate, 'yyyy-MM') === this.monthKey;
     });
@@ -202,9 +208,15 @@ export class DashboardComponent implements OnInit {
       }
     });
 
-    const visibleCash = this.activeCashInstallments.filter(ci => visibleCardIds.has(ci.cardId));
-    const cashTotal = visibleCash.reduce((acc, ci) => acc + ci.amount, 0);
-    const unpaidCash = visibleCash.filter(ci => !ci.isPaid).reduce((acc, ci) => acc + ci.amount, 0);
+    // Cash installments are now transactions - filter by cardId if present
+    const visibleCash = this.activeCashInstallments.filter(tx => {
+      if (!tx.cardId) return false;
+      return visibleCardIds.has(tx.cardId);
+    });
+    const cashTotal = visibleCash.reduce((acc, tx) => acc + tx.amount, 0);
+    const unpaidCash = visibleCash
+      .filter(tx => !tx.isPaid)
+      .reduce((acc, tx) => acc + tx.amount, 0);
     billTotal += cashTotal;
     unpaidTotal += unpaidCash;
 
@@ -327,18 +339,27 @@ export class DashboardComponent implements OnInit {
     }
   }
 
-  handleToggleCashInstallmentPaid(cashInstallmentId: string): void {
-    const cashInst = this.cashInstallments.find(ci => ci.id === cashInstallmentId);
-    if (!cashInst) return;
-
-    if (this.bankBalanceTrackingEnabled) {
-      const delta = cashInst.isPaid ? cashInst.amount : -cashInst.amount;
-      this.updateBankBalance(this.currentBankBalance + delta);
+  // Phase 2: Cash installments are now transactions with payment tracking
+  async handleToggleCashInstallmentPaid(transactionId: string): Promise<void> {
+    const transaction = this.transactionService.getTransaction(transactionId);
+    if (!transaction) return;
+    
+    const isPaid = transaction.isPaid || false;
+    
+    if (!isPaid) {
+      // Mark as paid
+      if (this.bankBalanceTrackingEnabled) {
+        this.updateBankBalance(this.currentBankBalance - transaction.amount);
+      }
+      await this.transactionService.markTransactionPaid(transactionId);
+    } else {
+      // Mark as unpaid
+      if (this.bankBalanceTrackingEnabled) {
+        const paidAmount = transaction.paidAmount || transaction.amount;
+        this.updateBankBalance(this.currentBankBalance + paidAmount);
+      }
+      await this.transactionService.markTransactionUnpaid(transactionId);
     }
-
-    this.cashInstallmentService.updateCashInstallment(cashInstallmentId, {
-      isPaid: !cashInst.isPaid,
-    });
   }
 
   handleExportMonthCSV(): void {
@@ -528,13 +549,13 @@ export class DashboardComponent implements OnInit {
       return daysUntilDue === 1 && !stmt?.isPaid;
     });
 
-    // Check for upcoming cash installments
-    const upcomingCashInstallments = this.activeCashInstallments.filter(ci => {
-      const dueDate = parseISO(ci.dueDate);
+    // Check for upcoming cash installments (now transactions)
+    const upcomingCashInstallments = this.activeCashInstallments.filter(tx => {
+      const dueDate = parseISO(tx.date);
       if (!isValid(dueDate)) return false;
 
       const daysUntilDue = differenceInDays(startOfDay(dueDate), today);
-      return daysUntilDue === 1 && !ci.isPaid;
+      return daysUntilDue === 1 && !tx.isPaid;
     });
 
     if (upcomingCards.length > 0) {
@@ -547,7 +568,7 @@ export class DashboardComponent implements OnInit {
     }
 
     if (upcomingCashInstallments.length > 0) {
-      const installmentNames = upcomingCashInstallments.map(ci => ci.name).join(', ');
+      const installmentNames = upcomingCashInstallments.map(tx => tx.description).join(', ');
       this.notificationService.warning(
         '⚠️ Installments Due Tomorrow',
         `The following installments are due tomorrow: ${installmentNames}`,

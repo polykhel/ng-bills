@@ -15,10 +15,10 @@ import {
 import {
   AppStateService,
   CardService,
-  CashInstallmentService,
   InstallmentService,
   ProfileService,
   StatementService,
+  TransactionService,
   UtilsService,
 } from '@services';
 import type { Statement } from '@shared/types';
@@ -52,7 +52,7 @@ export class CalendarComponent {
     private cardService: CardService,
     private statementService: StatementService,
     private installmentService: InstallmentService,
-    private cashInstallmentService: CashInstallmentService,
+    private transactionService: TransactionService,
     private utils: UtilsService,
   ) {
   }
@@ -110,13 +110,19 @@ export class CalendarComponent {
       .filter(inst => inst.status.isActive);
   }
 
-  get cashInstallments() {
-    return this.cashInstallmentService.cashInstallments();
-  }
-
+  // Get cash installments from recurring transactions (Phase 2 migration)
   get activeCashInstallments() {
-    return this.cashInstallments.filter(ci => {
-      const dueDate = parseISO(ci.dueDate);
+    const allTransactions = this.transactionService.getTransactions({
+      isRecurring: true,
+      recurringType: 'installment',
+    });
+    
+    // Filter for cash payment method and current month
+    return allTransactions.filter(tx => {
+      if (tx.paymentMethod !== 'cash') return false;
+      if (!tx.recurringRule?.type || tx.recurringRule.type !== 'installment') return false;
+      
+      const dueDate = parseISO(tx.date);
       if (!isValid(dueDate)) return false;
       return format(dueDate, 'yyyy-MM') === this.monthKey;
     });
@@ -167,22 +173,25 @@ export class CalendarComponent {
           } satisfies CardDueItem;
         });
 
+      // Cash installments are now transactions - map to CashInstallmentDueItem format
       const cashInstsDue = this.activeCashInstallments
-        .filter(ci => {
-          const card = this.visibleCards.find(c => c.id === ci.cardId);
+        .filter(tx => {
+          const card = this.visibleCards.find(c => c.id === tx.cardId);
           if (!card?.isCashCard) return false;
-          const dueDate = parseISO(ci.dueDate);
+          const dueDate = parseISO(tx.date);
           return isValid(dueDate) && isSameDay(dueDate, day);
         })
-        .map(ci => {
-          const card = this.visibleCards.find(c => c.id === ci.cardId)!;
+        .map(tx => {
+          const card = this.visibleCards.find(c => c.id === tx.cardId)!;
           const profile = this.profiles.find(p => p.id === card.profileId);
+          const currentTerm = tx.recurringRule?.currentTerm || 1;
+          const totalTerms = tx.recurringRule?.totalTerms || 12;
           return {
-            id: ci.id,
-            name: ci.name,
-            term: ci.term,
-            amount: ci.amount,
-            isPaid: ci.isPaid,
+            id: tx.id,
+            name: tx.description,
+            term: `${currentTerm}/${totalTerms}`,
+            amount: tx.amount,
+            isPaid: tx.isPaid || false,
             bankName: card.bankName,
             cardName: card.cardName,
             profileName: profile?.name,

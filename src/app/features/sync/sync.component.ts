@@ -14,6 +14,7 @@ import {
   Upload,
 } from 'lucide-angular';
 import { SyncService, SyncUtilsService } from '@services';
+// InstallmentMigrationService removed - Phase 2 migration complete
 import { FirebaseAuthService } from '@services/firebase-auth.service';
 import { FirebaseSyncService } from '@services/firebase-sync.service';
 import { initializeApp } from '@angular/fire/app';
@@ -322,4 +323,7 @@ export class SyncComponent implements OnInit {
   }
 
   protected readonly Cloud = Cloud;
+
+  // Migration Methods
+  // Migration service removed - Phase 2 migration complete
 }

@@ -185,6 +185,7 @@ export class TransactionsComponent {
   protected viewDate = this.appState.viewDate;
   protected filterPaymentMethod: PaymentMethod | 'all' = 'all';
   protected filterCardId: string | '' = '';
+  protected filterRecurring: boolean | 'all' = 'all';
   // Computed summary
   protected summary = computed(() => {
     const transactions = this.filteredTransactions();
@@ -240,6 +241,12 @@ export class TransactionsComponent {
       relevantTransactions = relevantTransactions.filter((t) => t.cardId === this.filterCardId);
     }
 
+    if (this.filterRecurring !== 'all') {
+      relevantTransactions = relevantTransactions.filter(
+        (t) => Boolean(t.isRecurring) === this.filterRecurring,
+      );
+    }
+
     return relevantTransactions;
   });
   private cardService = inject(CardService);
@@ -259,6 +266,57 @@ export class TransactionsComponent {
     this.filterType = 'all';
     this.filterPaymentMethod = 'all';
     this.filterCardId = '';
+    this.filterRecurring = 'all';
+  }
+
+  /**
+   * Check if transaction is an installment
+   */
+  protected isInstallment(transaction: Transaction): boolean {
+    return Boolean(transaction.isRecurring && transaction.recurringRule?.type === 'installment');
+  }
+
+  /**
+   * Get installment progress text (e.g., "5/12")
+   */
+  protected getInstallmentProgress(transaction: Transaction): string {
+    if (!this.isInstallment(transaction)) return '';
+    const currentTerm = transaction.recurringRule?.currentTerm || 0;
+    const totalTerms = transaction.recurringRule?.totalTerms || 0;
+    const percentage = totalTerms > 0 ? Math.round((currentTerm / totalTerms) * 100) : 0;
+    return `${currentTerm}/${totalTerms} (${percentage}%)`;
+  }
+
+  /**
+   * Get installment progress percentage (0-100)
+   */
+  protected getInstallmentProgressPercentage(transaction: Transaction): number {
+    if (!this.isInstallment(transaction)) return 0;
+    const currentTerm = transaction.recurringRule?.currentTerm || 0;
+    const totalTerms = transaction.recurringRule?.totalTerms || 0;
+    return totalTerms > 0 ? Math.round((currentTerm / totalTerms) * 100) : 0;
+  }
+
+  /**
+   * Check if installment is completed
+   */
+  protected isInstallmentCompleted(transaction: Transaction): boolean {
+    if (!this.isInstallment(transaction)) return false;
+    const currentTerm = transaction.recurringRule?.currentTerm || 0;
+    const totalTerms = transaction.recurringRule?.totalTerms || 0;
+    return currentTerm >= totalTerms;
+  }
+
+  /**
+   * Get installment status badge color
+   */
+  protected getInstallmentStatusColor(transaction: Transaction): string {
+    if (!this.isInstallment(transaction)) return 'blue';
+    if (this.isInstallmentCompleted(transaction)) return 'green';
+    if (transaction.isPaid) return 'emerald';
+    const percentage = this.getInstallmentProgressPercentage(transaction);
+    if (percentage >= 75) return 'yellow';
+    return 'blue';
   }
 
   protected async onSubmitTransaction(): Promise<void> {

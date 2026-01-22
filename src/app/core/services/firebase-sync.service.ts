@@ -14,11 +14,11 @@ import { FirebaseAuthService } from './firebase-auth.service';
 import { IndexedDBService, STORES } from './indexeddb.service';
 import type {
   BankBalance,
-  CashInstallment,
   CreditCard,
   Installment,
   Profile,
   Statement,
+  Transaction,
 } from '@shared/types';
 
 export interface FirestoreSyncStatus {
@@ -215,12 +215,15 @@ export class FirebaseSyncService {
       batch.set(doc(installmentsRef, installment.id), installment);
     }
 
-    // Upload cash installments
-    const cashInstallments = await db.getAll<CashInstallment>(STORES.CASH_INSTALLMENTS);
-    const cashInstallmentsRef = collection(this.firestore!, `users/${userId}/cashInstallments`);
-    for (const cashInstallment of cashInstallments) {
-      batch.set(doc(cashInstallmentsRef, cashInstallment.id), cashInstallment);
+    // Upload transactions (includes migrated recurring/installment transactions)
+    const transactions = await db.getAll<Transaction>(STORES.TRANSACTIONS);
+    const transactionsRef = collection(this.firestore!, `users/${userId}/transactions`);
+    for (const transaction of transactions) {
+      batch.set(doc(transactionsRef, transaction.id), transaction);
     }
+
+    // Cash installments removed in Phase 2 - migrated to recurring transactions
+    // They are now synced as part of transactions collection
 
     // Upload bank balances
     const bankBalances = await db.getAll<BankBalance>(STORES.BANK_BALANCES);
@@ -291,16 +294,17 @@ export class FirebaseSyncService {
       await db.putAll(STORES.INSTALLMENTS, installments);
     }
 
-    // Download cash installments
-    const cashInstallmentsSnapshot = await getDocs(
-      collection(this.firestore!, `users/${userId}/cashInstallments`),
+    // Download transactions (includes migrated recurring/installment transactions)
+    const transactionsSnapshot = await getDocs(
+      collection(this.firestore!, `users/${userId}/transactions`),
     );
-    const cashInstallments = cashInstallmentsSnapshot.docs.map(
-      (doc) => doc.data() as CashInstallment,
-    );
-    if (cashInstallments.length > 0) {
-      await db.putAll(STORES.CASH_INSTALLMENTS, cashInstallments);
+    const transactions = transactionsSnapshot.docs.map((doc) => doc.data() as Transaction);
+    if (transactions.length > 0) {
+      await db.putAll(STORES.TRANSACTIONS, transactions);
     }
+
+    // Cash installments removed in Phase 2 - migrated to recurring transactions
+    // They are now synced as part of transactions collection
 
     // Download bank balances
     const bankBalancesSnapshot = await getDocs(
@@ -396,18 +400,21 @@ export class FirebaseSyncService {
     );
     this.unsubscribes.push(installmentsUnsubscribe);
 
-    // Listen to cash installments
-    const cashInstallmentsUnsubscribe = onSnapshot(
-      collection(this.firestore!, `users/${userId}/cashInstallments`),
+    // Listen to transactions (includes migrated recurring/installment transactions)
+    const transactionsUnsubscribe = onSnapshot(
+      collection(this.firestore!, `users/${userId}/transactions`),
       (snapshot) => {
-        const cashInstallments = snapshot.docs.map((doc) => doc.data() as CashInstallment);
-        void db.putAll(STORES.CASH_INSTALLMENTS, cashInstallments);
+        const transactions = snapshot.docs.map((doc) => doc.data() as Transaction);
+        void db.putAll(STORES.TRANSACTIONS, transactions);
       },
       (error) => {
-        console.error('Error listening to cash installments:', error);
+        console.error('Error listening to transactions:', error);
       },
     );
-    this.unsubscribes.push(cashInstallmentsUnsubscribe);
+    this.unsubscribes.push(transactionsUnsubscribe);
+
+    // Cash installments removed in Phase 2 - migrated to recurring transactions
+    // They are now synced as part of transactions collection
 
     // Listen to bank balances
     const bankBalancesUnsubscribe = onSnapshot(

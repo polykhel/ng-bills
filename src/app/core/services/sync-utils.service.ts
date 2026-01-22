@@ -1,6 +1,6 @@
 import { Injectable } from '@angular/core';
 import { IndexedDBService, STORES } from './indexeddb.service';
-import type { CashInstallment, CreditCard, Installment, Profile, Statement } from '@shared/types';
+import type { CreditCard, Installment, Profile, Statement, Transaction } from '@shared/types';
 
 @Injectable({
   providedIn: 'root',
@@ -41,14 +41,15 @@ export class SyncUtilsService {
     const cards = await db.getAll<CreditCard>(STORES.CARDS);
     const statements = await db.getAll<Statement>(STORES.STATEMENTS);
     const installments = await db.getAll<Installment>(STORES.INSTALLMENTS);
-    const cashInstallments = await db.getAll<CashInstallment>(STORES.CASH_INSTALLMENTS);
+    const transactions = await db.getAll<Transaction>(STORES.TRANSACTIONS);
+    // CASH_INSTALLMENTS removed in Phase 2 - migrated to recurring transactions
 
     return (
       profiles.length > 0 ||
       cards.length > 0 ||
       statements.length > 0 ||
       installments.length > 0 ||
-      cashInstallments.length > 0
+      transactions.length > 0
     );
   }
 
@@ -63,7 +64,8 @@ export class SyncUtilsService {
       cards: await db.getAll<CreditCard>(STORES.CARDS),
       statements: await db.getAll<Statement>(STORES.STATEMENTS),
       installments: await db.getAll<Installment>(STORES.INSTALLMENTS),
-      cashInstallments: await db.getAll<CashInstallment>(STORES.CASH_INSTALLMENTS),
+      transactions: await db.getAll<Transaction>(STORES.TRANSACTIONS),
+      // cashInstallments removed in Phase 2 - migrated to recurring transactions
     };
 
     return new Blob([JSON.stringify(data)]).size;

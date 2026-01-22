@@ -202,6 +202,83 @@ export class TransactionService {
   }
 
   /**
+   * Mark an installment transaction as paid
+   * Used for cash installments and other recurring transactions
+   */
+  async markTransactionPaid(id: string, paidDate?: string, paidAmount?: number): Promise<void> {
+    const transaction = this.getTransaction(id);
+    if (!transaction) {
+      throw new Error(`Transaction not found: ${id}`);
+    }
+
+    const paid = paidDate || new Date().toISOString();
+    const amount = paidAmount ?? transaction.amount;
+
+    await this.updateTransaction(id, {
+      isPaid: true,
+      paidDate: paid,
+      paidAmount: amount,
+      updatedAt: new Date().toISOString(),
+    });
+
+    // Update currentTerm if this is an installment
+    if (transaction.isRecurring && transaction.recurringRule?.type === 'installment') {
+      const currentTerm = (transaction.recurringRule.currentTerm || 0) + 1;
+      const totalTerms = transaction.recurringRule.totalTerms || 0;
+
+      // Update this transaction's term
+      await this.updateTransaction(id, {
+        recurringRule: {
+          ...transaction.recurringRule,
+          currentTerm: currentTerm,
+          lastDate: paid,
+        },
+      });
+
+      // If not the last payment, update nextDate for the next payment
+      if (currentTerm < totalTerms) {
+        const nextDate = addMonths(parseISO(paid), 1);
+        await this.updateTransaction(id, {
+          recurringRule: {
+            ...transaction.recurringRule,
+            currentTerm: currentTerm,
+            nextDate: format(nextDate, 'yyyy-MM-dd'),
+            lastDate: paid,
+          },
+        });
+      }
+    }
+  }
+
+  /**
+   * Mark an installment transaction as unpaid
+   */
+  async markTransactionUnpaid(id: string): Promise<void> {
+    const transaction = this.getTransaction(id);
+    if (!transaction) {
+      throw new Error(`Transaction not found: ${id}`);
+    }
+
+    await this.updateTransaction(id, {
+      isPaid: false,
+      paidDate: undefined,
+      paidAmount: undefined,
+      updatedAt: new Date().toISOString(),
+    });
+
+    // Decrement currentTerm if this is an installment
+    if (transaction.isRecurring && transaction.recurringRule?.type === 'installment') {
+      const currentTerm = Math.max((transaction.recurringRule.currentTerm || 1) - 1, 0);
+      await this.updateTransaction(id, {
+        recurringRule: {
+          ...transaction.recurringRule,
+          currentTerm: currentTerm,
+        },
+      });
+    }
+  }
+
+  /**
    * Bulk delete helper using a predicate
    */
   async deleteTransactionsWhere(predicate: (t: Transaction) => boolean): Promise<void> {
@@ -216,6 +293,65 @@ export class TransactionService {
    */
   deleteTransactionsForProfile(profileId: string): void {
     this.transactionsSignal.update((prev) => prev.filter((t) => t.profileId !== profileId));
+  }
+
+  /**
+   * Get all recurring installment transactions
+   */
+  getInstallmentTransactions(): Transaction[] {
+    return this.transactionsSignal().filter(
+      (t) => t.isRecurring && t.recurringRule?.type === 'installment',
+    );
+  }
+
+  /**
+   * Get transactions for a specific installment group
+   */
+  getTransactionsForInstallmentGroup(installmentGroupId: string): Transaction[] {
+    return this.transactionsSignal().filter(
+      (t) => t.recurringRule?.installmentGroupId === installmentGroupId,
+    );
+  }
+
+  /**
+   * Get installment progress for a group
+   * Returns current term, total terms, and completion status
+   */
+  getInstallmentProgress(installmentGroupId: string): {
+    currentTerm: number;
+    totalTerms: number;
+    completed: number;
+    remaining: number;
+    isComplete: boolean;
+  } {
+    const transactions = this.getTransactionsForInstallmentGroup(installmentGroupId);
+    if (transactions.length === 0) {
+      return { currentTerm: 0, totalTerms: 0, completed: 0, remaining: 0, isComplete: false };
+    }
+
+    const firstTransaction = transactions[0];
+    const totalTerms = firstTransaction.recurringRule?.totalTerms || 0;
+    const completed = transactions.length;
+    const currentTerm = Math.max(...transactions.map((t) => t.recurringRule?.currentTerm || 0));
+
+    return {
+      currentTerm,
+      totalTerms,
+      completed,
+      remaining: Math.max(0, totalTerms - completed),
+      isComplete: completed >= totalTerms,
+    };
+  }
+
+  /**
+   * Get active installments (not yet complete)
+   */
+  getActiveInstallments(): Transaction[] {
+    const installments = this.getInstallmentTransactions();
+    return installments.filter((t) => {
+      const progress = this.getInstallmentProgress(t.recurringRule?.installmentGroupId || '');
+      return !progress.isComplete;
+    });
   }
 
   /**

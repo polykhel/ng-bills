@@ -173,6 +173,11 @@
               <option [value]="card.id">{{ card.bankName }} {{ card.cardName }}</option>
             }
           </select>
+          <select [(ngModel)]="filterRecurring" class="px-3 py-1.5 text-sm border border-slate-300 rounded-md">
+            <option [value]="'all'">All Transactions</option>
+            <option [value]="true">Recurring Only</option>
+            <option [value]="false">One-time Only</option>
+          </select>
         </div>
         <button
           type="button"
@@ -204,6 +209,38 @@
               <div class="transaction-info">
                 <div class="transaction-description">
                   {{ transaction.description }}
+                  @if (isInstallment(transaction)) {
+                    <div class="inline-flex items-center gap-2 ml-2">
+                      <span 
+                        [ngClass]="{
+                          'bg-blue-100 text-blue-800': getInstallmentStatusColor(transaction) === 'blue',
+                          'bg-emerald-100 text-emerald-800': getInstallmentStatusColor(transaction) === 'emerald',
+                          'bg-yellow-100 text-yellow-800': getInstallmentStatusColor(transaction) === 'yellow',
+                          'bg-green-100 text-green-800': getInstallmentStatusColor(transaction) === 'green'
+                        }"
+                        class="inline-block px-2 py-0.5 text-xs rounded font-semibold">
+                        📅 {{ getInstallmentProgress(transaction) }}
+                        @if (transaction.isPaid) {
+                          ✓ Paid
+                        } @else if (isInstallmentCompleted(transaction)) {
+                          ✓ Complete
+                        }
+                      </span>
+                      <!-- Progress bar -->
+                      <div class="w-16 h-1.5 bg-slate-200 rounded-full overflow-hidden">
+                        <div 
+                          [ngClass]="{
+                            'bg-blue-500': getInstallmentStatusColor(transaction) === 'blue',
+                            'bg-emerald-500': getInstallmentStatusColor(transaction) === 'emerald',
+                            'bg-yellow-500': getInstallmentStatusColor(transaction) === 'yellow',
+                            'bg-green-500': getInstallmentStatusColor(transaction) === 'green'
+                          }"
+                          class="h-full transition-all duration-300"
+                          [style.width.%]="getInstallmentProgressPercentage(transaction)">
+                        </div>
+                      </div>
+                    </div>
+                  }
                   @if (getTransactionContext(transaction)) {
                     <span class="inline-block ml-2 px-2 py-0.5 bg-amber-100 text-amber-800 text-xs rounded font-semibold">
                       {{ getTransactionContext(transaction) }}

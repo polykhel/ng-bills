@@ -1,7 +1,7 @@
 import { Injectable } from '@angular/core';
 import { EncryptionService } from './encryption.service';
 import { IndexedDBService } from './indexeddb.service';
-import type { BankBalance, CashInstallment, CreditCard, Installment, Profile, Statement } from '@shared/types';
+import type { BankBalance, CreditCard, Installment, Profile, Statement, Transaction } from '@shared/types';
 
 export interface SyncData {
   version: string;
@@ -10,7 +10,8 @@ export interface SyncData {
   cards: CreditCard[];
   statements: Statement[];
   installments: Installment[];
-  cashInstallments: CashInstallment[];
+  transactions?: Transaction[]; // Added in Phase 2 - includes migrated recurring/installment transactions
+  // cashInstallments removed in Phase 2 - migrated to recurring transactions
   bankBalances: BankBalance[];
   bankBalanceTrackingEnabled: boolean;
   activeProfileId: string | null;

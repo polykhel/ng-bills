@@ -44,16 +44,7 @@ export interface Installment {
   startDate: string;
 }
 
-export interface CashInstallment {
-  id: string;
-  cardId: string;
-  installmentId?: string;
-  name: string;
-  amount: number;
-  dueDate: string;
-  term: number | string;
-  isPaid: boolean;
-}
+// CashInstallment removed in Phase 2 - migrated to Transaction with paymentMethod: 'cash' and isRecurring: true
 
 export interface BankBalance {
   id: string;
@@ -111,6 +102,11 @@ export interface Transaction {
   isRecurring?: boolean;
   recurringRule?: RecurringRule;
   isEstimate?: boolean;
+  
+  // Payment tracking (for installments and recurring transactions)
+  isPaid?: boolean;                // True if this installment payment has been made
+  paidDate?: string;               // Date when payment was made
+  paidAmount?: number;             // Amount paid (may be partial)
   
   // Track when another person uses the card but reimburses
   paidByOther?: boolean;           // True if someone else paid this charge

@@ -11,7 +11,7 @@ export const STORES = {
   CARDS: 'cards',
   STATEMENTS: 'statements',
   INSTALLMENTS: 'installments',
-  CASH_INSTALLMENTS: 'cashInstallments',
+  // CASH_INSTALLMENTS removed in Phase 2 - migrated to recurring transactions
   BANK_BALANCES: 'bankBalances',
   TRANSACTIONS: 'transactions',
   CATEGORIES: 'categories',
@@ -68,12 +68,8 @@ export class IndexedDB {
           installmentStore.createIndex('cardId', 'cardId', { unique: false });
         }
 
-        // Create Cash Installments store with indexes
-        if (!db.objectStoreNames.contains(STORES.CASH_INSTALLMENTS)) {
-          const cashInstStore = db.createObjectStore(STORES.CASH_INSTALLMENTS, { keyPath: 'id' });
-          cashInstStore.createIndex('cardId', 'cardId', { unique: false });
-          cashInstStore.createIndex('installmentId', 'installmentId', { unique: false });
-        }
+        // CASH_INSTALLMENTS store removed in Phase 2 - migrated to recurring transactions
+        // If store exists from old version, it will remain but won't be used
 
         // Create Bank Balances store with indexes
         if (!db.objectStoreNames.contains(STORES.BANK_BALANCES)) {
