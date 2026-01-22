@@ -6,52 +6,95 @@
       message="Select a profile to manage your budget"
     />
   } @else {
-    <!-- Header with Add Button -->
+    <!-- Header with Period Selector and Actions -->
     <div class="flex items-center justify-between mb-6">
       <div>
         <h1 class="text-2xl font-bold text-slate-900">Budget</h1>
-        <p class="text-slate-600 mt-1">Track your spending by category for {{ viewDate() | date : 'MMMM yyyy' }}</p>
+        <div class="flex items-center gap-4 mt-2">
+          <p class="text-slate-600">
+            Track your spending by category for {{ viewDate() | date : 'MMMM yyyy' }}
+          </p>
+          <select
+            [(ngModel)]="budgetPeriod"
+            class="px-3 py-1 border border-slate-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="monthly">Monthly</option>
+            <option value="quarterly">Quarterly</option>
+            <option value="yearly">Yearly</option>
+          </select>
+        </div>
       </div>
-      <button
-        type="button"
-        (click)="openBudgetModal()"
-        class="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 font-medium transition-colors"
-      >
-        <lucide-angular [img]="Plus" [size]="20" />
-        <span>Add Category Budget</span>
-      </button>
+      <div class="flex items-center gap-2">
+        @if (activeBudget()) {
+          <button
+            type="button"
+            (click)="openSettingsModal()"
+            class="flex items-center gap-2 px-4 py-2 border border-slate-300 text-slate-700 rounded-md hover:bg-slate-50 font-medium transition-colors"
+          >
+            <lucide-angular [img]="Settings" [size]="18" />
+            <span>Settings</span>
+          </button>
+        }
+        <button
+          type="button"
+          (click)="openBudgetModal()"
+          class="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 font-medium transition-colors"
+        >
+          <lucide-angular [img]="Plus" [size]="20" />
+          <span>Add Category Budget</span>
+        </button>
+      </div>
     </div>
 
     <!-- Summary Metrics -->
-    <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-      <app-metric-card
-        [icon]="Target"
-        label="Total Budget"
-        [value]="formatCurrency(summary().totalBudget)"
-        variant="info"
-      />
+    @if (budgetWithSpending()) {
+      <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+        <app-metric-card
+          [icon]="Target"
+          label="Total Budget"
+          [value]="formatCurrency(summary().totalBudget)"
+          variant="info"
+        />
 
-      <app-metric-card
-        [icon]="TrendingDown"
-        label="Total Spent"
-        [value]="formatCurrency(summary().totalSpent)"
-        variant="warning"
-      />
+        <app-metric-card
+          [icon]="TrendingDown"
+          label="Total Spent"
+          [value]="formatCurrency(summary().totalSpent)"
+          variant="warning"
+        />
 
-      <app-metric-card
-        [icon]="DollarSign"
-        label="Remaining"
-        [value]="formatCurrency(summary().remaining)"
-        [variant]="summary().remaining >= 0 ? 'success' : 'danger'"
-      />
+        <app-metric-card
+          [icon]="DollarSign"
+          label="Remaining"
+          [value]="formatCurrency(summary().remaining)"
+          [variant]="summary().remaining >= 0 ? 'success' : 'danger'"
+        />
 
-      <app-metric-card
-        [icon]="PieChart"
-        label="Used"
-        [value]="summary().percentageUsed.toFixed(1) + '%'"
-        [variant]="summary().percentageUsed > 80 ? 'danger' : summary().percentageUsed > 60 ? 'warning' : 'success'"
-      />
-    </div>
+        <app-metric-card
+          [icon]="PieChart"
+          label="Used"
+          [value]="summary().percentageUsed.toFixed(1) + '%'"
+          [variant]="summary().percentageUsed > 80 ? 'danger' : summary().percentageUsed > 60 ? 'warning' : 'success'"
+        />
+      </div>
+
+      <!-- Alerts -->
+      @if (budgetWithSpending()!.alerts.length > 0) {
+        <div class="mb-6 p-4 bg-orange-50 border border-orange-200 rounded-lg">
+          <div class="flex items-start gap-3">
+            <lucide-angular [img]="AlertCircle" [size]="20" class="text-orange-600 mt-0.5" />
+            <div>
+              <h4 class="font-semibold text-orange-900 mb-2">Budget Alerts</h4>
+              <ul class="text-sm text-orange-800 space-y-1">
+                @for (alert of budgetWithSpending()!.alerts; track $index) {
+                  <li>• {{ alert }}</li>
+                }
+              </ul>
+            </div>
+          </div>
+        </div>
+      }
+    }
 
     <!-- Budget Categories -->
     @if (budgetAllocations().length === 0) {
@@ -67,7 +110,11 @@
     } @else {
       <div class="space-y-3">
         @for (allocation of budgetAllocations(); track allocation.categoryId) {
-          <div class="category-budget-item bg-white">
+          <div
+            class="category-budget-item bg-white"
+            (click)="viewTransactions(allocation.categoryId)"
+            title="Click to view transactions"
+          >
             <div class="flex items-center justify-between mb-2">
               <div class="flex items-center gap-2">
                 <div
@@ -78,7 +125,7 @@
               </div>
               <button
                 type="button"
-                (click)="removeBudgetAllocation(allocation.categoryId)"
+                (click)="removeBudgetAllocation(allocation.categoryId); $event.stopPropagation()"
                 class="text-slate-400 hover:text-red-600 transition-colors"
               >
                 <lucide-angular [img]="Trash2" [size]="18" />
@@ -140,9 +187,9 @@
         <div>
           <h4 class="font-semibold text-blue-900 mb-1">Budget Tracking</h4>
           <p class="text-sm text-blue-800">
-            Budgets are calculated automatically from your expense transactions. Set monthly limits for each category,
-            and we'll track your spending in real-time. When you add transactions with specific categories, they'll be
-            counted against your budget for that month.
+            Budgets are calculated automatically from your expense transactions. Set {{ budgetPeriod() }} limits for each category,
+            and we'll track your spending in real-time. Click on a category to view its transactions. Enable rollover to carry unused
+            budget to the next period.
           </p>
         </div>
       </div>
@@ -180,7 +227,9 @@
         </div>
 
         <div class="mb-4">
-          <label class="block text-sm font-medium text-slate-700 mb-2">Monthly Budget Amount</label>
+          <label class="block text-sm font-medium text-slate-700 mb-2">
+            {{ budgetPeriod().charAt(0).toUpperCase() + budgetPeriod().slice(1) }} Budget Amount
+          </label>
           <input
             type="number"
             [(ngModel)]="budgetForm().amount"
@@ -202,6 +251,71 @@
           <button
             type="button"
             (click)="closeBudgetModal()"
+            class="px-4 py-2 border border-slate-300 text-slate-700 rounded-md hover:bg-slate-50"
+          >
+            Cancel
+          </button>
+        </div>
+      </div>
+    </div>
+  }
+
+  <!-- Settings Modal -->
+  @if (showSettingsModal() && activeBudget()) {
+    <div class="budget-modal" (click)="closeSettingsModal()">
+      <div class="modal-content" (click)="$event.stopPropagation()">
+        <div class="flex items-center justify-between mb-4">
+          <h3 class="text-lg font-semibold text-slate-900">Budget Settings</h3>
+          <button
+            type="button"
+            (click)="closeSettingsModal()"
+            class="text-slate-400 hover:text-slate-600"
+          >
+            <lucide-angular [img]="X" [size]="20" />
+          </button>
+        </div>
+
+        <div class="mb-4">
+          <label class="flex items-center gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              [(ngModel)]="settingsForm().rolloverUnspent"
+              class="w-4 h-4 text-blue-600 border-slate-300 rounded focus:ring-blue-500"
+            />
+            <span class="text-sm font-medium text-slate-700">Rollover unused budget to next period</span>
+          </label>
+          <p class="text-xs text-slate-500 mt-1 ml-6">
+            When enabled, any unused budget amount will be added to the next period's allocation.
+          </p>
+        </div>
+
+        <div class="mb-4">
+          <label class="block text-sm font-medium text-slate-700 mb-2">Alert Threshold (%)</label>
+          <input
+            type="number"
+            [(ngModel)]="settingsForm().alertThreshold"
+            placeholder="80"
+            step="1"
+            min="0"
+            max="100"
+            class="w-full px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+          <p class="text-xs text-slate-500 mt-1">
+            You'll receive alerts when spending reaches this percentage of your budget.
+          </p>
+        </div>
+
+        <div class="flex gap-2">
+          <button
+            type="button"
+            (click)="saveSettings()"
+            class="flex-1 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 font-medium"
+          >
+            Save Settings
+          </button>
+          <button
+            type="button"
+            (click)="closeSettingsModal()"
             class="px-4 py-2 border border-slate-300 text-slate-700 rounded-md hover:bg-slate-50"
           >
             Cancel

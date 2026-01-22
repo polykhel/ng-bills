@@ -15,3 +15,5 @@ export * from './app-state.service';
 export * from './notification.service';
 export * from './transaction.service';
 export * from './category.service';
+export * from './budget.service';
+export * from './savings-goal.service';

@@ -62,4 +62,11 @@ export const routes: Routes = [
     loadComponent: () =>
       import('./features/sync/sync.component').then(m => m.SyncComponent),
   },
+  {
+    path: 'savings-goals',
+    loadComponent: () =>
+      import('./features/savings-goals/savings-goals.component').then(
+        m => m.SavingsGoalsComponent
+      ),
+  },
 ];

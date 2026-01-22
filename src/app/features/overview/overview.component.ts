@@ -8,9 +8,10 @@ import {
   CreditCard, 
   Calendar, 
   PieChart,
-  Plus
+  Plus,
+  Target
 } from 'lucide-angular';
-import { AppStateService, ProfileService, CardService, StatementService, BankBalanceService } from '@services';
+import { AppStateService, ProfileService, CardService, StatementService, BankBalanceService, SavingsGoalService } from '@services';
 import { 
   MetricCardComponent, 
   QuickActionButtonComponent, 
@@ -48,6 +49,7 @@ export class OverviewComponent {
   readonly Calendar = Calendar;
   readonly PieChart = PieChart;
   readonly Plus = Plus;
+  readonly Target = Target;
   readonly Math = Math;
 
   private appState = inject(AppStateService);
@@ -55,6 +57,7 @@ export class OverviewComponent {
   private cardService = inject(CardService);
   private statementService = inject(StatementService);
   private bankBalanceService = inject(BankBalanceService);
+  private savingsGoalService = inject(SavingsGoalService);
 
   protected activeProfile = this.profileService.activeProfile;
   protected viewDate = this.appState.viewDate;
@@ -148,4 +151,14 @@ export class OverviewComponent {
     // Navigate to budget page
     console.log('View budget');
   }
+
+  // Savings goals with progress
+  protected savingsGoals = computed(() => {
+    const profile = this.activeProfile();
+    if (!profile) return [];
+    
+    return this.savingsGoalService.getGoalsWithProgress(profile.id)
+      .filter(g => !g.progress.isCompleted)
+      .slice(0, 3); // Show top 3 active goals
+  });
 }

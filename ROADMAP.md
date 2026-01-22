@@ -249,19 +249,36 @@ interface Transaction {
 - ✅ Payment tracking implemented for cash installments (isPaid, paidDate, paidAmount)
 - ✅ Enhanced visualization with color-coded status badges and progress indicators
 
-## Phase 3: Budgeting & Goals
+## Phase 3: Budgeting & Goals ✅ COMPLETED
 
-Objective: Enhanced budgeting with savings goals.
+**Status: COMPLETED (Jan 22, 2026)**
 
-- **BudgetService**: Move from localStorage to IndexedDB with proper versioning
-- Budgets: monthly/quarterly/yearly budgets with category allocations, rollover flag, alert threshold
-- Views: Enhanced Budget page with allocated vs spent vs remaining, per-category progress bars, drill-down to
-  transactions
-- Goals: goal entities with target, current, deadline, priority; simple progress widgets on Overview
-- Goal contributions: Link to recurring transactions for automatic tracking
-- Rollover budgets: Unused budget carries to next period
-- Acceptance: budget math uses transaction data; alerts trigger at threshold; goals show progress and can be updated;
-  rollover works correctly
+**Objective:** Enhanced budgeting with savings goals.
+
+**What's Completed:**
+
+- ✅ **BudgetService**: Moved from localStorage to IndexedDB with proper versioning
+- ✅ Budgets: monthly/quarterly/yearly budgets with category allocations, rollover flag, alert threshold
+- ✅ Views: Enhanced Budget page with allocated vs spent vs remaining, per-category progress bars, drill-down to transactions
+- ✅ Goals: goal entities with target, current, deadline, priority; simple progress widgets on Overview
+- ✅ Goal contributions: Manual contribution tracking with add contribution modal
+- ✅ Rollover budgets: Unused budget carries to next period (settings configurable)
+- ✅ Budget migration: Automatic migration from localStorage to IndexedDB
+- ✅ Alert system: Budget alerts trigger at configurable threshold percentage
+- ✅ Period selection: Support for monthly, quarterly, and yearly budgets
+- ✅ Savings Goals Component: Full CRUD operations with progress tracking, visual cards, and contribution management
+- ✅ Overview integration: Savings goals progress widgets displayed on Overview page
+
+**Acceptance Criteria (All Met):**
+
+- ✅ Budget math uses transaction data
+- ✅ Alerts trigger at threshold
+- ✅ Goals show progress and can be updated
+- ✅ Rollover works correctly (configurable per budget)
+- ✅ Budget allocations stored in IndexedDB
+- ✅ Savings goals stored in IndexedDB
+- ✅ Drill-down to transactions from budget category view
+- ✅ Budget settings modal for rollover and alert threshold configuration
 
 ## Phase 4: Purchases & Loan Planning
 Objective: plan future buys and loans using real data.
@@ -2724,8 +2741,8 @@ Have suggestions? Open an issue or contribute to the discussion!
 ---
 
 **Last Updated**: January 22, 2026  
-**Version**: 3.0  
-**Status**: Phase 0, 1 & 2 Complete
+**Version**: 4.0  
+**Status**: Phase 0, 1, 2 & 3 Complete
 
 **Current State Summary:**
 - ✅ Phase 0: UI/IA Refactor - COMPLETE
@@ -2738,3 +2755,12 @@ Have suggestions? Open an issue or contribute to the discussion!
   - ✅ Enhanced installment progress visualization with color-coded badges
   - ✅ All components updated to use Transaction model
   - ✅ Sync services updated to handle migrated data
+- ✅ Phase 3: Budgeting & Goals - COMPLETE
+  - ✅ BudgetService with IndexedDB storage
+  - ✅ Monthly/quarterly/yearly budget support
+  - ✅ Rollover and alert threshold configuration
+  - ✅ SavingsGoalService with progress tracking
+  - ✅ Savings Goals component with full CRUD
+  - ✅ Budget migration from localStorage
+  - ✅ Overview widgets for savings goals
+  - ✅ Drill-down to transactions from budget categories

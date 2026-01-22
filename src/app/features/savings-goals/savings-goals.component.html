@@ -1,0 +1,360 @@
+<div class="max-w-7xl mx-auto px-4 py-6">
+  @if (!activeProfile()) {
+    <app-empty-state
+      [icon]="Target"
+      title="No Profile Selected"
+      message="Select a profile to manage your savings goals"
+    />
+  } @else {
+    <!-- Header -->
+    <div class="flex items-center justify-between mb-6">
+      <div>
+        <h1 class="text-2xl font-bold text-slate-900">Savings Goals</h1>
+        <p class="text-slate-600 mt-1">Track your progress toward financial goals</p>
+      </div>
+      <button
+        type="button"
+        (click)="openGoalModal()"
+        class="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 font-medium transition-colors"
+      >
+        <lucide-angular [img]="Plus" [size]="20" />
+        <span>New Goal</span>
+      </button>
+    </div>
+
+    <!-- Summary Metrics -->
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+      <app-metric-card
+        [icon]="Target"
+        label="Total Goals"
+        [value]="summary().totalGoals.toString()"
+        variant="info"
+      />
+
+      <app-metric-card
+        [icon]="DollarSign"
+        label="Total Target"
+        [value]="formatCurrency(summary().totalTarget)"
+        variant="info"
+      />
+
+      <app-metric-card
+        [icon]="TrendingUp"
+        label="Total Saved"
+        [value]="formatCurrency(summary().totalCurrent)"
+        variant="success"
+      />
+
+      <app-metric-card
+        [icon]="Target"
+        label="Overall Progress"
+        [value]="summary().overallProgress.toFixed(1) + '%'"
+        [variant]="summary().overallProgress >= 75 ? 'success' : summary().overallProgress >= 50 ? 'warning' : 'danger'"
+      />
+    </div>
+
+    <!-- Goals Grid -->
+    @if (goalsWithProgress().length === 0) {
+      <div class="bg-white rounded-lg border border-slate-200 shadow-sm p-6">
+        <app-empty-state
+          [icon]="Target"
+          title="No savings goals yet"
+          message="Create your first savings goal to start tracking your progress. Set a target amount, deadline, and monthly contribution to stay on track."
+          actionLabel="Create Your First Goal"
+          (action)="openGoalModal()"
+        />
+      </div>
+    } @else {
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        @for (goal of goalsWithProgress(); track goal.id) {
+          <div class="goal-card bg-white rounded-lg border border-slate-200 shadow-sm p-6">
+            <!-- Goal Header -->
+            <div class="flex items-start justify-between mb-4">
+              <div class="flex items-center gap-3">
+                <div
+                  class="w-12 h-12 rounded-full flex items-center justify-center text-white"
+                  [style.background-color]="goal.color"
+                >
+                  <lucide-angular [img]="Target" [size]="24" />
+                </div>
+                <div>
+                  <h3 class="font-semibold text-slate-900">{{ goal.name }}</h3>
+                  @if (goal.description) {
+                    <p class="text-sm text-slate-600 mt-1">{{ goal.description }}</p>
+                  }
+                </div>
+              </div>
+              <div class="flex items-center gap-1">
+                <button
+                  type="button"
+                  (click)="openGoalModal(goal)"
+                  class="text-slate-400 hover:text-blue-600 transition-colors"
+                >
+                  <lucide-angular [img]="Edit2" [size]="18" />
+                </button>
+                <button
+                  type="button"
+                  (click)="deleteGoal(goal.id)"
+                  class="text-slate-400 hover:text-red-600 transition-colors"
+                >
+                  <lucide-angular [img]="Trash2" [size]="18" />
+                </button>
+              </div>
+            </div>
+
+            <!-- Progress -->
+            <div class="mb-4">
+              <div class="flex items-center justify-between mb-2">
+                <span class="text-sm font-semibold text-slate-900">
+                  {{ formatCurrency(goal.currentAmount) }} / {{ formatCurrency(goal.targetAmount) }}
+                </span>
+                <span class="text-sm font-semibold" [style.color]="getProgressColor(goal.progress.percentage)">
+                  {{ goal.progress.percentage.toFixed(1) }}%
+                </span>
+              </div>
+              <div class="goal-progress">
+                <div
+                  class="goal-progress-bar"
+                  [style.width.%]="goal.progress.percentage"
+                  [style.background-color]="goal.color"
+                ></div>
+              </div>
+            </div>
+
+            <!-- Status Info -->
+            <div class="space-y-2 mb-4 text-sm">
+              <div class="flex items-center justify-between">
+                <span class="text-slate-600">Remaining</span>
+                <span class="font-semibold text-slate-900">{{ formatCurrency(goal.progress.remaining) }}</span>
+              </div>
+              @if (goal.deadline) {
+                <div class="flex items-center justify-between">
+                  <span class="text-slate-600">Days Remaining</span>
+                  <span class="font-semibold" [class.text-red-600]="goal.progress.isOverdue" [class.text-slate-900]="!goal.progress.isOverdue">
+                    {{ goal.progress.daysRemaining !== null ? goal.progress.daysRemaining : 'N/A' }}
+                  </span>
+                </div>
+              }
+              @if (goal.monthlyContribution) {
+                <div class="flex items-center justify-between">
+                  <span class="text-slate-600">Monthly Contribution</span>
+                  <span class="font-semibold text-slate-900">{{ formatCurrency(goal.monthlyContribution) }}</span>
+                </div>
+              }
+            </div>
+
+            <!-- Status Badge -->
+            <div class="mb-4">
+              @if (goal.progress.isCompleted) {
+                <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                  Completed
+                </span>
+              } @else if (goal.progress.isOverdue) {
+                <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                  Overdue
+                </span>
+              } @else if (goal.progress.isOnTrack) {
+                <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                  On Track
+                </span>
+              } @else {
+                <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-orange-100 text-orange-800">
+                  Behind
+                </span>
+              }
+            </div>
+
+            <!-- Actions -->
+            <div class="flex gap-2">
+              <button
+                type="button"
+                (click)="openContributionModal(goal.id)"
+                class="flex-1 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 font-medium text-sm transition-colors"
+              >
+                Add Contribution
+              </button>
+            </div>
+          </div>
+        }
+      </div>
+    }
+  }
+
+  <!-- Goal Modal -->
+  @if (showGoalModal()) {
+    <div class="goal-modal" (click)="closeGoalModal()">
+      <div class="modal-content" (click)="$event.stopPropagation()">
+        <div class="flex items-center justify-between mb-4">
+          <h3 class="text-lg font-semibold text-slate-900">
+            {{ editingGoal() ? 'Edit Goal' : 'New Savings Goal' }}
+          </h3>
+          <button
+            type="button"
+            (click)="closeGoalModal()"
+            class="text-slate-400 hover:text-slate-600"
+          >
+            <lucide-angular [img]="X" [size]="20" />
+          </button>
+        </div>
+
+        <div class="space-y-4">
+          <div>
+            <label class="block text-sm font-medium text-slate-700 mb-2">Goal Name</label>
+            <input
+              type="text"
+              [(ngModel)]="goalForm().name"
+              placeholder="e.g., Emergency Fund, Vacation, Down Payment"
+              class="w-full px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+
+          <div>
+            <label class="block text-sm font-medium text-slate-700 mb-2">Description (Optional)</label>
+            <textarea
+              [(ngModel)]="goalForm().description"
+              placeholder="Add notes about this goal..."
+              rows="3"
+              class="w-full px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            ></textarea>
+          </div>
+
+          <div>
+            <label class="block text-sm font-medium text-slate-700 mb-2">Target Amount</label>
+            <input
+              type="number"
+              [(ngModel)]="goalForm().targetAmount"
+              placeholder="0.00"
+              step="0.01"
+              min="0"
+              class="w-full px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+
+          <div>
+            <label class="block text-sm font-medium text-slate-700 mb-2">Deadline (Optional)</label>
+            <input
+              type="date"
+              [(ngModel)]="goalForm().deadline"
+              class="w-full px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+
+          <div>
+            <label class="block text-sm font-medium text-slate-700 mb-2">Monthly Contribution (Optional)</label>
+            <input
+              type="number"
+              [(ngModel)]="goalForm().monthlyContribution"
+              placeholder="0.00"
+              step="0.01"
+              min="0"
+              class="w-full px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+
+          <div>
+            <label class="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                [(ngModel)]="goalForm().autoContribute"
+                class="w-4 h-4 text-blue-600 border-slate-300 rounded focus:ring-blue-500"
+              />
+              <span class="text-sm font-medium text-slate-700">Auto-contribute from recurring transactions</span>
+            </label>
+          </div>
+
+          <div>
+            <label class="block text-sm font-medium text-slate-700 mb-2">Priority</label>
+            <select
+              [(ngModel)]="goalForm().priority"
+              class="w-full px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="high">High</option>
+              <option value="medium">Medium</option>
+              <option value="low">Low</option>
+            </select>
+          </div>
+
+          <div>
+            <label class="block text-sm font-medium text-slate-700 mb-2">Color</label>
+            <div class="flex gap-2">
+              @for (color of colorOptions; track color.value) {
+                <button
+                  type="button"
+                  (click)="goalForm().color = color.value"
+                  class="w-10 h-10 rounded-full border-2 transition-all"
+                  [style.background-color]="color.value"
+                  [class.border-blue-600]="goalForm().color === color.value"
+                  [class.border-slate-300]="goalForm().color !== color.value"
+                ></button>
+              }
+            </div>
+          </div>
+        </div>
+
+        <div class="flex gap-2 mt-6">
+          <button
+            type="button"
+            (click)="saveGoal()"
+            class="flex-1 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 font-medium"
+          >
+            {{ editingGoal() ? 'Update Goal' : 'Create Goal' }}
+          </button>
+          <button
+            type="button"
+            (click)="closeGoalModal()"
+            class="px-4 py-2 border border-slate-300 text-slate-700 rounded-md hover:bg-slate-50"
+          >
+            Cancel
+          </button>
+        </div>
+      </div>
+    </div>
+  }
+
+  <!-- Contribution Modal -->
+  @if (showContributionModal()) {
+    <div class="goal-modal" (click)="closeContributionModal()">
+      <div class="modal-content" (click)="$event.stopPropagation()">
+        <div class="flex items-center justify-between mb-4">
+          <h3 class="text-lg font-semibold text-slate-900">Add Contribution</h3>
+          <button
+            type="button"
+            (click)="closeContributionModal()"
+            class="text-slate-400 hover:text-slate-600"
+          >
+            <lucide-angular [img]="X" [size]="20" />
+          </button>
+        </div>
+
+        <div class="mb-4">
+          <label class="block text-sm font-medium text-slate-700 mb-2">Amount</label>
+          <input
+            type="number"
+            [(ngModel)]="contributionAmount"
+            placeholder="0.00"
+            step="0.01"
+            min="0"
+            class="w-full px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+        </div>
+
+        <div class="flex gap-2">
+          <button
+            type="button"
+            (click)="addContribution()"
+            class="flex-1 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 font-medium"
+          >
+            Add Contribution
+          </button>
+          <button
+            type="button"
+            (click)="closeContributionModal()"
+            class="px-4 py-2 border border-slate-300 text-slate-700 rounded-md hover:bg-slate-50"
+          >
+            Cancel
+          </button>
+        </div>
+      </div>
+    </div>
+  }
+</div>

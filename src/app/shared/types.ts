@@ -182,3 +182,54 @@ export interface SortConfig {
   key: string;
   direction: SortDirection;
 }
+
+export interface CategoryAllocation {
+  categoryId: string;
+  allocatedAmount: number;
+  spent: number;  // Auto-calculated from transactions
+  remaining: number;  // Auto-calculated
+}
+
+export interface Budget {
+  id: string;
+  profileId: string;
+  name: string;
+  period: 'monthly' | 'quarterly' | 'yearly';
+  startDate: string;
+  endDate?: string;  // null for ongoing budgets
+  
+  // Category allocations
+  allocations: CategoryAllocation[];
+  
+  // Settings
+  rolloverUnspent: boolean;
+  alertThreshold: number;  // Percentage (e.g., 80%)
+  
+  // Metadata
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface SavingsGoal {
+  id: string;
+  profileId: string;
+  name: string;
+  description?: string;
+  targetAmount: number;
+  currentAmount: number;
+  deadline?: string;
+  
+  // Contribution
+  monthlyContribution?: number;
+  autoContribute: boolean;
+  goalTransactionId?: string;  // Link to recurring transaction for auto-contributions
+  
+  // Visualization
+  icon: string;
+  color: string;
+  priority: 'high' | 'medium' | 'low';
+  
+  // Metadata
+  createdAt?: string;
+  updatedAt?: string;
+}

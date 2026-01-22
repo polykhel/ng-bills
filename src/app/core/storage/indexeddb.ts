@@ -4,7 +4,7 @@
  */
 
 const DB_NAME = 'ng-bills';
-const DB_VERSION = 3;
+const DB_VERSION = 4;
 
 export const STORES = {
   PROFILES: 'profiles',
@@ -17,6 +17,8 @@ export const STORES = {
   TRANSACTIONS: 'transactions',
   CATEGORIES: 'categories',
   SETTINGS: 'settings',
+  BUDGETS: 'budgets',
+  SAVINGS_GOALS: 'savingsGoals',
 } as const;
 
 export class IndexedDB {
@@ -104,6 +106,21 @@ export class IndexedDB {
         // Create Settings store
         if (!db.objectStoreNames.contains(STORES.SETTINGS)) {
           db.createObjectStore(STORES.SETTINGS, { keyPath: 'key' });
+        }
+
+        // Create Budgets store with indexes
+        if (!db.objectStoreNames.contains(STORES.BUDGETS)) {
+          const budgetStore = db.createObjectStore(STORES.BUDGETS, { keyPath: 'id' });
+          budgetStore.createIndex('profileId', 'profileId', { unique: false });
+          budgetStore.createIndex('period', 'period', { unique: false });
+          budgetStore.createIndex('startDate', 'startDate', { unique: false });
+        }
+
+        // Create Savings Goals store with indexes
+        if (!db.objectStoreNames.contains(STORES.SAVINGS_GOALS)) {
+          const goalStore = db.createObjectStore(STORES.SAVINGS_GOALS, { keyPath: 'id' });
+          goalStore.createIndex('profileId', 'profileId', { unique: false });
+          goalStore.createIndex('priority', 'priority', { unique: false });
         }
       };
     });

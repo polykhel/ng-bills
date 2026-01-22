@@ -1,6 +1,7 @@
-import { Component, computed, inject, signal } from '@angular/core';
+import { Component, computed, effect, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { Router } from '@angular/router';
 import {
   AlertCircle,
   DollarSign,
@@ -13,9 +14,12 @@ import {
   TrendingDown,
   TrendingUp,
   X,
+  Calendar,
+  Settings,
 } from 'lucide-angular';
 import {
   AppStateService,
+  BudgetService,
   CategoryService,
   ProfileService,
   TransactionService,
@@ -23,8 +27,9 @@ import {
 } from '@services';
 import { EmptyStateComponent, MetricCardComponent } from '@components';
 import { format } from 'date-fns';
+import type { Budget, CategoryAllocation } from '@shared/types';
 
-interface BudgetAllocation {
+interface BudgetAllocationDisplay {
   categoryId: string;
   categoryName: string;
   allocated: number;
@@ -36,7 +41,7 @@ interface BudgetAllocation {
 
 /**
  * Budget Page Component
- * Manage monthly budgets and track spending by category
+ * Manage budgets with category allocations, rollover, and alert thresholds
  */
 @Component({
   selector: 'app-budget',
@@ -84,7 +89,7 @@ interface BudgetAllocation {
         background: white;
         border-radius: 8px;
         padding: 24px;
-        max-width: 500px;
+        max-width: 600px;
         width: 90%;
         max-height: 80vh;
         overflow-y: auto;
@@ -95,6 +100,12 @@ interface BudgetAllocation {
         border: 1px solid rgb(226, 232, 240);
         border-radius: 6px;
         margin-bottom: 8px;
+        cursor: pointer;
+        transition: background-color 0.2s;
+      }
+
+      .category-budget-item:hover {
+        background-color: rgb(248, 250, 252);
       }
     `,
   ],
@@ -110,108 +121,118 @@ export class BudgetComponent {
   readonly Trash2 = Trash2;
   readonly X = X;
   readonly AlertCircle = AlertCircle;
+  readonly Calendar = Calendar;
+  readonly Settings = Settings;
 
   private appState = inject(AppStateService);
   private profileService = inject(ProfileService);
+  private budgetService = inject(BudgetService);
+  private categoryService = inject(CategoryService);
+  private transactionService = inject(TransactionService);
+  private utils = inject(UtilsService);
+  private router = inject(Router);
+
+  protected activeProfile = this.profileService.activeProfile;
+  protected viewDate = this.appState.viewDate;
+  protected categories = this.categoryService.categories;
+
+  // Budget period selection
+  protected budgetPeriod = signal<'monthly' | 'quarterly' | 'yearly'>('monthly');
+
+  // Current active budget
+  protected activeBudget = computed(() => {
+    const profile = this.activeProfile();
+    const date = this.viewDate();
+    const period = this.budgetPeriod();
+    
+    if (!profile) return null;
+    
+    return this.budgetService.getActiveBudget(profile.id, date, period);
+  });
+
+  // Budget with calculated spending
+  protected budgetWithSpending = computed(() => {
+    const budget = this.activeBudget();
+    const date = this.viewDate();
+    
+    if (!budget) return null;
+    
+    return this.budgetService.getBudgetWithSpending(budget, date);
+  });
+
+  // Budget allocations for display
+  protected budgetAllocations = computed((): BudgetAllocationDisplay[] => {
+    const budgetData = this.budgetWithSpending();
+    if (!budgetData) return [];
+
+    const cats = this.categories();
+    
+    return budgetData.allocations.map((alloc) => {
+      const category = cats.find((c) => c.id === alloc.categoryId);
+      // Calculate percentage if not provided
+      const percentage: number = 'percentage' in alloc 
+        ? (alloc.percentage as number)
+        : alloc.allocatedAmount > 0 
+          ? (alloc.spent / alloc.allocatedAmount) * 100 
+          : 0;
+      
+      return {
+        categoryId: alloc.categoryId,
+        categoryName: category?.name || 'Unknown',
+        allocated: alloc.allocatedAmount,
+        spent: alloc.spent,
+        remaining: alloc.remaining,
+        percentage: Math.min(percentage, 100),
+        color: category?.color || '#6b7280',
+      };
+    }).sort((a, b) => a.categoryName.localeCompare(b.categoryName));
+  });
+
+  // Summary metrics
+  protected summary = computed(() => {
+    const budgetData = this.budgetWithSpending();
+    if (!budgetData) {
+      return {
+        totalBudget: 0,
+        totalSpent: 0,
+        remaining: 0,
+        percentageUsed: 0,
+      };
+    }
+
+    return {
+      totalBudget: budgetData.totalAllocated,
+      totalSpent: budgetData.totalSpent,
+      remaining: budgetData.totalRemaining,
+      percentageUsed: budgetData.percentageUsed,
+    };
+  });
+
   // Modal state
   protected showBudgetModal = signal(false);
+  protected showSettingsModal = signal(false);
   protected budgetForm = signal<{ categoryId: string; amount: string }>({
     categoryId: '',
     amount: '',
   });
-  // Summary metrics
-  protected summary = computed(() => {
-    const allocations = this.budgetAllocations();
 
-    const totalBudget = allocations.reduce((sum, a) => sum + a.allocated, 0);
-    const totalSpent = allocations.reduce((sum, a) => sum + a.spent, 0);
-    const remaining = totalBudget - totalSpent;
-    const percentageUsed = totalBudget > 0 ? Math.round((totalSpent / totalBudget) * 100) : 0;
-
-    return {
-      totalBudget,
-      totalSpent,
-      remaining,
-      percentageUsed,
-    };
-  });
-
-  protected activeProfile = this.profileService.activeProfile;
-  protected viewDate = this.appState.viewDate;
-  private transactionService = inject(TransactionService);
-
-  // Budget allocations stored in localStorage for now
-  // Calculate spending by category for current month
-  // EXCLUDES transactions where paidByOther=true (someone else paid)
-  protected categorySpending = computed(() => {
-    const profile = this.activeProfile();
-    if (!profile) return new Map<string, number>();
-
-    const monthStr = format(this.viewDate(), 'yyyy-MM');
-    const transactions = this.transactionService.getTransactions({
-      profileIds: [profile.id],
-      type: 'expense',
-    });
-
-    const spending = new Map<string, number>();
-
-    transactions.forEach((t) => {
-      // Skip transactions where someone else paid (paidByOther=true)
-      if (t.paidByOther) {
-        return;
-      }
-
-      // Also skip transactions where this profile paid for someone else's transaction
-      // (they appear in this profile's list but the spending belongs to the original profile owner)
-      if (t.paidByOtherProfileId === profile.id && t.profileId !== profile.id) {
-        return;
-      }
-
-      if (t.date.startsWith(monthStr)) {
-        const current = spending.get(t.categoryId) || 0;
-        spending.set(t.categoryId, current + t.amount);
-      }
-    });
-
-    return spending;
-  });
-  private categoryService = inject(CategoryService);
-  protected categories = this.categoryService.categories;
-  private utils = inject(UtilsService);
-  // In Phase 2, move to IndexedDB with BudgetService
-  private budgetAllocationsSignal = signal<Map<string, number>>(new Map());
-  // Budget allocations with spending
-  protected budgetAllocations = computed((): BudgetAllocation[] => {
-    const allocations = this.budgetAllocationsSignal();
-    const spending = this.categorySpending();
-    const cats = this.categories();
-
-    const result: BudgetAllocation[] = [];
-
-    allocations.forEach((allocated, categoryId) => {
-      const category = cats.find((c) => c.id === categoryId);
-      if (!category) return;
-
-      const spent = spending.get(categoryId) || 0;
-      const remaining = allocated - spent;
-      const percentage = allocated > 0 ? (spent / allocated) * 100 : 0;
-
-      result.push({
-        categoryId,
-        categoryName: category.name,
-        allocated,
-        spent,
-        remaining,
-        percentage: Math.min(percentage, 100),
-        color: category.color || '#6b7280',
-      });
-    });
-
-    return result.sort((a, b) => a.categoryName.localeCompare(b.categoryName));
+  // Settings form
+  protected settingsForm = signal<{
+    rolloverUnspent: boolean;
+    alertThreshold: number;
+  }>({
+    rolloverUnspent: false,
+    alertThreshold: 80,
   });
 
   constructor() {
-    this.loadBudgetAllocations();
+    // Migrate localStorage budgets on first load
+    effect(() => {
+      const profile = this.activeProfile();
+      if (profile && this.budgetService.isLoaded()) {
+        this.migrateLocalStorageBudgets(profile.id);
+      }
+    });
   }
 
   protected openBudgetModal(): void {
@@ -223,7 +244,22 @@ export class BudgetComponent {
     this.showBudgetModal.set(false);
   }
 
-  protected addBudgetAllocation(): void {
+  protected openSettingsModal(): void {
+    const budget = this.activeBudget();
+    if (budget) {
+      this.settingsForm.set({
+        rolloverUnspent: budget.rolloverUnspent,
+        alertThreshold: budget.alertThreshold,
+      });
+    }
+    this.showSettingsModal.set(true);
+  }
+
+  protected closeSettingsModal(): void {
+    this.showSettingsModal.set(false);
+  }
+
+  protected async addBudgetAllocation(): Promise<void> {
     const form = this.budgetForm();
     if (!form.categoryId || !form.amount) {
       alert('Please select a category and enter an amount');
@@ -236,20 +272,86 @@ export class BudgetComponent {
       return;
     }
 
-    const allocations = new Map(this.budgetAllocationsSignal());
-    allocations.set(form.categoryId, amount);
-    this.budgetAllocationsSignal.set(allocations);
-    this.saveBudgetAllocations();
+    const profile = this.activeProfile();
+    const date = this.viewDate();
+    const period = this.budgetPeriod();
+    
+    if (!profile) return;
+
+    let budget = this.activeBudget();
+
+    if (!budget) {
+      // Create new budget
+      const allocations: CategoryAllocation[] = [{
+        categoryId: form.categoryId,
+        allocatedAmount: amount,
+        spent: 0,
+        remaining: amount,
+      }];
+
+      budget = await this.budgetService.createBudget({
+        profileId: profile.id,
+        name: `${period.charAt(0).toUpperCase() + period.slice(1)} Budget`,
+        period,
+        startDate: format(date, 'yyyy-MM-dd'),
+        allocations,
+        rolloverUnspent: false,
+        alertThreshold: 80,
+      });
+    } else {
+      // Update existing budget
+      const existingAlloc = budget.allocations.find((a) => a.categoryId === form.categoryId);
+      
+      if (existingAlloc) {
+        // Update existing allocation
+        const updatedAllocations = budget.allocations.map((a) =>
+          a.categoryId === form.categoryId
+            ? { ...a, allocatedAmount: amount, remaining: amount - a.spent }
+            : a,
+        );
+        await this.budgetService.updateBudget(budget.id, {
+          allocations: updatedAllocations,
+        });
+      } else {
+        // Add new allocation
+        const newAllocation: CategoryAllocation = {
+          categoryId: form.categoryId,
+          allocatedAmount: amount,
+          spent: 0,
+          remaining: amount,
+        };
+        await this.budgetService.updateBudget(budget.id, {
+          allocations: [...budget.allocations, newAllocation],
+        });
+      }
+    }
+
     this.closeBudgetModal();
   }
 
-  protected removeBudgetAllocation(categoryId: string): void {
+  protected async removeBudgetAllocation(categoryId: string): Promise<void> {
     if (!confirm('Remove this budget allocation?')) return;
 
-    const allocations = new Map(this.budgetAllocationsSignal());
-    allocations.delete(categoryId);
-    this.budgetAllocationsSignal.set(allocations);
-    this.saveBudgetAllocations();
+    const budget = this.activeBudget();
+    if (!budget) return;
+
+    const updatedAllocations = budget.allocations.filter((a) => a.categoryId !== categoryId);
+    await this.budgetService.updateBudget(budget.id, {
+      allocations: updatedAllocations,
+    });
+  }
+
+  protected async saveSettings(): Promise<void> {
+    const budget = this.activeBudget();
+    if (!budget) return;
+
+    const settings = this.settingsForm();
+    await this.budgetService.updateBudget(budget.id, {
+      rolloverUnspent: settings.rolloverUnspent,
+      alertThreshold: settings.alertThreshold,
+    });
+
+    this.closeSettingsModal();
   }
 
   protected getProgressColor(percentage: number): string {
@@ -263,32 +365,105 @@ export class BudgetComponent {
     return this.utils.formatCurrency(amount);
   }
 
-  private loadBudgetAllocations(): void {
+  protected viewTransactions(categoryId: string): void {
     const profile = this.activeProfile();
     if (!profile) return;
 
-    const monthStr = format(this.viewDate(), 'yyyy-MM');
-    const key = `budget_${profile.id}_${monthStr}`;
-    const stored = localStorage.getItem(key);
-
-    if (stored) {
-      try {
-        const obj = JSON.parse(stored);
-        this.budgetAllocationsSignal.set(new Map(Object.entries(obj)));
-      } catch (e) {
-        console.error('Failed to load budget allocations', e);
-      }
+    const date = this.viewDate();
+    const period = this.budgetPeriod();
+    
+    let startDate: Date;
+    let endDate: Date;
+    
+    if (period === 'monthly') {
+      startDate = new Date(date.getFullYear(), date.getMonth(), 1);
+      endDate = new Date(date.getFullYear(), date.getMonth() + 1, 0);
+    } else if (period === 'quarterly') {
+      const quarter = Math.floor(date.getMonth() / 3);
+      startDate = new Date(date.getFullYear(), quarter * 3, 1);
+      endDate = new Date(date.getFullYear(), (quarter + 1) * 3, 0);
+    } else {
+      startDate = new Date(date.getFullYear(), 0, 1);
+      endDate = new Date(date.getFullYear(), 11, 31);
     }
+
+    // Navigate to transactions with filters
+    this.router.navigate(['/transactions'], {
+      queryParams: {
+        categoryId,
+        startDate: format(startDate, 'yyyy-MM-dd'),
+        endDate: format(endDate, 'yyyy-MM-dd'),
+      },
+    });
   }
 
-  private saveBudgetAllocations(): void {
-    const profile = this.activeProfile();
-    if (!profile) return;
+  /**
+   * Migrate localStorage budgets to IndexedDB
+   */
+  private async migrateLocalStorageBudgets(profileId: string): Promise<void> {
+    // Check if migration already done
+    const migrationKey = `budget_migrated_${profileId}`;
+    if (localStorage.getItem(migrationKey)) {
+      return;
+    }
 
-    const monthStr = format(this.viewDate(), 'yyyy-MM');
-    const key = `budget_${profile.id}_${monthStr}`;
-    const allocations = this.budgetAllocationsSignal();
-    const obj = Object.fromEntries(allocations);
-    localStorage.setItem(key, JSON.stringify(obj));
+    try {
+      // Find all localStorage budget keys for this profile
+      const keys: string[] = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key?.startsWith(`budget_${profileId}_`)) {
+          keys.push(key);
+        }
+      }
+
+      if (keys.length === 0) {
+        localStorage.setItem(migrationKey, 'true');
+        return;
+      }
+
+      // Migrate each budget
+      for (const key of keys) {
+        const monthStr = key.replace(`budget_${profileId}_`, '');
+        const stored = localStorage.getItem(key);
+        
+        if (stored) {
+          try {
+            const allocationsObj = JSON.parse(stored);
+            const allocations: CategoryAllocation[] = Object.entries(allocationsObj).map(
+              ([categoryId, amount]) => ({
+                categoryId,
+                allocatedAmount: amount as number,
+                spent: 0,
+                remaining: amount as number,
+              }),
+            );
+
+            if (allocations.length > 0) {
+              const [year, month] = monthStr.split('-');
+              const startDate = new Date(parseInt(year), parseInt(month) - 1, 1);
+              
+              await this.budgetService.createBudget({
+                profileId,
+                name: `Monthly Budget - ${monthStr}`,
+                period: 'monthly',
+                startDate: format(startDate, 'yyyy-MM-dd'),
+                allocations,
+                rolloverUnspent: false,
+                alertThreshold: 80,
+              });
+            }
+          } catch (e) {
+            console.error(`Failed to migrate budget ${key}:`, e);
+          }
+        }
+      }
+
+      // Mark migration as complete
+      localStorage.setItem(migrationKey, 'true');
+      console.log(`Migrated ${keys.length} budgets from localStorage to IndexedDB`);
+    } catch (error) {
+      console.error('Failed to migrate budgets:', error);
+    }
   }
 }
