@@ -137,7 +137,7 @@
         }
       </div>
 
-      <!-- Recent Transactions (Stubbed) -->
+      <!-- Recent Transactions -->
       <div class="bg-white rounded-lg border border-slate-200 shadow-sm p-6">
         <app-section-header
           [icon]="TrendingDown"
@@ -145,12 +145,41 @@
           actionLabel="View All"
         />
 
-        <app-empty-state
-          title="No transactions yet"
-          message="Start tracking your income and expenses"
-          actionLabel="Add Transaction"
-          (action)="onAddTransaction()"
-        />
+        @if (recentTransactions().length === 0) {
+          <app-empty-state
+            title="No transactions yet"
+            message="Start tracking your income and expenses"
+            actionLabel="Add Transaction"
+            (action)="onAddTransaction()"
+          />
+        } @else {
+          <div class="space-y-3">
+            @for (transaction of recentTransactions(); track transaction.id) {
+              <div
+                class="flex items-center justify-between p-3 rounded-lg border border-slate-200 hover:border-blue-300 transition-colors"
+              >
+                <div class="flex-1">
+                  <div class="font-medium text-slate-900">{{ transaction.description }}</div>
+                  <div class="text-sm text-slate-600">
+                    {{ formatDate(transaction.date) }}
+                    @if (transaction.categoryId) {
+                      • {{ getCategoryName(transaction.categoryId) }}
+                    }
+                  </div>
+                </div>
+                <div class="text-right">
+                  <div
+                    class="font-semibold"
+                    [class.text-green-600]="transaction.type === 'income'"
+                    [class.text-red-600]="transaction.type === 'expense'"
+                  >
+                    {{ transaction.type === 'income' ? '+' : '-' }}₱{{ transaction.amount.toLocaleString() }}
+                  </div>
+                </div>
+              </div>
+            }
+          </div>
+        }
       </div>
 
       <!-- Savings Goals -->
@@ -203,16 +232,95 @@
         }
       </div>
 
-      <!-- Budget Summary (Stubbed) -->
+      <!-- Budget Summary -->
       <div class="bg-white rounded-lg border border-slate-200 shadow-sm p-6">
         <app-section-header [icon]="PieChart" title="Budget Summary" actionLabel="Manage Budget" />
 
-        <app-empty-state
-          title="No budget set"
-          message="Create a budget to track your spending by category"
-          actionLabel="Create Budget"
-          (action)="onViewBudget()"
-        />
+        @if (!budgetSummary()) {
+          <app-empty-state
+            title="No budget set"
+            message="Create a budget to track your spending by category"
+            actionLabel="Create Budget"
+            (action)="onViewBudget()"
+          />
+        } @else {
+          <div class="space-y-4">
+            <!-- Summary Metrics -->
+            <div class="grid grid-cols-3 gap-4">
+              <div>
+                <div class="text-xs text-slate-600 mb-1">Total Budget</div>
+                <div class="font-semibold text-slate-900">
+                  ₱{{ budgetSummary()!.totalBudget.toLocaleString() }}
+                </div>
+              </div>
+              <div>
+                <div class="text-xs text-slate-600 mb-1">Spent</div>
+                <div class="font-semibold text-red-600">
+                  ₱{{ budgetSummary()!.totalSpent.toLocaleString() }}
+                </div>
+              </div>
+              <div>
+                <div class="text-xs text-slate-600 mb-1">Remaining</div>
+                <div
+                  class="font-semibold"
+                  [class.text-green-600]="budgetSummary()!.remaining >= 0"
+                  [class.text-red-600]="budgetSummary()!.remaining < 0"
+                >
+                  ₱{{ budgetSummary()!.remaining.toLocaleString() }}
+                </div>
+              </div>
+            </div>
+
+            <!-- Progress Bar -->
+            <div>
+              <div class="flex items-center justify-between mb-1">
+                <span class="text-xs font-medium text-slate-700">Overall Progress</span>
+                <span class="text-xs font-semibold text-slate-900">
+                  {{ budgetSummary()!.percentageUsed.toFixed(1) }}%
+                </span>
+              </div>
+              <div class="h-2 bg-slate-200 rounded-full overflow-hidden">
+                <div
+                  class="h-full transition-all"
+                  [style.width.%]="Math.min(budgetSummary()!.percentageUsed, 100)"
+                  [class.bg-green-500]="budgetSummary()!.percentageUsed < 60"
+                  [class.bg-yellow-500]="budgetSummary()!.percentageUsed >= 60 && budgetSummary()!.percentageUsed < 80"
+                  [class.bg-red-500]="budgetSummary()!.percentageUsed >= 80"
+                ></div>
+              </div>
+            </div>
+
+            <!-- Top Categories -->
+            @if (budgetSummary()!.topCategories.length > 0) {
+              <div class="space-y-2">
+                <div class="text-xs font-medium text-slate-700">Top Categories</div>
+                @for (category of budgetSummary()!.topCategories; track category.categoryId) {
+                  <div class="p-2 rounded border border-slate-200">
+                    <div class="flex items-center justify-between mb-1">
+                      <div class="flex items-center gap-2">
+                        <div
+                          class="w-2 h-2 rounded-full"
+                          [style.background-color]="category.color"
+                        ></div>
+                        <span class="text-sm font-medium text-slate-900">{{ category.categoryName }}</span>
+                      </div>
+                      <span class="text-xs font-semibold text-slate-700">
+                        {{ category.percentage.toFixed(0) }}%
+                      </span>
+                    </div>
+                    <div class="h-1.5 bg-slate-200 rounded-full overflow-hidden">
+                      <div
+                        class="h-full transition-all"
+                        [style.width.%]="Math.min(category.percentage, 100)"
+                        [style.background-color]="category.color"
+                      ></div>
+                    </div>
+                  </div>
+                }
+              </div>
+            }
+          </div>
+        }
       </div>
     </div>
   }

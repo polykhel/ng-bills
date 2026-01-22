@@ -11,7 +11,8 @@ import {
   Plus,
   Target
 } from 'lucide-angular';
-import { AppStateService, ProfileService, CardService, StatementService, BankBalanceService, SavingsGoalService } from '@services';
+import { startOfDay, differenceInDays, setDate, parseISO, isValid, addMonths, format } from 'date-fns';
+import { AppStateService, ProfileService, CardService, StatementService, BankBalanceService, SavingsGoalService, TransactionService, BudgetService, CategoryService, UtilsService } from '@services';
 import { 
   MetricCardComponent, 
   QuickActionButtonComponent, 
@@ -58,6 +59,10 @@ export class OverviewComponent {
   private statementService = inject(StatementService);
   private bankBalanceService = inject(BankBalanceService);
   private savingsGoalService = inject(SavingsGoalService);
+  private transactionService = inject(TransactionService);
+  private budgetService = inject(BudgetService);
+  private categoryService = inject(CategoryService);
+  protected utils = inject(UtilsService);
 
   protected activeProfile = this.profileService.activeProfile;
   protected viewDate = this.appState.viewDate;
@@ -91,16 +96,46 @@ export class OverviewComponent {
       }
     }
 
+    // Calculate monthly income and expenses from transactions
+    const viewDate = this.viewDate();
+    const startOfMonth = new Date(viewDate.getFullYear(), viewDate.getMonth(), 1);
+    const endOfMonth = new Date(viewDate.getFullYear(), viewDate.getMonth() + 1, 0);
+    
+    const transactions = this.transactionService.getTransactions({
+      profileIds: [profile.id],
+      dateRange: {
+        start: startOfMonth.toISOString().slice(0, 10),
+        end: endOfMonth.toISOString().slice(0, 10)
+      }
+    });
+
+    let monthlyIncome = 0;
+    let monthlyExpenses = 0;
+
+    transactions.forEach(t => {
+      // Skip transactions where someone else paid
+      if (t.paidByOther) return;
+      // Skip transactions where this profile paid for someone else
+      if (t.paidByOtherProfileId === profile.id && t.profileId !== profile.id) return;
+
+      if (t.type === 'income') {
+        monthlyIncome += t.amount;
+      } else {
+        monthlyExpenses += t.amount;
+      }
+    });
+
     const totalBalance = bankBalance !== null ? bankBalance : 0;
     const availableBalance = totalBalance - committedBalance;
+    const netCashFlow = monthlyIncome - monthlyExpenses;
 
     return {
       totalBalance,
       availableBalance,
       committedBalance,
-      monthlyIncome: 0, // Stubbed - will be from transactions in Phase 1
-      monthlyExpenses: committedBalance, // Approximation for now
-      netCashFlow: 0 - committedBalance // Negative for now
+      monthlyIncome,
+      monthlyExpenses,
+      netCashFlow
     };
   });
 
@@ -110,28 +145,62 @@ export class OverviewComponent {
     if (!profile) return [];
 
     const cards = this.cardService.getCardsForProfiles([profile.id]);
-    const monthStr = this.viewDate().toISOString().slice(0, 7);
-    const today = new Date();
-    const nextWeek = new Date(today.getTime() + 7 * 24 * 60 * 60 * 1000);
+    const viewDate = this.viewDate();
+    const today = startOfDay(new Date());
+    const nextWeek = new Date(today);
+    nextWeek.setDate(nextWeek.getDate() + 7);
 
-    const bills = cards
-      .map(card => {
-        const statement = this.statementService.getStatementForMonth(card.id, monthStr);
-        if (!statement || statement.isPaid) return null;
+    const bills: Array<{
+      cardName: string;
+      amount: number;
+      dueDate: Date;
+      cardId: string;
+    }> = [];
 
-        const dueDate = new Date(`${monthStr}-${String(card.dueDay).padStart(2, '0')}`);
-        
-        if (dueDate >= today && dueDate <= nextWeek) {
-          return {
-            cardName: `${card.bankName} ${card.cardName}`,
-            amount: statement.amount,
-            dueDate,
-            cardId: card.id
-          };
+    // Check current month and next month (in case we're near month end)
+    const currentMonthStr = format(viewDate, 'yyyy-MM');
+    const nextMonthStr = format(addMonths(viewDate, 1), 'yyyy-MM');
+
+    for (const card of cards) {
+      // Check current month
+      let statement = this.statementService.getStatementForMonth(card.id, currentMonthStr);
+      let monthDate = viewDate;
+      
+      // If no statement in current month or it's paid, check next month
+      if (!statement || statement.isPaid) {
+        statement = this.statementService.getStatementForMonth(card.id, nextMonthStr);
+        monthDate = addMonths(viewDate, 1);
+      }
+
+      if (!statement || statement.isPaid) continue;
+
+      // Calculate due date (use custom due date if available, otherwise use card's due day)
+      let dueDate: Date;
+      if (statement.customDueDate) {
+        dueDate = parseISO(statement.customDueDate);
+        if (!isValid(dueDate)) {
+          // Fallback to default if custom date is invalid
+          dueDate = setDate(monthDate, card.dueDay);
         }
-        return null;
-      })
-      .filter((bill): bill is NonNullable<typeof bill> => bill !== null);
+      } else {
+        dueDate = setDate(monthDate, card.dueDay);
+      }
+
+      if (!isValid(dueDate)) continue;
+
+      const dueDateNormalized = startOfDay(dueDate);
+      const daysUntilDue = differenceInDays(dueDateNormalized, today);
+
+      // Include bills due today or within the next 7 days
+      if (daysUntilDue >= 0 && daysUntilDue <= 7) {
+        bills.push({
+          cardName: `${card.bankName} ${card.cardName}`,
+          amount: statement.amount,
+          dueDate: dueDateNormalized,
+          cardId: card.id
+        });
+      }
+    }
 
     return bills.sort((a, b) => a.dueDate.getTime() - b.dueDate.getTime());
   });
@@ -161,4 +230,84 @@ export class OverviewComponent {
       .filter(g => !g.progress.isCompleted)
       .slice(0, 3); // Show top 3 active goals
   });
+
+  // Recent transactions (last 5)
+  protected recentTransactions = computed(() => {
+    const profile = this.activeProfile();
+    if (!profile) return [];
+
+    const transactions = this.transactionService.getTransactions({
+      profileIds: [profile.id]
+    });
+
+    // Filter out transactions where someone else paid
+    const relevantTransactions = transactions.filter(t => {
+      if (t.paidByOther) return false;
+      if (t.paidByOtherProfileId === profile.id && t.profileId !== profile.id) return false;
+      return true;
+    });
+
+    // Sort by date (most recent first) and take top 5
+    return relevantTransactions
+      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+      .slice(0, 5);
+  });
+
+  // Budget summary
+  protected budgetSummary = computed(() => {
+    const profile = this.activeProfile();
+    if (!profile) return null;
+
+    const viewDate = this.viewDate();
+    const budget = this.budgetService.getActiveBudget(profile.id, viewDate, 'monthly');
+    
+    if (!budget) return null;
+
+    const budgetWithSpending = this.budgetService.getBudgetWithSpending(budget, viewDate);
+    const categories = this.categoryService.getCategories();
+
+    // Get top 3 categories by spending
+    const topCategories = budgetWithSpending.allocations
+      .map(alloc => {
+        const category = categories.find(c => c.id === alloc.categoryId);
+        const percentage = alloc.allocatedAmount > 0 
+          ? Math.min((alloc.spent / alloc.allocatedAmount) * 100, 100)
+          : 0;
+        return {
+          categoryId: alloc.categoryId,
+          categoryName: category?.name || 'Unknown',
+          allocated: alloc.allocatedAmount,
+          spent: alloc.spent,
+          remaining: alloc.remaining,
+          percentage,
+          color: category?.color || '#6b7280'
+        };
+      })
+      .filter(alloc => alloc.allocated > 0)
+      .sort((a, b) => b.spent - a.spent)
+      .slice(0, 3);
+
+    return {
+      totalBudget: budgetWithSpending.totalAllocated,
+      totalSpent: budgetWithSpending.totalSpent,
+      remaining: budgetWithSpending.totalRemaining,
+      percentageUsed: budgetWithSpending.percentageUsed,
+      topCategories,
+      hasAlerts: budgetWithSpending.alerts.length > 0
+    };
+  });
+
+  // Helper methods
+  protected getCategoryName(categoryId: string): string {
+    const category = this.categoryService.getCategory(categoryId);
+    return category?.name || 'Unknown';
+  }
+
+  protected formatDate(dateStr: string): string {
+    return this.utils.formatDate(dateStr, 'MMM d');
+  }
+
+  protected formatCurrency(amount: number): string {
+    return this.utils.formatCurrency(amount);
+  }
 }
