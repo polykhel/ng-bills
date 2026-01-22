@@ -355,10 +355,86 @@
       <div class="p-4 rounded-md bg-green-50 border border-green-200">
         <p class="text-sm text-green-800 font-medium">✓ Migration Complete</p>
         <p class="text-xs text-green-700 mt-1">
-          All legacy Installments and CashInstallments have been migrated to recurring Transactions. 
+          All legacy Installments and CashInstallments have been migrated to recurring Transactions.
           You can now manage all installments from the Transactions page.
         </p>
       </div>
+    </div>
+
+    <!-- Installment date migration -->
+    <div class="bg-white rounded-lg shadow-sm p-6 mb-6 border border-slate-100">
+      <div class="flex items-center gap-2 mb-4">
+        <lucide-icon [img]="RefreshCw" class="w-5 h-5 text-amber-600"></lucide-icon>
+        <h2 class="text-xl font-semibold text-slate-900">Installment date migration</h2>
+      </div>
+
+      <p class="text-sm text-slate-600 mb-4">
+        Update all existing installment transactions charged to a card so their date matches the card’s due date
+        for that month. Use this if you previously added installments with arbitrary dates and want them aligned
+        to when the card is due.
+      </p>
+
+      @if (migrationPreview) {
+        <div class="mb-4 p-4 rounded-md bg-slate-50 border border-slate-200">
+          <p class="text-sm text-slate-700">
+            <span class="font-medium">{{ migrationPreview.total }}</span> installment transaction(s) on cards.
+            @if (migrationPreview.wouldUpdate > 0) {
+              <span class="font-medium text-amber-700">{{ migrationPreview.wouldUpdate }}</span> would be updated to the card’s due date.
+            } @else if (migrationPreview.total > 0) {
+              All already match the card’s due date.
+            }
+          </p>
+          @if (migrationPreview.byCard.length > 0) {
+            <ul class="mt-2 text-xs text-slate-600 space-y-1">
+              @for (entry of migrationPreview.byCard; track entry.cardId) {
+                <li>{{ entry.cardName }}: {{ entry.count }} to update</li>
+              }
+            </ul>
+          }
+        </div>
+      }
+
+      <div class="flex flex-wrap items-center gap-3">
+        <button
+          (click)="refreshMigrationPreview()"
+          [disabled]="isMigrationRunning"
+          class="flex items-center gap-2 px-4 py-2 border border-slate-300 rounded-md hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-slate-700"
+          type="button"
+        >
+          Refresh preview
+        </button>
+        <button
+          (click)="handleInstallmentDateMigration()"
+          [disabled]="isMigrationRunning || !migrationPreview || migrationPreview.wouldUpdate === 0"
+          class="flex items-center gap-2 px-4 py-2 bg-amber-600 text-white rounded-md hover:bg-amber-700 disabled:bg-slate-300 disabled:cursor-not-allowed transition-colors"
+          type="button"
+        >
+          @if (isMigrationRunning) {
+            <svg class="w-4 h-4 animate-spin" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+              <path class="opacity-75" fill="currentColor"
+                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+          } @else {
+            <lucide-icon [img]="RefreshCw" class="w-4 h-4"></lucide-icon>
+          }
+          Run migration
+        </button>
+      </div>
+
+      @if (migrationMessage) {
+        <div
+          [class.bg-green-50]="!migrationError"
+          [class.bg-red-50]="migrationError"
+          [class.text-green-800]="!migrationError"
+          [class.text-red-800]="migrationError"
+          [class.border-green-200]="!migrationError"
+          [class.border-red-200]="migrationError"
+          class="mt-4 p-3 rounded-md text-sm border"
+        >
+          {{ migrationMessage }}
+        </div>
+      }
     </div>
 
     <div class="mt-6 bg-slate-50 rounded-lg p-4 border border-slate-200">

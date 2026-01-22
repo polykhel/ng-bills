@@ -1,5 +1,14 @@
 import { effect, Injectable, signal } from '@angular/core';
-import { addMonths, format, parseISO, startOfMonth, setDate, differenceInCalendarMonths } from 'date-fns';
+import {
+  addMonths,
+  format,
+  getDate,
+  lastDayOfMonth,
+  parseISO,
+  setDate,
+  startOfMonth,
+  differenceInCalendarMonths,
+} from 'date-fns';
 import { IndexedDBService, STORES } from './indexeddb.service';
 import { ProfileService } from './profile.service';
 import { CardService } from './card.service';
@@ -444,6 +453,115 @@ export class TransactionService {
     for (const { id, updates } of transactionUpdates) {
       await this.updateTransaction(id, updates);
     }
+  }
+
+  /**
+   * Get installment transactions charged to a card
+   * (isRecurring, type installment, paymentMethod card, cardId set)
+   */
+  getCardInstallmentTransactions(): Transaction[] {
+    return this.transactionsSignal().filter(
+      (t) =>
+        t.isRecurring &&
+        t.recurringRule?.type === 'installment' &&
+        t.paymentMethod === 'card' &&
+        !!t.cardId,
+    );
+  }
+
+  /**
+   * Preview migration: count installment transactions charged to a card
+   * whose date would change to the card's due date.
+   */
+  previewInstallmentDateMigration(): {
+    total: number;
+    wouldUpdate: number;
+    byCard: Array<{ cardId: string; cardName: string; count: number }>;
+  } {
+    const items = this.getCardInstallmentTransactions();
+    const byCard = new Map<string, { cardName: string; count: number }>();
+    let wouldUpdate = 0;
+
+    for (const t of items) {
+      const card = this.cardService.getCardSync(t.cardId!);
+      if (!card) continue;
+
+      const dueDate = this.dueDateForMonth(parseISO(t.date), card.dueDay);
+      const newDateStr = format(dueDate, 'yyyy-MM-dd');
+      if (t.date !== newDateStr) {
+        wouldUpdate++;
+        const cur = byCard.get(card.id);
+        const name = `${card.bankName} ${card.cardName}`;
+        if (cur) {
+          byCard.set(card.id, { cardName: name, count: cur.count + 1 });
+        } else {
+          byCard.set(card.id, { cardName: name, count: 1 });
+        }
+      }
+    }
+
+    return {
+      total: items.length,
+      wouldUpdate,
+      byCard: Array.from(byCard.entries()).map(([cardId, { cardName, count }]) => ({
+        cardId,
+        cardName,
+        count,
+      })),
+    };
+  }
+
+  /**
+   * Migration: Update all existing installment transactions charged to a card
+   * so their date matches the card's due date for that month.
+   */
+  async migrateInstallmentDatesToCardDueDate(): Promise<{
+    updated: number;
+    skipped: number;
+    errors: string[];
+  }> {
+    const items = this.getCardInstallmentTransactions();
+    const errors: string[] = [];
+    let updated = 0;
+    let skipped = 0;
+
+    for (const t of items) {
+      const card = this.cardService.getCardSync(t.cardId!);
+      if (!card) {
+        errors.push(`Transaction ${t.id}: card ${t.cardId} not found`);
+        continue;
+      }
+
+      const dueDate = this.dueDateForMonth(parseISO(t.date), card.dueDay);
+      const newDateStr = format(dueDate, 'yyyy-MM-dd');
+      if (t.date === newDateStr) {
+        skipped++;
+        continue;
+      }
+
+      try {
+        await this.updateTransaction(t.id, {
+          date: newDateStr,
+          updatedAt: new Date().toISOString(),
+        });
+        updated++;
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        errors.push(`Transaction ${t.id}: ${msg}`);
+      }
+    }
+
+    return { updated, skipped, errors };
+  }
+
+  /**
+   * Due date for a given month: same year/month, day = dueDay (clamped to last day of month).
+   */
+  private dueDateForMonth(monthDate: Date, dueDay: number): Date {
+    const start = startOfMonth(monthDate);
+    const last = lastDayOfMonth(start);
+    const day = Math.min(dueDay, getDate(last));
+    return setDate(start, day);
   }
 
   /**

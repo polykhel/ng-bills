@@ -11,10 +11,10 @@ import {
   LogIn,
   LogOut,
   LucideAngularModule,
+  RefreshCw,
   Upload,
 } from 'lucide-angular';
-import { SyncService, SyncUtilsService } from '@services';
-// InstallmentMigrationService removed - Phase 2 migration complete
+import { SyncService, SyncUtilsService, TransactionService } from '@services';
 import { FirebaseAuthService } from '@services/firebase-auth.service';
 import { FirebaseSyncService } from '@services/firebase-sync.service';
 import { initializeApp } from '@angular/fire/app';
@@ -46,6 +46,7 @@ export class SyncComponent implements OnInit {
   readonly LogIn = LogIn;
   readonly LogOut = LogOut;
   readonly Database = Database;
+  readonly RefreshCw = RefreshCw;
 
   // Firebase
   firebaseAuth?: FirebaseAuthService;
@@ -62,9 +63,20 @@ export class SyncComponent implements OnInit {
   firebaseAuthState: any;
   firebaseSyncStatus: any;
 
+  // Installment date migration
+  migrationPreview: {
+    total: number;
+    wouldUpdate: number;
+    byCard: Array<{ cardId: string; cardName: string; count: number }>;
+  } | null = null;
+  isMigrationRunning = false;
+  migrationMessage = '';
+  migrationError = false;
+
   constructor(
     private syncService: SyncService,
     private syncUtils: SyncUtilsService,
+    private transactionService: TransactionService,
   ) {
     this.initializeFirebase();
   }
@@ -87,6 +99,41 @@ export class SyncComponent implements OnInit {
     void this.syncUtils.getDataSize().then((size) => {
       this.dataSize = size;
     });
+    this.refreshMigrationPreview();
+  }
+
+  refreshMigrationPreview(): void {
+    this.migrationPreview = this.transactionService.previewInstallmentDateMigration();
+    this.migrationMessage = '';
+    this.migrationError = false;
+  }
+
+  async handleInstallmentDateMigration(): Promise<void> {
+    this.isMigrationRunning = true;
+    this.migrationMessage = '';
+    this.migrationError = false;
+
+    try {
+      const result = await this.transactionService.migrateInstallmentDatesToCardDueDate();
+      const parts: string[] = [];
+      if (result.updated > 0) parts.push(`${result.updated} updated`);
+      if (result.skipped > 0) parts.push(`${result.skipped} already correct`);
+      this.migrationMessage =
+        parts.length > 0
+          ? `✓ Migration complete: ${parts.join(', ')}.`
+          : 'No changes made.';
+      if (result.errors.length > 0) {
+        this.migrationMessage += ` ${result.errors.length} error(s).`;
+        this.migrationError = true;
+      }
+      this.refreshMigrationPreview();
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      this.migrationMessage = `✗ Migration failed: ${msg}`;
+      this.migrationError = true;
+    } finally {
+      this.isMigrationRunning = false;
+    }
   }
 
   async handleExport(): Promise<void> {
@@ -324,7 +371,4 @@ export class SyncComponent implements OnInit {
   }
 
   protected readonly Cloud = Cloud;
-
-  // Migration Methods
-  // Migration service removed - Phase 2 migration complete
 }
