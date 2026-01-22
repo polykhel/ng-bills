@@ -372,7 +372,7 @@ export class TransactionsComponent {
   private bankAccountNameCache = computed(() => {
     const accountsMap = new Map<string, string>();
     this.bankAccounts().forEach(account => {
-      accountsMap.set(account.id, `${account.bankName} - ${account.accountName}`);
+      accountsMap.set(account.id, account.bankName);
     });
     return accountsMap;
   });

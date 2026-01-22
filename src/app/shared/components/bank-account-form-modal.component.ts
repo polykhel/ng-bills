@@ -51,19 +51,11 @@ export class BankAccountFormModalComponent implements OnInit {
   ngOnInit(): void {
     this.form = this.fb.group({
       bankName: ['', [Validators.required]],
-      accountName: ['', [Validators.required]],
       accountNumber: [''],
       accountType: ['checking', [Validators.required]],
       color: ['#334155', [Validators.required]],
       initialBalance: [0],
-      routingNumber: [''],
-      swiftCode: [''],
-      iban: [''],
-      branchName: [''],
-      branchAddress: [''],
-      phoneNumber: [''],
-      email: [''],
-      notes: ['']
+      maintainingBalance: [0]
     });
   }
 
@@ -71,6 +63,7 @@ export class BankAccountFormModalComponent implements OnInit {
     if (this.form.valid) {
       const formValue = this.form.value;
       const activeProfileId = this.profileService.activeProfileId();
+      const existingAccount = this.editingAccount();
 
       const accountData: Partial<BankAccount> & { id?: string } = {
         ...formValue,
@@ -92,7 +85,8 @@ export class BankAccountFormModalComponent implements OnInit {
     this.form.reset({
       accountType: 'checking',
       color: '#334155',
-      initialBalance: 0
+      initialBalance: 0,
+      maintainingBalance: 0
     });
     this.editingAccount.set(null);
     this.appState.closeModal();

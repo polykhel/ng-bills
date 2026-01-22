@@ -57,7 +57,6 @@ export interface BankAccount {
   id: string;
   profileId: string;
   bankName: string;
-  accountName: string;
   accountNumber?: string;
   accountType: 'checking' | 'savings' | 'other';
   color: string;

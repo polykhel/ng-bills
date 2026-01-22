@@ -52,7 +52,7 @@
                   <div class="flex items-center gap-3">
                     <div class="w-4 h-4 rounded-full" [style.background-color]="account.color"></div>
                     <div>
-                      <h3 class="font-semibold text-slate-900">{{ account.bankName }} - {{ account.accountName }}</h3>
+                      <h3 class="font-semibold text-slate-900">{{ account.bankName }}</h3>
                       <p class="text-xs text-slate-500">{{ account.accountType }} @if (account.accountNumber) { • {{ account.accountNumber }} }</p>
                     </div>
                   </div>
@@ -147,7 +147,7 @@
               <select [(ngModel)]="formData.bankId" required>
                 <option value="">Select a bank account...</option>
                 @for (account of bankAccounts(); track account.id) {
-                  <option [value]="account.id">{{ account.bankName }} - {{ account.accountName }}</option>
+                  <option [value]="account.id">{{ account.bankName }}</option>
                 }
               </select>
             </div>
@@ -172,7 +172,7 @@
               <select [(ngModel)]="formData.bankId">
                 <option value="">Select a bank account...</option>
                 @for (account of bankAccounts(); track account.id) {
-                  <option [value]="account.id">{{ account.bankName }} - {{ account.accountName }}</option>
+                  <option [value]="account.id">{{ account.bankName }}</option>
                 }
               </select>
             </div>
@@ -183,7 +183,7 @@
               <select [(ngModel)]="formData.fromBankId">
                 <option value="">Select source account...</option>
                 @for (account of bankAccounts(); track account.id) {
-                  <option [value]="account.id">{{ account.bankName }} - {{ account.accountName }}</option>
+                  <option [value]="account.id">{{ account.bankName }}</option>
                 }
               </select>
             </div>
@@ -194,7 +194,7 @@
               <select [(ngModel)]="formData.toBankId">
                 <option value="">Select destination account...</option>
                 @for (account of bankAccounts(); track account.id) {
-                  <option [value]="account.id">{{ account.bankName }} - {{ account.accountName }}</option>
+                  <option [value]="account.id">{{ account.bankName }}</option>
                 }
               </select>
             </div>
