@@ -174,7 +174,7 @@ export class TransactionsComponent {
   readonly X = X;
 
   private appState = inject(AppStateService);
-  private profileService = inject(ProfileService);
+  protected profileService = inject(ProfileService);
   // Form state
   protected showForm = false;
   protected formData: Partial<Transaction> = this.getEmptyForm();
@@ -206,18 +206,41 @@ export class TransactionsComponent {
   });
   private transactionService = inject(TransactionService);
   // Computed filtered transactions
+  // Shows transactions where:
+  // 1. User owns the transaction (profileId matches)
+  // 2. User paid for it (paidByOtherProfileId matches current profile)
   protected filteredTransactions = computed(() => {
     const profile = this.activeProfile();
     if (!profile) return [];
 
-    const filter: TransactionFilter = {
-      profileIds: [profile.id],
-      type: this.filterType === 'all' ? undefined : this.filterType,
-      paymentMethod: this.filterPaymentMethod === 'all' ? undefined : this.filterPaymentMethod,
-      cardId: this.filterCardId || undefined,
-    };
+    // Get all transactions from transaction service
+    const allTransactions = this.transactionService.getTransactions();
 
-    return this.transactionService.getTransactions(filter);
+    // Filter to transactions relevant to this profile
+    let relevantTransactions = allTransactions.filter((t) => {
+      // Include if this profile owns the transaction
+      if (t.profileId === profile.id) return true;
+      // Include if this profile paid for it (shared expense)
+      if (t.paidByOtherProfileId === profile.id) return true;
+      return false;
+    });
+
+    // Apply additional filters
+    if (this.filterType !== 'all') {
+      relevantTransactions = relevantTransactions.filter((t) => t.type === this.filterType);
+    }
+
+    if (this.filterPaymentMethod !== 'all') {
+      relevantTransactions = relevantTransactions.filter(
+        (t) => t.paymentMethod === this.filterPaymentMethod,
+      );
+    }
+
+    if (this.filterCardId) {
+      relevantTransactions = relevantTransactions.filter((t) => t.cardId === this.filterCardId);
+    }
+
+    return relevantTransactions;
   });
   private cardService = inject(CardService);
   protected cards = this.cardService.cards;
@@ -258,6 +281,9 @@ export class TransactionsComponent {
       notes: this.formData.notes,
       paymentMethod: (this.formData.paymentMethod || 'cash') as PaymentMethod,
       cardId: this.formData.cardId,
+      paidByOther: this.formData.paidByOther || false,
+      paidByOtherProfileId: this.formData.paidByOtherProfileId,
+      paidByOtherName: this.formData.paidByOtherName,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
@@ -297,6 +323,49 @@ export class TransactionsComponent {
     return card ? `${card.bankName} ${card.cardName}` : 'Unknown Card';
   }
 
+  protected getProfileName(profileId: string): string {
+    const profile = this.profileService.profiles().find((p) => p.id === profileId);
+    return profile?.name ?? 'Unknown';
+  }
+
+  /**
+   * Get the label for who paid for this transaction
+   * Shows profile name if linked, otherwise shows manual name
+   */
+  protected getPaidByLabel(transaction: Transaction): string {
+    if (!transaction.paidByOther) return '';
+
+    if (transaction.paidByOtherProfileId) {
+      const profile = this.profileService.profiles().find((p) => p.id === transaction.paidByOtherProfileId);
+      return profile ? profile.name : 'Unknown Profile';
+    }
+
+    return transaction.paidByOtherName || 'Other';
+  }
+
+  /**
+   * Get context label for shared transactions
+   * Shows different context depending on whether you own it or paid for it
+   */
+  protected getTransactionContext(transaction: Transaction): string {
+    const profile = this.activeProfile();
+    if (!profile) return '';
+
+    if (transaction.profileId === profile.id && transaction.paidByOther) {
+      // You own it but someone else paid
+      const paidBy = this.getPaidByLabel(transaction);
+      return `💳 Paid by ${paidBy}`;
+    }
+
+    if (transaction.paidByOtherProfileId === profile.id && transaction.profileId !== profile.id) {
+      // You paid for someone else's transaction
+      const owner = this.profileService.profiles().find((p) => p.id === transaction.profileId);
+      return `💳 You paid for ${owner?.name || 'them'}`;
+    }
+
+    return '';
+  }
+
   private validateForm(): boolean {
     return !!(
       this.formData.amount &&
@@ -314,6 +383,9 @@ export class TransactionsComponent {
       description: '',
       paymentMethod: 'cash',
       categoryId: 'uncategorized',
+      paidByOther: false,
+      paidByOtherProfileId: undefined,
+      paidByOtherName: '',
     };
   }
 }

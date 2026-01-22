@@ -169,6 +169,20 @@ export class TransactionService {
       result = result.filter((t) => t.cardId === filter.cardId);
     }
 
+    if (filter.isRecurring !== undefined) {
+      result = result.filter((t) => Boolean(t.isRecurring) === filter.isRecurring);
+    }
+
+    if (filter.recurringType) {
+      result = result.filter((t) => t.recurringRule?.type === filter.recurringType);
+    }
+
+    if (filter.installmentGroupId) {
+      result = result.filter(
+        (t) => t.recurringRule?.installmentGroupId === filter.installmentGroupId,
+      );
+    }
+
     if (filter.searchQuery) {
       const query = filter.searchQuery.toLowerCase();
       result = result.filter(
@@ -185,6 +199,16 @@ export class TransactionService {
    */
   getTransaction(id: string): Transaction | undefined {
     return this.transactionsSignal().find((t) => t.id === id);
+  }
+
+  /**
+   * Bulk delete helper using a predicate
+   */
+  async deleteTransactionsWhere(predicate: (t: Transaction) => boolean): Promise<void> {
+    const matches = this.transactionsSignal().filter(predicate);
+    for (const tx of matches) {
+      await this.deleteTransaction(tx.id);
+    }
   }
 
   /**

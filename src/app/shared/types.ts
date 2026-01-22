@@ -46,13 +46,13 @@ export interface Installment {
 
 export interface CashInstallment {
   id: string;
-  installmentId: string;
   cardId: string;
-  term: number;
-  dueDate: string;
-  amount: number;
-  isPaid: boolean;
+  installmentId?: string;
   name: string;
+  amount: number;
+  dueDate: string;
+  term: number | string;
+  isPaid: boolean;
 }
 
 export interface BankBalance {
@@ -75,6 +75,24 @@ export interface Category {
   type?: TransactionType | 'both';
 }
 
+export interface RecurringRule {
+  type: 'installment' | 'subscription' | 'custom';
+  frequency: 'monthly' | 'weekly' | 'biweekly' | 'quarterly' | 'yearly';
+  
+  // Installment-specific fields
+  totalPrincipal?: number;      // Total amount financed
+  currentTerm?: number;          // Current payment number
+  totalTerms?: number;           // Total number of payments
+  startDate?: string;            // First payment date
+  endDate?: string;              // Last payment date
+  interestRate?: number;         // Annual percentage rate (0 for 0% financing)
+  installmentGroupId?: string;   // Links all payments in this installment plan
+  
+  // General recurring fields
+  nextDate?: string;             // Next scheduled occurrence
+  lastDate?: string;             // Last occurrence (for completed)
+}
+
 export interface Transaction {
   id: string;
   profileId: string;
@@ -91,7 +109,13 @@ export interface Transaction {
   createdAt?: string;
   updatedAt?: string;
   isRecurring?: boolean;
+  recurringRule?: RecurringRule;
   isEstimate?: boolean;
+  
+  // Track when another person uses the card but reimburses
+  paidByOther?: boolean;           // True if someone else paid this charge
+  paidByOtherProfileId?: string;   // Profile ID of who paid (link to other profile)
+  paidByOtherName?: string;        // Name of the person who paid (e.g., "John", "Mom") - fallback for non-profile users
 }
 
 export interface TransactionFilter {
@@ -102,6 +126,9 @@ export interface TransactionFilter {
   paymentMethod?: PaymentMethod | 'all';
   cardId?: string;
   searchQuery?: string;
+  isRecurring?: boolean;
+  recurringType?: RecurringRule['type'];
+  installmentGroupId?: string;
 }
 
 export interface InstallmentStatus {
@@ -111,6 +138,20 @@ export interface InstallmentStatus {
   isActive: boolean;
   isFinished: boolean;
   isUpcoming: boolean;
+}
+
+export interface InstallmentProgress {
+  installmentGroupId: string;
+  name: string;
+  cardId?: string;
+  profileId: string;
+  totalPrincipal?: number;
+  totalTerms: number;
+  currentTerm: number;
+  monthlyAmount: number;
+  startDate: string;
+  endDate?: string;
+  paymentMethod: PaymentMethod;
 }
 
 export type SortDirection = 'asc' | 'desc';

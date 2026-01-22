@@ -93,72 +93,101 @@ tightly coupled - the transaction layer forms the foundation of the entire finan
 **Completed Features:**
 
 - ✅ Data model: Transaction with type, amount, date, category, paymentMethod, cardId, description, notes, tags
+- ✅ Transaction model includes `isRecurring` and `recurringRule` fields for future installment migration
 - ✅ TransactionService: CRUD operations, advanced filtering, auto-bill linking
 - ✅ CategoryService: 20 predefined categories + custom category support
 - ✅ Card/Statement enhancements: transaction aggregation and breakdown
 - ✅ Transactions page: filters, grouping, search, summary stats
 - ✅ Auto-linking: card transactions → monthly statements (cutoff-aware)
 - ✅ Budget integration: real-time spending from transactions
+- ✅ **Shared Card Payments with Profile Linking**
+  - Add `paidByOtherProfileId` and `paidByOtherName` fields to transactions
+  - Mark transactions as paid by another profile OR manual entry
+  - Transaction appears in both profiles' transaction lists
+  - Budget calculations exclude shared transactions (no double-counting)
 
----
+**Acceptance Criteria (All Met):**
 
-- Bills page: display statements from auto-linked transactions, payment tracking ⏳ Next
-- Budget page: track spending vs budgets by category ⏳ Phase 1
-- Category management: predefined categories, custom support ⏳ Next
-- Layout polish: consistent header with month selector, responsive grid ✅ Done
-- Shared component kit: metric cards, transaction cards, filters ✅ Done (can enhance)
-- Acceptance: can add transactions, see auto-generated bills, filter/search ⏳ After Bills component
+- ✅ Can create/edit/delete transactions
+- ✅ Filters work (type, payment method, card, date, category, search)
+- ✅ Statements reflect auto-linked transaction totals
+- ✅ Bills show transaction breakdowns
+- ✅ Payment recording functional
+- ✅ Manual bill creation available
+- ✅ Budget tracking shows real-time spending vs allocations
 
-## Phase 1: Transaction Layer
-Objective: add full income/expense tracking and tie credit card statements to transactions.
-- Data model: Transaction with type (income/expense), amount, date, category/subcategory, paymentMethod (cash/card/bank_transfer), optional cardId, tags, notes, recurring metadata, timestamps.
-- Services: TransactionService (CRUD, filters, statement linking), CategoryService (predefined + custom), enhancements to CardService/StatementService to aggregate linked transactions.
-- UI: Transactions page with filters, grouping (date/category/card), quick add modal, receipt attachment placeholder, CSV import hook, summary stats (income, expenses, net).
-- Statement linkage: when paymentMethod=card, auto-assign to the card’s month statement; show breakdown inside Bills.
-- Acceptance: can create/edit/delete transactions; filters work; statements reflect linked totals; bank balance updates when transactions are added.
+**⚠️ Known Legacy Code (To Be Migrated in Phase 2):**
 
-## Phase 2: Recurring Transactions & Management Consolidation
+The following entities violate the "transactions-first" principle and are **legacy code** that needs migration:
+- `Installment` entity and `InstallmentService` - Should become recurring transactions
+- `CashInstallment` entity and `CashInstallmentService` - Should become recurring transactions with `paymentMethod: 'cash'`
 
-Objective: Migrate installments to recurring transactions and centralize card/profile management.
+These are maintained for backward compatibility but will be removed in Phase 2. All new installment tracking should use the Transaction model with `isRecurring: true` and appropriate `recurringRule` metadata.
 
-### Installment Migration (Transactions-First)
+## Phase 2: Recurring Transactions & Legacy Migration ⏳ IN PROGRESS
+
+**Status: NOT STARTED**
+
+**Objective:** Migrate legacy Installment/CashInstallment entities to recurring transactions and centralize card/profile management.
+
+### ⚠️ Critical: Legacy Code Migration
 
 **Current Problem:**
 
-- Installments and CashInstallments are separate entities with duplicate logic
-- Don't automatically appear in transaction lists or budgets
-- Violates the "transactions-first" principle
-- Extra services to maintain (InstallmentService, CashInstallmentService)
+- ❌ `Installment` and `CashInstallment` are **legacy entities** that violate the "transactions-first" principle
+- ❌ They don't automatically appear in transaction lists or budgets
+- ❌ Duplicate logic across InstallmentService and CashInstallmentService
+- ❌ Extra services to maintain (should be unified in TransactionService)
+- ❌ CashInstallment type should NOT exist - it's a mistake in the current implementation
 
 **Solution: Installments as Recurring Transactions**
 
-- Migrate `Installment` and `CashInstallment` entities to `Transaction` with `isRecurring: true`
-- Use existing `recurringRule` field with installment-specific metadata:
-  ```typescript
-  recurringRule: {
-    type: 'installment',
-    frequency: 'monthly',
-    totalPrincipal: 5400,      // Total amount financed
-    currentTerm: 5,             // Current payment number
-    totalTerms: 12,             // Total number of payments
-    startDate: '2025-08-01',
-    endDate: '2026-07-01',
-    interestRate: 0,            // Optional: if not 0% financing
-  }
-  ```
-- Each monthly installment payment becomes a transaction with `installmentGroupId` for linking
-- Progress tracking: "5/12 paid" calculated from transactions with same `installmentGroupId`
+All installments (both card-based and cash-based) should be `Transaction` entities with:
+- `isRecurring: true`
+- `recurringRule.type: 'installment'`
+- `paymentMethod: 'card'` for card installments OR `paymentMethod: 'cash'` for cash installments
+- `recurringRule.installmentGroupId` to link all payments in the same plan
+
+**Transaction Model (Already Supports This):**
+
+The Transaction model already has the necessary fields:
+```typescript
+interface Transaction {
+  // ... existing fields
+  isRecurring?: boolean;
+  recurringRule?: {
+    type: 'installment' | 'subscription' | 'custom';
+    frequency: 'monthly' | 'weekly' | 'biweekly' | 'quarterly' | 'yearly';
+    totalPrincipal?: number;      // Total amount financed
+    currentTerm?: number;          // Current payment number
+    totalTerms?: number;           // Total number of payments
+    startDate?: string;            // First payment date
+    endDate?: string;              // Last payment date
+    interestRate?: number;         // Annual percentage rate
+    installmentGroupId?: string;   // Links all payments in this installment plan
+    nextDate?: string;             // Next scheduled occurrence
+    lastDate?: string;             // Last occurrence (for completed)
+  };
+  paymentMethod: 'cash' | 'card' | 'bank_transfer' | 'other';
+  cardId?: string; // when paymentMethod is card
+}
+```
 
 **Implementation Steps:**
 
-1. Enhance Transaction model with installment-specific recurring rules
-2. Create migration script to convert existing Installments → Transactions
-3. **Remove CashInstallment entity entirely** (becomes transaction with `paymentMethod: 'cash'`)
-4. Update TransactionService to handle installment logic
-5. Add installment badge/filter in Transactions page
-6. Show installment progress in transaction cards (e.g., "5/12 payments")
-7. Deprecate InstallmentService and CashInstallmentService
-8. Update Bills page to recognize installment transactions
+1. ✅ Transaction model already supports recurring installments (Phase 1 complete)
+2. ⏳ Create migration script to convert existing `Installment` → `Transaction` with `isRecurring: true`
+3. ⏳ Create migration script to convert existing `CashInstallment` → `Transaction` with `isRecurring: true` and `paymentMethod: 'cash'`
+4. ⏳ **Remove `CashInstallment` entity entirely** from types.ts
+5. ⏳ **Remove `CashInstallmentService`** from codebase
+6. ⏳ Update TransactionService to handle installment logic (auto-generate monthly payments)
+7. ⏳ Add installment badge/filter in Transactions page
+8. ⏳ Show installment progress in transaction cards (e.g., "5/12 payments")
+9. ⏳ Deprecate InstallmentService (or migrate its logic to TransactionService)
+10. ⏳ Update Bills page to recognize installment transactions
+11. ⏳ Update Dashboard/Calendar to show recurring transactions instead of installments
+12. ⏳ Remove CASH_INSTALLMENTS store from IndexedDB schema
+13. ⏳ Update sync services to handle migrated data
 
 **Benefits:**
 
@@ -168,6 +197,7 @@ Objective: Migrate installments to recurring transactions and centralize card/pr
 - ✅ Simpler architecture (one service, one storage mechanism)
 - ✅ Better analytics (spending reports include installments)
 - ✅ Consistent filtering/search across all transactions
+- ✅ No more duplicate CashInstallment type (cleaner codebase)
 
 ### Management Consolidation
 
@@ -199,16 +229,21 @@ Objective: Migrate installments to recurring transactions and centralize card/pr
     - Profile switcher in header
     - Quick-add card from transaction form
 
-**Acceptance Criteria:**
+**Acceptance Criteria (Phase 2):**
 
-- ✅ Can migrate all existing installments to recurring transactions
-- ✅ Installment progress shown in transaction view (5/12)
-- ✅ Installments appear in budget calculations automatically
-- ✅ Installment payments auto-link to card statements
-- ✅ CashInstallment entity removed from codebase
-- ✅ Can manage cards, profiles, and accounts from centralized UI
-- ✅ Card transfer between profiles works
-- ✅ Migration preserves all historical installment data
+- ⏳ Can migrate all existing Installments → recurring transactions
+- ⏳ Can migrate all existing CashInstallments → recurring transactions (paymentMethod: 'cash')
+- ⏳ Installment progress shown in transaction view (e.g., "5/12 payments")
+- ⏳ Installments appear in budget calculations automatically
+- ⏳ Installment payments auto-link to card statements
+- ⏳ **CashInstallment entity removed from codebase** (types.ts, services, components)
+- ⏳ **CashInstallmentService removed** from codebase
+- ⏳ InstallmentService deprecated or migrated to TransactionService
+- ⏳ Can manage cards, profiles, and accounts from centralized UI
+- ⏳ Card transfer between profiles works
+- ⏳ Migration preserves all historical installment data
+- ⏳ Build succeeds without CashInstallment references
+- ⏳ All components updated to use Transaction model for installments
 
 ## Phase 3: Budgeting & Goals
 
@@ -276,19 +311,15 @@ Objective: define free/premium value.
 - This app is not yet in production so don't worry too much about backwards compatibility, no need to maintain
   localstorage.
 
-**Last Updated**: January 2026  
-**Status**: Phase 0 done, phase 1 todo# ng-bills Roadmap
+---
 
-This document outlines planned features and enhancements to transform ng-bills into a comprehensive personal finance management platform.
+## Recent Completions
 
-## Phase 1: Transaction Tracking 💸
+### ✅ Phase 0 & Phase 1 (Completed Jan 22, 2026)
 
-### Core Transaction Features
-Transform the app from bill tracking to full transaction management.
+The foundational transaction layer is complete with all core functionality:
 
-#### Transaction Types
-- **Income Transactions**
-  - Salary/wages
+**Key Achievements:**
   - Freelance income
   - Investment returns
   - Other income sources
@@ -2689,5 +2720,13 @@ Have suggestions? Open an issue or contribute to the discussion!
 ---
 
 **Last Updated**: January 22, 2026  
-**Version**: 2.1  
-**Status**: Phase 0 & 1 Complete, Planning Phase 2
+**Version**: 2.2  
+**Status**: Phase 0 & 1 Complete, Phase 2 (Legacy Migration) Pending
+
+**Current State Summary:**
+- ✅ Phase 0: UI/IA Refactor - COMPLETE
+- ✅ Phase 1: Transaction Layer - COMPLETE
+- ⏳ Phase 2: Legacy Migration - NOT STARTED
+  - ⚠️ **Critical**: CashInstallment and Installment entities are legacy code that need migration
+  - ⚠️ CashInstallment type should NOT exist per transactions-first principle
+  - Transaction model already supports recurring installments (ready for migration)

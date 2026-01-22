@@ -142,6 +142,7 @@ export class BudgetComponent {
 
   // Budget allocations stored in localStorage for now
   // Calculate spending by category for current month
+  // EXCLUDES transactions where paidByOther=true (someone else paid)
   protected categorySpending = computed(() => {
     const profile = this.activeProfile();
     if (!profile) return new Map<string, number>();
@@ -155,6 +156,17 @@ export class BudgetComponent {
     const spending = new Map<string, number>();
 
     transactions.forEach((t) => {
+      // Skip transactions where someone else paid (paidByOther=true)
+      if (t.paidByOther) {
+        return;
+      }
+
+      // Also skip transactions where this profile paid for someone else's transaction
+      // (they appear in this profile's list but the spending belongs to the original profile owner)
+      if (t.paidByOtherProfileId === profile.id && t.profileId !== profile.id) {
+        return;
+      }
+
       if (t.date.startsWith(monthStr)) {
         const current = spending.get(t.categoryId) || 0;
         spending.set(t.categoryId, current + t.amount);
