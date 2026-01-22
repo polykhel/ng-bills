@@ -681,11 +681,6 @@
                     • {{ getProfileName(transaction.profileId) }}'s transaction
                   }
                 </div>
-                @if (shouldShowRunningBalance()) {
-                  <div class="transaction-meta text-xs text-blue-600 mt-1">
-                    Running Balance: ₱{{ getTransactionRunningBalance(transaction).toLocaleString() }}
-                  </div>
-                }
               </div>
               <div
                 [ngClass]="['transaction-amount', transaction.type === 'income' ? 'amount-income' : 'amount-expense']">

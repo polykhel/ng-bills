@@ -257,20 +257,6 @@ export class TransactionsComponent {
   });
   private transactionService = inject(TransactionService);
   
-  // Pre-computed running balances for all transactions (performance optimization)
-  // This avoids recalculating running balance for each transaction in the template
-  private transactionRunningBalances = computed(() => {
-    const transactions = this.filteredTransactions();
-    const balances = new Map<string, number>();
-    
-    // Pre-compute balances for all filtered transactions
-    // Use the original getRunningBalance logic but cache results
-    transactions.forEach(transaction => {
-      balances.set(transaction.id, this.getRunningBalance(transaction.date));
-    });
-    
-    return balances;
-  });
 
   // Computed filtered transactions
   // Shows transactions where:
@@ -593,9 +579,6 @@ export class TransactionsComponent {
     }
   }
 
-  protected shouldShowRunningBalance(): boolean {
-    return this.sortField() === 'date';
-  }
 
   /**
    * Check if transaction is an installment
@@ -883,87 +866,6 @@ export class TransactionsComponent {
     return this.bankAccountNameCache().get(bankId) ?? 'Unknown Account';
   }
 
-  /**
-   * Calculate running balance for a specific date
-   * Includes all transactions up to and including that date, plus scheduled future transactions
-   */
-  protected getRunningBalance(date: string): number {
-    const profile = this.activeProfile();
-    if (!profile) return 0;
-
-    // Get starting balance for the month
-    const monthStr = date.slice(0, 7); // yyyy-MM
-    const startingBalance = this.bankBalanceService.getBankBalance(profile.id, monthStr) || 0;
-
-    // Get all transactions up to this date (use signal for OnPush compatibility)
-    const allTransactions = this.transactionService.transactions();
-    const profileTransactions = allTransactions.filter((t) => t.profileId === profile.id);
-    
-    // Filter transactions up to and including the target date
-    const transactionsUpToDate = profileTransactions.filter((t) => t.date <= date);
-    
-    // Also include scheduled/recurring transactions that should have occurred by this date
-    const scheduledTransactions = profileTransactions.filter((t) => {
-      if (!t.isRecurring || !t.recurringRule) return false;
-      if (t.date <= date) return false; // Already included in transactionsUpToDate
-      
-      // Check if this is a recurring transaction that should have occurred by the target date
-      // For recurring transactions with nextDate, include if nextDate <= target date
-      if (t.recurringRule.nextDate && t.recurringRule.nextDate <= date) {
-        return true;
-      }
-      
-      // For installments, check if they should have occurred by target date
-      if (t.recurringRule.type === 'installment' && t.recurringRule.startDate) {
-        const startDate = parseISO(t.recurringRule.startDate);
-        const targetDate = parseISO(date);
-        if (startDate <= targetDate) {
-          return true;
-        }
-      }
-      
-      return false;
-    });
-
-    // Combine all relevant transactions (avoid duplicates)
-    const transactionIds = new Set(transactionsUpToDate.map(t => t.id));
-    const uniqueScheduled = scheduledTransactions.filter(t => !transactionIds.has(t.id));
-    const allRelevantTransactions = [...transactionsUpToDate, ...uniqueScheduled];
-    
-    // Sort by date
-    allRelevantTransactions.sort((a, b) => a.date.localeCompare(b.date));
-
-    // Calculate running balance
-    let balance = startingBalance;
-    for (const transaction of allRelevantTransactions) {
-      if (transaction.type === 'income') {
-        // Income adds to balance
-        if (transaction.bankId) {
-          balance += transaction.amount;
-        }
-      } else if (transaction.type === 'expense') {
-        // Expense subtracts from balance
-        if (transaction.paymentMethod === 'bank_transfer' && transaction.bankId) {
-          balance -= transaction.amount;
-        } else if (transaction.paymentMethod === 'bank_to_bank' && transaction.fromBankId) {
-          // Bank-to-bank transfer: subtract from source account
-          balance -= transaction.amount;
-          if (transaction.transferFee) {
-            balance -= transaction.transferFee;
-          }
-        }
-      }
-    }
-
-    return Math.round(balance * 100) / 100; // Round to 2 decimal places
-  }
-
-  /**
-   * Get running balance for the transaction's date (memoized)
-   */
-  protected getTransactionRunningBalance(transaction: Transaction): number {
-    return this.transactionRunningBalances().get(transaction.id) ?? 0;
-  }
 
   protected onAddBankAccount(): void {
     this.appState.openModal('bank-account-form', {});
