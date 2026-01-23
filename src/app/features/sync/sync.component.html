@@ -437,6 +437,86 @@
       }
     </div>
 
+    <!-- Orphaned transactions cleanup -->
+    <div class="bg-white rounded-lg shadow-sm p-6 mb-6 border border-slate-100">
+      <div class="flex items-center gap-2 mb-4">
+        <lucide-icon [img]="AlertCircle" class="w-5 h-5 text-red-600"></lucide-icon>
+        <h2 class="text-xl font-semibold text-slate-900">Cleanup Orphaned Transactions</h2>
+      </div>
+
+      <p class="text-sm text-slate-600 mb-4">
+        Remove transactions that reference cards that no longer exist. This can happen if a card was deleted before
+        this cleanup feature was implemented. These orphaned transactions will be permanently deleted.
+      </p>
+
+      @if (orphanedPreview) {
+        <div class="mb-4 p-4 rounded-md bg-slate-50 border border-slate-200">
+          <p class="text-sm text-slate-700">
+            @if (orphanedPreview.total > 0) {
+              <span class="font-medium text-red-700">{{ orphanedPreview.total }}</span> orphaned transaction(s) found
+              that reference deleted cards.
+            } @else {
+              <span class="text-green-700">✓ No orphaned transactions found. All transactions are valid.</span>
+            }
+          </p>
+          @if (orphanedPreview.orphaned.length > 0 && orphanedPreview.orphaned.length <= 10) {
+            <ul class="mt-2 text-xs text-slate-600 space-y-1 max-h-40 overflow-y-auto">
+              @for (tx of orphanedPreview.orphaned; track tx.id) {
+                <li class="flex items-center justify-between">
+                  <span class="truncate flex-1">{{ tx.description }}</span>
+                  <span class="ml-2 text-slate-400">{{ tx.date }}</span>
+                </li>
+              }
+            </ul>
+          } @else if (orphanedPreview.orphaned.length > 10) {
+            <p class="mt-2 text-xs text-slate-500">Showing first 10 of {{ orphanedPreview.orphaned.length }} transactions</p>
+          }
+        </div>
+      }
+
+      <div class="flex flex-wrap items-center gap-3">
+        <button
+          (click)="refreshOrphanedPreview()"
+          [disabled]="isOrphanedMigrationRunning"
+          class="btn btn-ghost disabled:opacity-50 disabled:cursor-not-allowed"
+          type="button"
+        >
+          Refresh preview
+        </button>
+        <button
+          (click)="handleOrphanedTransactionsMigration()"
+          [disabled]="isOrphanedMigrationRunning || !orphanedPreview || orphanedPreview.total === 0"
+          [class]="isOrphanedMigrationRunning || !orphanedPreview || orphanedPreview.total === 0 ? 'btn btn-disabled' : 'btn btn-red'"
+          type="button"
+        >
+          @if (isOrphanedMigrationRunning) {
+            <svg class="w-4 h-4 animate-spin" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+              <path class="opacity-75" fill="currentColor"
+                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+          } @else {
+            <lucide-icon [img]="Trash2" class="w-4 h-4"></lucide-icon>
+          }
+          Delete Orphaned Transactions
+        </button>
+      </div>
+
+      @if (orphanedMigrationMessage) {
+        <div
+          [class.bg-green-50]="!orphanedMigrationError"
+          [class.bg-red-50]="orphanedMigrationError"
+          [class.text-green-800]="!orphanedMigrationError"
+          [class.text-red-800]="orphanedMigrationError"
+          [class.border-green-200]="!orphanedMigrationError"
+          [class.border-red-200]="orphanedMigrationError"
+          class="mt-4 p-3 rounded-md text-sm border"
+        >
+          {{ orphanedMigrationMessage }}
+        </div>
+      }
+    </div>
+
     <div class="mt-6 bg-slate-50 rounded-lg p-4 border border-slate-200">
       <div class="flex items-start gap-2">
         <lucide-icon [img]="AlertCircle" class="w-4 h-4 text-slate-600 mt-0.5"></lucide-icon>

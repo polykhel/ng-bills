@@ -393,6 +393,55 @@ export class TransactionService {
   }
 
   /**
+   * Preview orphaned transactions: transactions with cardId that no longer exists
+   */
+  previewOrphanedTransactions(): {
+    total: number;
+    orphaned: Array<{ id: string; description: string; cardId: string; date: string }>;
+  } {
+    const allTransactions = this.transactionsSignal();
+    const allCardIds = new Set(this.cardService.cards().map((c) => c.id));
+    
+    const orphaned = allTransactions.filter(
+      (tx) => tx.cardId !== undefined && !allCardIds.has(tx.cardId),
+    );
+
+    return {
+      total: orphaned.length,
+      orphaned: orphaned.map((tx) => ({
+        id: tx.id,
+        description: tx.description,
+        cardId: tx.cardId!,
+        date: tx.date,
+      })),
+    };
+  }
+
+  /**
+   * Migration: Delete all orphaned transactions (transactions with cardId that no longer exists)
+   */
+  async deleteOrphanedTransactions(): Promise<{
+    deleted: number;
+    errors: string[];
+  }> {
+    const preview = this.previewOrphanedTransactions();
+    const errors: string[] = [];
+    let deleted = 0;
+
+    for (const tx of preview.orphaned) {
+      try {
+        await this.deleteTransaction(tx.id);
+        deleted++;
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        errors.push(`Transaction ${tx.id}: ${msg}`);
+      }
+    }
+
+    return { deleted, errors };
+  }
+
+  /**
    * Get all recurring installment transactions
    */
   getInstallmentTransactions(): Transaction[] {

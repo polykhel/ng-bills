@@ -96,13 +96,9 @@ export class ManageCardsComponent {
     if (this.cardService.deleteCard(cardId)) {
       this.statementService.deleteStatementsForCard(cardId);
       this.installmentService.deleteInstallmentsForCard(cardId);
+      // Delete ALL transactions associated with this card
       void this.transactionService.deleteTransactionsWhere(
-        (tx) =>
-          tx.cardId !== undefined &&
-          tx.cardId === cardId &&
-          tx.paymentMethod === 'cash' &&
-          Boolean(tx.isRecurring) &&
-          tx.recurringRule?.type === 'installment',
+        (tx) => tx.cardId !== undefined && tx.cardId === cardId,
       );
     }
   }

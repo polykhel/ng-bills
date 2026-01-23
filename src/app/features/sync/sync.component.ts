@@ -12,6 +12,7 @@ import {
   LogOut,
   LucideAngularModule,
   RefreshCw,
+  Trash2,
   Upload,
 } from 'lucide-angular';
 import { SyncService, SyncUtilsService, TransactionService } from '@services';
@@ -47,6 +48,7 @@ export class SyncComponent implements OnInit {
   readonly LogOut = LogOut;
   readonly Database = Database;
   readonly RefreshCw = RefreshCw;
+  readonly Trash2 = Trash2;
 
   // Firebase
   firebaseAuth?: FirebaseAuthService;
@@ -72,6 +74,15 @@ export class SyncComponent implements OnInit {
   isMigrationRunning = false;
   migrationMessage = '';
   migrationError = false;
+
+  // Orphaned transactions migration
+  orphanedPreview: {
+    total: number;
+    orphaned: Array<{ id: string; description: string; cardId: string; date: string }>;
+  } | null = null;
+  isOrphanedMigrationRunning = false;
+  orphanedMigrationMessage = '';
+  orphanedMigrationError = false;
 
   constructor(
     private syncService: SyncService,
@@ -100,6 +111,7 @@ export class SyncComponent implements OnInit {
       this.dataSize = size;
     });
     this.refreshMigrationPreview();
+    this.refreshOrphanedPreview();
   }
 
   refreshMigrationPreview(): void {
@@ -133,6 +145,38 @@ export class SyncComponent implements OnInit {
       this.migrationError = true;
     } finally {
       this.isMigrationRunning = false;
+    }
+  }
+
+  refreshOrphanedPreview(): void {
+    this.orphanedPreview = this.transactionService.previewOrphanedTransactions();
+    this.orphanedMigrationMessage = '';
+    this.orphanedMigrationError = false;
+  }
+
+  async handleOrphanedTransactionsMigration(): Promise<void> {
+    this.isOrphanedMigrationRunning = true;
+    this.orphanedMigrationMessage = '';
+    this.orphanedMigrationError = false;
+
+    try {
+      const result = await this.transactionService.deleteOrphanedTransactions();
+      if (result.deleted > 0) {
+        this.orphanedMigrationMessage = `✓ Migration complete: ${result.deleted} orphaned transaction(s) deleted.`;
+      } else {
+        this.orphanedMigrationMessage = 'No orphaned transactions found.';
+      }
+      if (result.errors.length > 0) {
+        this.orphanedMigrationMessage += ` ${result.errors.length} error(s).`;
+        this.orphanedMigrationError = true;
+      }
+      this.refreshOrphanedPreview();
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      this.orphanedMigrationMessage = `✗ Migration failed: ${msg}`;
+      this.orphanedMigrationError = true;
+    } finally {
+      this.isOrphanedMigrationRunning = false;
     }
   }
 
