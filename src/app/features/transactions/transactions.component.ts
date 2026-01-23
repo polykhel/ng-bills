@@ -27,6 +27,7 @@ import {
   CardService,
   CategoryService,
   ProfileService,
+  StatementService,
   TransactionService,
 } from '@services';
 import { EmptyStateComponent, MetricCardComponent, QuickActionButtonComponent } from '@components';
@@ -224,15 +225,51 @@ export class TransactionsComponent {
   protected multiProfileMode = this.appState.multiProfileMode;
   protected selectedProfileIds = this.appState.selectedProfileIds;
   // Computed summary
+  // Credit card expenses only count when the statement is paid (cash flow perspective)
   protected summary = computed(() => {
     const transactions = this.filteredTransactions();
+    const cards = this.cardService.cards();
+    const statements = this.statementService.statements();
 
     const totalIncome = transactions
       .filter((t) => t.type === 'income')
       .reduce((sum, t) => sum + t.amount, 0);
 
+    // For expenses: only count credit card transactions if their statement is paid
+    // Other payment methods (cash, bank_transfer, etc.) count immediately
     const totalExpenses = transactions
-      .filter((t) => t.type === 'expense')
+      .filter((t) => {
+        if (t.type !== 'expense') return false;
+        
+        // For credit card transactions, only count if statement is paid
+        if (t.paymentMethod === 'card' && t.cardId) {
+          const card = cards.find(c => c.id === t.cardId);
+          if (!card) return true; // Card not found, default to counting it
+          
+          // Determine which statement month this transaction belongs to (cutoff-aware)
+          const transactionDate = parseISO(t.date);
+          const dayOfMonth = transactionDate.getDate();
+          
+          let statementDate: Date;
+          if (dayOfMonth >= card.cutoffDay) {
+            // Transaction is at or after cutoff → belongs to NEXT month's statement
+            statementDate = addMonths(startOfMonth(transactionDate), 1);
+          } else {
+            // Transaction is before cutoff → belongs to THIS month's statement
+            statementDate = startOfMonth(transactionDate);
+          }
+
+          const monthStr = format(statementDate, 'yyyy-MM');
+          const statement = statements.find(s => s.cardId === t.cardId && s.monthStr === monthStr);
+          
+          // If no statement exists yet, it's not paid (don't count it)
+          // If statement exists, check if it's paid
+          return statement ? statement.isPaid : false;
+        }
+        
+        // For all other payment methods, count immediately
+        return true;
+      })
       .reduce((sum, t) => sum + t.amount, 0);
 
     return {
@@ -243,6 +280,7 @@ export class TransactionsComponent {
     };
   });
   private transactionService = inject(TransactionService);
+  private statementService = inject(StatementService);
   
 
   // Computed filtered transactions
@@ -1233,5 +1271,40 @@ export class TransactionsComponent {
       this.formData.debtPaidDate = undefined;
       this.formData.linkedDebtTransactionId = undefined;
     }
+  }
+
+  /**
+   * Check if a credit card transaction's statement is paid
+   * Uses cutoff-aware logic to determine which statement the transaction belongs to
+   */
+  private isCreditCardStatementPaid(transaction: Transaction): boolean {
+    if (transaction.paymentMethod !== 'card' || !transaction.cardId) {
+      return true; // Not a credit card transaction, consider it "paid" (counts immediately)
+    }
+
+    const card = this.cardService.getCardById(transaction.cardId);
+    if (!card) {
+      return true; // Card not found, default to counting it
+    }
+
+    // Determine which statement month this transaction belongs to (cutoff-aware)
+    const transactionDate = parseISO(transaction.date);
+    const dayOfMonth = transactionDate.getDate();
+    
+    let statementDate: Date;
+    if (dayOfMonth >= card.cutoffDay) {
+      // Transaction is at or after cutoff → belongs to NEXT month's statement
+      statementDate = addMonths(startOfMonth(transactionDate), 1);
+    } else {
+      // Transaction is before cutoff → belongs to THIS month's statement
+      statementDate = startOfMonth(transactionDate);
+    }
+
+    const monthStr = format(statementDate, 'yyyy-MM');
+    const statement = this.statementService.getStatementForMonth(transaction.cardId, monthStr);
+    
+    // If no statement exists yet, it's not paid (don't count it)
+    // If statement exists, check if it's paid
+    return statement ? statement.isPaid : false;
   }
 }

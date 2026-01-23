@@ -11,7 +11,7 @@ import {
   Plus,
   Target
 } from 'lucide-angular';
-import { startOfDay, differenceInDays, setDate, parseISO, isValid, addMonths, format, startOfMonth } from 'date-fns';
+import { startOfDay, differenceInDays, setDate, parseISO, isValid, addMonths, format, startOfMonth, endOfMonth } from 'date-fns';
 import { AppStateService, ProfileService, CardService, StatementService, BankBalanceService, BankAccountService, SavingsGoalService, TransactionService, BudgetService, CategoryService, UtilsService } from '@services';
 import { 
   MetricCardComponent, 
@@ -123,6 +123,10 @@ export class OverviewComponent {
     let monthlyIncome = 0;
     let monthlyExpenses = 0;
 
+    // Get all cards and statements for checking if credit card statements are paid
+    const allCards = this.cardService.cards();
+    const statements = this.statementService.statements();
+
     transactions.forEach(t => {
       // Skip transactions where someone else paid
       if (t.paidByOther) return;
@@ -132,7 +136,40 @@ export class OverviewComponent {
       if (t.type === 'income') {
         monthlyIncome += t.amount;
       } else {
-        monthlyExpenses += t.amount;
+        // For credit card expenses: only count if statement is paid (cash flow perspective)
+        // Other payment methods count immediately
+        if (t.paymentMethod === 'card' && t.cardId) {
+          const card = allCards.find(c => c.id === t.cardId);
+          if (card) {
+            // Determine which statement month this transaction belongs to (cutoff-aware)
+            const transactionDate = parseISO(t.date);
+            const dayOfMonth = transactionDate.getDate();
+            
+            let statementDate: Date;
+            if (dayOfMonth >= card.cutoffDay) {
+              // Transaction is at or after cutoff → belongs to NEXT month's statement
+              statementDate = addMonths(startOfMonth(transactionDate), 1);
+            } else {
+              // Transaction is before cutoff → belongs to THIS month's statement
+              statementDate = startOfMonth(transactionDate);
+            }
+
+            const monthStr = format(statementDate, 'yyyy-MM');
+            const statement = statements.find(s => s.cardId === t.cardId && s.monthStr === monthStr);
+            
+            // Only count if statement exists and is paid
+            if (statement && statement.isPaid) {
+              monthlyExpenses += t.amount;
+            }
+            // If no statement or not paid, don't count it
+          } else {
+            // Card not found, default to counting it
+            monthlyExpenses += t.amount;
+          }
+        } else {
+          // For all other payment methods, count immediately
+          monthlyExpenses += t.amount;
+        }
       }
     });
 
