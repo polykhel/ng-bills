@@ -308,6 +308,14 @@ export class BillsComponent {
         },
       );
 
+      // Mark all transactions for this statement as paid
+      await this.transactionService.markStatementTransactionsPaidStatus(
+        modal.statement.cardId,
+        modal.statement.monthStr,
+        true,
+        modal.date,
+      );
+
       this.closePaymentModal();
     } catch (error) {
       console.error('Error recording payment:', error);
@@ -323,6 +331,13 @@ export class BillsComponent {
         isPaid: false,
         paidAmount: 0,
       });
+
+      // Mark all transactions for this statement as unpaid
+      await this.transactionService.markStatementTransactionsPaidStatus(
+        bill.statement.cardId,
+        bill.statement.monthStr,
+        false,
+      );
     } catch (error) {
       console.error('Error marking as unpaid:', error);
       alert('Failed to update payment status');

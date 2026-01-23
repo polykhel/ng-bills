@@ -17,6 +17,8 @@ import {
   ArrowUpDown,
   ArrowUp,
   ArrowDown,
+  CheckCircle2,
+  Circle,
 } from 'lucide-angular';
 import {
   AppStateService,
@@ -175,6 +177,8 @@ export class TransactionsComponent {
   readonly ArrowUpDown = ArrowUpDown;
   readonly ArrowUp = ArrowUp;
   readonly ArrowDown = ArrowDown;
+  readonly CheckCircle2 = CheckCircle2;
+  readonly Circle = Circle;
 
   private appState = inject(AppStateService);
   protected profileService = inject(ProfileService);
@@ -207,6 +211,9 @@ export class TransactionsComponent {
   protected filterCardId = signal<string | ''>('');
   protected filterRecurring = signal<boolean | 'all'>('all');
   protected showAllTransactions = signal<boolean>(false);
+  protected filterFromDate = signal<string | ''>('');
+  protected filterToDate = signal<string | ''>('');
+  protected hidePaidTransactions = signal<boolean>(false);
   // Search and sort state
   protected searchQuery = signal<string>('');
   protected sortField = signal<'date' | 'amount' | 'description'>('date');
@@ -301,15 +308,38 @@ export class TransactionsComponent {
       );
     }
 
-    // Filter by month if not showing all transactions
+    // Filter by date range
     const showAll = this.showAllTransactions();
-    if (!showAll) {
-      const currentDate = this.viewDate();
-      const monthStart = format(startOfMonth(currentDate), 'yyyy-MM-dd');
-      const monthEnd = format(endOfMonth(currentDate), 'yyyy-MM-dd');
+    const fromDate = this.filterFromDate();
+    const toDate = this.filterToDate();
+    const currentDate = this.viewDate();
+    const monthStart = format(startOfMonth(currentDate), 'yyyy-MM-dd');
+    const monthEnd = format(endOfMonth(currentDate), 'yyyy-MM-dd');
+    
+    if (fromDate || toDate) {
+      // Show transactions within the selected date range, but limited to current month
+      const filterStart = fromDate ? (fromDate >= monthStart ? fromDate : monthStart) : monthStart;
+      const filterEnd = toDate ? (toDate <= monthEnd ? toDate : monthEnd) : monthEnd;
       
       relevantTransactions = relevantTransactions.filter((t) => {
+        return t.date >= filterStart && t.date <= filterEnd;
+      });
+    } else if (!showAll) {
+      // Filter by current month if not showing all transactions
+      relevantTransactions = relevantTransactions.filter((t) => {
         return t.date >= monthStart && t.date <= monthEnd;
+      });
+    }
+
+    // Filter out paid transactions if hidePaidTransactions is enabled
+    const hidePaid = this.hidePaidTransactions();
+    if (hidePaid) {
+      relevantTransactions = relevantTransactions.filter((t) => {
+        // Hide if transaction is marked as paid
+        if (t.isPaid) return false;
+        // Hide if it's a completed installment
+        if (this.isInstallment(t) && this.isInstallmentCompleted(t)) return false;
+        return true;
       });
     }
 
@@ -543,9 +573,48 @@ export class TransactionsComponent {
     this.filterCardId.set('');
     this.filterRecurring.set('all');
     this.showAllTransactions.set(false);
+    this.filterFromDate.set('');
+    this.filterToDate.set('');
+    this.hidePaidTransactions.set(false);
     this.searchQuery.set('');
     this.sortField.set('date');
     this.sortDirection.set('desc');
+  }
+
+  /**
+   * Get the minimum date for the date pickers (start of current month)
+   */
+  protected getMinDate(): string {
+    const currentDate = this.viewDate();
+    return format(startOfMonth(currentDate), 'yyyy-MM-dd');
+  }
+
+  /**
+   * Get the maximum date for the date pickers (end of current month)
+   */
+  protected getMaxDate(): string {
+    const currentDate = this.viewDate();
+    return format(endOfMonth(currentDate), 'yyyy-MM-dd');
+  }
+
+  /**
+   * Mark a transaction as paid
+   */
+  protected async onMarkPaid(transaction: Transaction, event?: Event): Promise<void> {
+    if (event) {
+      event.stopPropagation();
+    }
+    
+    try {
+      if (transaction.isPaid) {
+        await this.transactionService.markTransactionUnpaid(transaction.id);
+      } else {
+        await this.transactionService.markTransactionPaid(transaction.id);
+      }
+    } catch (error) {
+      console.error('Error marking transaction as paid/unpaid:', error);
+      alert('Failed to update transaction status');
+    }
   }
 
   protected onSortChange(field: 'date' | 'amount' | 'description'): void {
@@ -917,12 +986,33 @@ export class TransactionsComponent {
   }
 
   private validateForm(): boolean {
-    return !!(
+    const hasRequiredFields = !!(
       this.formData.amount &&
       this.formData.amount > 0 &&
       this.formData.description &&
       this.formData.date
     );
+
+    if (!hasRequiredFields) return false;
+
+    // For income transactions with bank_transfer, bankId (destination account) is required
+    if (
+      this.formData.type === 'income' &&
+      this.formData.paymentMethod === 'bank_transfer' &&
+      !this.formData.bankId
+    ) {
+      return false;
+    }
+
+    // For bank_to_bank transfers (both income and expense), both accounts are required
+    if (
+      this.formData.paymentMethod === 'bank_to_bank' &&
+      (!this.formData.fromBankId || !this.formData.toBankId)
+    ) {
+      return false;
+    }
+
+    return true;
   }
 
   private getEmptyForm(): Partial<Transaction> {

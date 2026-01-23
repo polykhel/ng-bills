@@ -244,6 +244,61 @@ export class TransactionService {
   }
 
   /**
+   * Get transactions that belong to a specific statement (card + month)
+   * Uses cutoff-aware logic to determine which transactions belong to the statement
+   */
+  getTransactionsForStatement(cardId: string, monthStr: string): Transaction[] {
+    const card = this.cardService.getCardSync(cardId);
+    if (!card) return [];
+
+    // Get all card transactions
+    const allCardTransactions = this.transactionsSignal().filter(
+      (t) => t.paymentMethod === 'card' && t.cardId === cardId,
+    );
+
+    // Filter transactions that belong to this statement month based on cutoff logic
+    return allCardTransactions.filter((t) => {
+      const transactionDate = parseISO(t.date);
+      const dayOfMonth = transactionDate.getDate();
+
+      // Determine which statement month this transaction belongs to
+      let statementDate: Date;
+      if (dayOfMonth >= card.cutoffDay) {
+        // Transaction is at or after cutoff → belongs to NEXT month's statement
+        statementDate = addMonths(startOfMonth(transactionDate), 1);
+      } else {
+        // Transaction is before cutoff → belongs to THIS month's statement
+        statementDate = startOfMonth(transactionDate);
+      }
+
+      const transactionMonthStr = format(statementDate, 'yyyy-MM');
+      return transactionMonthStr === monthStr;
+    });
+  }
+
+  /**
+   * Mark all transactions for a statement as paid or unpaid
+   */
+  async markStatementTransactionsPaidStatus(
+    cardId: string,
+    monthStr: string,
+    isPaid: boolean,
+    paidDate?: string,
+  ): Promise<void> {
+    const transactions = this.getTransactionsForStatement(cardId, monthStr);
+    const paid = paidDate || new Date().toISOString();
+
+    // Mark all transactions as paid/unpaid
+    for (const transaction of transactions) {
+      if (isPaid) {
+        await this.markTransactionPaid(transaction.id, paid, transaction.amount);
+      } else {
+        await this.markTransactionUnpaid(transaction.id);
+      }
+    }
+  }
+
+  /**
    * Mark an installment transaction as paid
    * Used for cash installments and other recurring transactions
    */
