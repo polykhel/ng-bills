@@ -15,7 +15,7 @@
       <button
         type="button"
         (click)="openLoanModal()"
-        class="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 font-medium transition-colors"
+        class="btn btn-primary"
       >
         <lucide-angular [img]="Plus" [size]="20" />
         <span>New Loan Plan</span>
@@ -406,14 +406,14 @@
           <button
             type="button"
             (click)="saveLoan()"
-            class="flex-1 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 font-medium"
+            class="btn btn-primary flex-1"
           >
             {{ editingLoan() ? 'Update Loan Plan' : 'Create Loan Plan' }}
           </button>
           <button
             type="button"
             (click)="closeLoanModal()"
-            class="px-4 py-2 border border-slate-300 text-slate-700 rounded-md hover:bg-slate-50"
+            class="btn btn-ghost"
           >
             Cancel
           </button>

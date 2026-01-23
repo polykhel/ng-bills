@@ -29,7 +29,7 @@
           <button
             type="button"
             (click)="openSettingsModal()"
-            class="flex items-center gap-2 px-4 py-2 border border-slate-300 text-slate-700 rounded-md hover:bg-slate-50 font-medium transition-colors"
+            class="btn btn-ghost"
           >
             <lucide-angular [img]="Settings" [size]="18" />
             <span>Settings</span>
@@ -38,7 +38,7 @@
         <button
           type="button"
           (click)="openBudgetModal()"
-          class="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 font-medium transition-colors"
+          class="btn btn-primary"
         >
           <lucide-angular [img]="Plus" [size]="20" />
           <span>Add Category Budget</span>
@@ -244,14 +244,14 @@
           <button
             type="button"
             (click)="addBudgetAllocation()"
-            class="flex-1 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 font-medium"
+            class="btn btn-primary flex-1"
           >
             Add Budget
           </button>
           <button
             type="button"
             (click)="closeBudgetModal()"
-            class="px-4 py-2 border border-slate-300 text-slate-700 rounded-md hover:bg-slate-50"
+            class="btn btn-ghost"
           >
             Cancel
           </button>
@@ -309,14 +309,14 @@
           <button
             type="button"
             (click)="saveSettings()"
-            class="flex-1 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 font-medium"
+            class="btn btn-primary flex-1"
           >
             Save Settings
           </button>
           <button
             type="button"
             (click)="closeSettingsModal()"
-            class="px-4 py-2 border border-slate-300 text-slate-700 rounded-md hover:bg-slate-50"
+            class="btn btn-ghost"
           >
             Cancel
           </button>

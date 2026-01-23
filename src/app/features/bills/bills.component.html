@@ -12,14 +12,49 @@
         <h1 class="text-2xl font-bold text-slate-900">Bills & Statements</h1>
         <p class="text-slate-600 mt-1">Credit card bills auto-generated from your transactions</p>
       </div>
-      <button
-        type="button"
-        (click)="openBillFormForCreate()"
-        class="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 font-medium transition-colors"
-      >
-        <lucide-angular [img]="Plus" [size]="20" />
-        <span>Create Bill</span>
-      </button>
+      <div class="flex items-center gap-2">
+        @if (bulkSelectMode() && selectedBills().size > 0) {
+          <button
+            type="button"
+            (click)="copySelectedBills()"
+            [class]="batchCopied() ? 'btn btn-success' : 'btn btn-secondary'"
+          >
+            @if (batchCopied()) {
+              <lucide-angular [img]="CheckCircle2" [size]="16" />
+              <span>Copied {{ selectedBills().size }}!</span>
+            } @else {
+              <lucide-angular [img]="Copy" [size]="16" />
+              <span>Copy {{ selectedBills().size }} Selected</span>
+            }
+          </button>
+        }
+        @if (bulkSelectMode()) {
+          <button
+            type="button"
+            (click)="setBulkSelectMode(false)"
+            class="btn btn-ghost"
+          >
+            Cancel Select
+          </button>
+        } @else {
+          <button
+            type="button"
+            (click)="setBulkSelectMode(true)"
+            class="btn btn-secondary"
+          >
+            <lucide-angular [img]="Copy" [size]="16" />
+            Bulk Copy
+          </button>
+        }
+        <button
+          type="button"
+          (click)="openBillFormForCreate()"
+          class="btn btn-primary"
+        >
+          <lucide-angular [img]="Plus" [size]="20" />
+          <span>Create Bill</span>
+        </button>
+      </div>
     </div>
 
     <!-- Summary Metrics -->
@@ -64,6 +99,22 @@
           />
         </div>
       } @else {
+        @if (bulkSelectMode()) {
+          <div class="bg-white rounded-lg border border-slate-200 shadow-sm p-3 mb-4">
+            <div class="flex items-center gap-3">
+              <input
+                type="checkbox"
+                [checked]="allBillsSelected"
+                (change)="toggleAllBills()"
+                class="w-4 h-4 text-blue-600"
+                aria-label="Select all bills"
+              />
+              <span class="text-sm font-medium text-slate-700">
+                Select All ({{ selectedBills().size }} selected)
+              </span>
+            </div>
+          </div>
+        }
         @for (bill of billsWithDetails(); track bill.cardId) {
           <div
             class="bill-card bg-white rounded-lg border-2 shadow-sm overflow-hidden"
@@ -74,13 +125,22 @@
             <div class="p-4">
               <div class="flex items-center justify-between">
                 <div class="flex items-center gap-3 flex-1">
+                  @if (bulkSelectMode()) {
+                    <input
+                      type="checkbox"
+                      [checked]="isBillSelected(bill.cardId)"
+                      (change)="toggleBillSelection(bill.cardId)"
+                      class="w-4 h-4 text-blue-600"
+                      [attr.aria-label]="'Select ' + bill.bankName + ' ' + bill.cardName"
+                    />
+                  }
                   <div
                     class="w-1 h-16 rounded-full"
                     [style.background-color]="bill.color"
                   ></div>
                   <div class="flex-1">
                     <div class="flex items-center gap-2">
-                      <h3 class="text-lg font-semibold text-slate-900">{{ bill.cardName }}</h3>
+                      <h3 class="text-lg font-semibold text-slate-900">{{ bill.bankName }} {{ bill.cardName }}</h3>
                       @if (bill.isPaid) {
                         <span
                           class="px-2 py-0.5 text-xs font-medium bg-green-100 text-green-700 rounded-full"
@@ -121,11 +181,27 @@
                   </div>
 
                   <div class="flex gap-2">
+                    <button
+                      type="button"
+                      (click)="copyBillInfo(bill)"
+                      [disabled]="copiedBillId() === bill.cardId"
+                      class="px-3 py-1.5 text-sm font-medium border border-blue-300 text-blue-700 bg-blue-50 rounded-md hover:bg-blue-100 transition-colors flex items-center gap-1"
+                      [attr.aria-label]="'Copy info for ' + bill.bankName + ' ' + bill.cardName"
+                      title="Copy card info"
+                    >
+                      @if (copiedBillId() === bill.cardId) {
+                        <lucide-angular [img]="CheckCircle2" [size]="16" />
+                        <span>Copied!</span>
+                      } @else {
+                        <lucide-angular [img]="Copy" [size]="16" />
+                        <span>Copy</span>
+                      }
+                    </button>
                     @if (bill.statement && bill.statement.isEstimated) {
                       <button
                         type="button"
                         (click)="openBillFormForEdit(bill)"
-                        class="px-3 py-1.5 text-sm font-medium border border-blue-300 text-blue-700 bg-blue-50 rounded-md hover:bg-blue-100 transition-colors"
+                        class="btn btn-secondary"
                         title="Edit manual bill"
                       >
                         Edit
@@ -135,7 +211,7 @@
                       <button
                         type="button"
                         (click)="openPaymentModal(bill)"
-                        class="px-3 py-1.5 text-sm font-medium bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors"
+                        class="btn btn-green"
                       >
                         Pay Bill
                       </button>
@@ -143,7 +219,7 @@
                       <button
                         type="button"
                         (click)="markAsUnpaid(bill)"
-                        class="px-3 py-1.5 text-sm font-medium border border-slate-300 text-slate-700 rounded-md hover:bg-slate-50 transition-colors"
+                        class="btn btn-ghost"
                       >
                         Mark Unpaid
                       </button>
@@ -152,7 +228,7 @@
                       <button
                         type="button"
                         (click)="toggleExpand(bill)"
-                        class="px-3 py-1.5 text-sm font-medium border border-slate-300 text-slate-700 rounded-md hover:bg-slate-50 transition-colors flex items-center gap-1"
+                        class="btn btn-ghost"
                       >
                         <span>{{ bill.isExpanded ? 'Hide' : 'Show' }} Transactions</span>
                         <lucide-angular [img]="bill.isExpanded ? ChevronUp : ChevronDown" [size]="16" />
@@ -255,14 +331,14 @@
           <button
             type="button"
             (click)="recordPayment()"
-            class="flex-1 px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 font-medium"
+            class="btn btn-green flex-1"
           >
             Record Payment
           </button>
           <button
             type="button"
             (click)="closePaymentModal()"
-            class="px-4 py-2 border border-slate-300 text-slate-700 rounded-md hover:bg-slate-50"
+            class="btn btn-ghost"
           >
             Cancel
           </button>
@@ -344,14 +420,14 @@
           <button
             type="button"
             (click)="saveBill()"
-            class="flex-1 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 font-medium"
+            class="btn btn-primary flex-1"
           >
             {{ billFormState().isEditing ? 'Update Bill' : 'Create Bill' }}
           </button>
           <button
             type="button"
             (click)="closeBillForm()"
-            class="px-4 py-2 border border-slate-300 text-slate-700 rounded-md hover:bg-slate-50"
+            class="btn btn-ghost"
           >
             Cancel
           </button>

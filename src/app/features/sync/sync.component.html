@@ -69,7 +69,7 @@
         <button
           (click)="handleExport()"
           [disabled]="isProcessing"
-          class="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-slate-400 disabled:cursor-not-allowed transition-colors"
+          [class]="isProcessing ? 'btn btn-disabled' : 'btn btn-primary'"
           type="button"
         >
           @if (isProcessing && !statusMessage.includes('Importing')) {
@@ -87,7 +87,7 @@
         <label
           [class.cursor-not-allowed]="isProcessing"
           [class.opacity-60]="isProcessing"
-          class="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 cursor-pointer transition-colors">
+          class="btn btn-green">
           @if (isProcessing && statusMessage.includes('Importing')) {
             <svg class="w-4 h-4 animate-spin" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
               <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
@@ -184,7 +184,7 @@
                 <button
                   (click)="handleFirebaseSignIn()"
                   [disabled]="isFirebaseProcessing || !firebaseEmail || !firebasePassword"
-                  class="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 disabled:bg-slate-400 disabled:cursor-not-allowed transition-colors"
+                  [class]="isFirebaseProcessing || !firebaseEmail || !firebasePassword ? 'btn btn-disabled' : 'btn btn-purple'"
                   type="button"
                 >
                   <lucide-icon [img]="LogIn" class="w-4 h-4"></lucide-icon>
@@ -193,7 +193,7 @@
                 <button
                   (click)="showSignUp = true"
                   [disabled]="isFirebaseProcessing"
-                  class="px-4 py-2 text-purple-600 hover:bg-purple-50 rounded-md transition-colors"
+                  class="btn btn-secondary"
                   type="button"
                 >
                   Create Account
@@ -202,7 +202,7 @@
                 <button
                   (click)="handleFirebaseSignUp()"
                   [disabled]="isFirebaseProcessing || !firebaseEmail || !firebasePassword"
-                  class="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 disabled:bg-slate-400 disabled:cursor-not-allowed transition-colors"
+                  [class]="isFirebaseProcessing || !firebaseEmail || !firebasePassword ? 'btn btn-disabled' : 'btn btn-purple'"
                   type="button"
                 >
                   <lucide-icon [img]="LogIn" class="w-4 h-4"></lucide-icon>
@@ -211,7 +211,7 @@
                 <button
                   (click)="showSignUp = false"
                   [disabled]="isFirebaseProcessing"
-                  class="px-4 py-2 text-purple-600 hover:bg-purple-50 rounded-md transition-colors"
+                  class="btn btn-secondary"
                   type="button"
                 >
                   Back to Sign In
@@ -231,7 +231,7 @@
             <button
               (click)="handleFirebaseGoogleSignIn()"
               [disabled]="isFirebaseProcessing"
-              class="w-full flex items-center justify-center gap-2 px-4 py-2 border border-slate-300 rounded-md hover:bg-slate-50 disabled:bg-slate-100 disabled:cursor-not-allowed transition-colors"
+              class="btn btn-ghost w-full disabled:bg-slate-100 disabled:cursor-not-allowed"
               type="button"
             >
               <lucide-icon [img]="Cloud" class="w-4 h-4"></lucide-icon>
@@ -277,7 +277,7 @@
                 <button
                   (click)="handleFirebaseEnableSync()"
                   [disabled]="isFirebaseProcessing"
-                  class="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:bg-slate-400 disabled:cursor-not-allowed transition-colors"
+                  [class]="isFirebaseProcessing ? 'btn btn-disabled' : 'btn btn-green'"
                   type="button"
                 >
                   <lucide-icon [img]="Cloud" class="w-4 h-4"></lucide-icon>
@@ -286,7 +286,7 @@
               } @else {
                 <button
                   (click)="handleFirebaseDisableSync()"
-                  class="flex items-center gap-2 px-4 py-2 bg-slate-400 text-white rounded-md hover:bg-slate-500 transition-colors"
+                  class="btn btn-disabled"
                   type="button"
                 >
                   <lucide-icon [img]="Cloud" class="w-4 h-4"></lucide-icon>
@@ -297,7 +297,7 @@
               <button
                 (click)="handleFirebasePush()"
                 [disabled]="isFirebaseProcessing"
-                class="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 disabled:bg-slate-400 disabled:cursor-not-allowed transition-colors"
+                [class]="isFirebaseProcessing ? 'btn btn-disabled' : 'btn btn-purple'"
                 type="button"
               >
                 <lucide-icon [img]="Upload" class="w-4 h-4"></lucide-icon>
@@ -307,7 +307,7 @@
               <button
                 (click)="handleFirebasePull()"
                 [disabled]="isFirebaseProcessing"
-                class="flex items-center gap-2 px-4 py-2 bg-amber-600 text-white rounded-md hover:bg-amber-700 disabled:bg-slate-400 disabled:cursor-not-allowed transition-colors"
+                [class]="isFirebaseProcessing ? 'btn btn-disabled' : 'btn btn-warning'"
                 type="button"
               >
                 <lucide-icon [img]="Download" class="w-4 h-4"></lucide-icon>
@@ -398,7 +398,7 @@
         <button
           (click)="refreshMigrationPreview()"
           [disabled]="isMigrationRunning"
-          class="flex items-center gap-2 px-4 py-2 border border-slate-300 rounded-md hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-slate-700"
+          class="btn btn-ghost disabled:opacity-50 disabled:cursor-not-allowed"
           type="button"
         >
           Refresh preview
@@ -406,7 +406,7 @@
         <button
           (click)="handleInstallmentDateMigration()"
           [disabled]="isMigrationRunning || !migrationPreview || migrationPreview.wouldUpdate === 0"
-          class="flex items-center gap-2 px-4 py-2 bg-amber-600 text-white rounded-md hover:bg-amber-700 disabled:bg-slate-300 disabled:cursor-not-allowed transition-colors"
+          [class]="isMigrationRunning || !migrationPreview || migrationPreview.wouldUpdate === 0 ? 'btn btn-disabled' : 'btn btn-warning'"
           type="button"
         >
           @if (isMigrationRunning) {

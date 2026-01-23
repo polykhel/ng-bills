@@ -77,14 +77,14 @@
     <div class="flex gap-2 pt-2">
       <button
         [disabled]="form.invalid"
-        class="flex-1 bg-blue-600 text-white py-2.5 rounded-md text-sm font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+        class="btn btn-primary flex-1 disabled:opacity-50 disabled:cursor-not-allowed"
         type="submit">
         {{ editingAccount() ? 'Update Account' : 'Save Account' }}
       </button>
       <button
         type="button"
         (click)="close()"
-        class="px-4 py-2.5 bg-white border border-slate-300 text-slate-700 rounded-md text-sm font-medium hover:bg-slate-50 transition-colors">
+        class="btn btn-ghost">
         Cancel
       </button>
     </div>

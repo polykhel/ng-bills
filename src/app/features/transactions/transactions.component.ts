@@ -96,26 +96,6 @@ import { format, parseISO, startOfMonth, endOfMonth, addMonths, subMonths, diffe
         margin-top: 12px;
       }
 
-      .btn {
-        padding: 8px 16px;
-        border: none;
-        border-radius: 4px;
-        font-size: 14px;
-        cursor: pointer;
-        font-weight: 600;
-      }
-
-      .btn-primary {
-        background: rgb(37, 99, 235);
-        color: white;
-      }
-
-      .btn-secondary {
-        background: white;
-        border: 1px solid rgb(226, 232, 240);
-        color: rgb(71, 85, 105);
-      }
-
       .transaction-item {
         display: flex;
         align-items: center;

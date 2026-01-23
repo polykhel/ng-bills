@@ -20,12 +20,12 @@
       <div class="p-4 flex gap-2 justify-end">
         <button
           (click)="onClose.emit()"
-          class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 transition-colors">
+          class="btn btn-ghost">
           {{ cancelText }}
         </button>
         <button
           (click)="handleConfirm()"
-          [class]="'px-4 py-2 text-sm font-medium text-white rounded-md transition-colors ' + variantStyles[variant].button">
+          [class]="variantStyles[variant].button === 'bg-red-600 hover:bg-red-700' ? 'btn btn-danger' : (variantStyles[variant].button === 'bg-blue-600 hover:bg-blue-700' ? 'btn btn-primary' : 'btn btn-primary')">
           {{ confirmText }}
         </button>
       </div>

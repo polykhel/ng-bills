@@ -15,7 +15,7 @@
       <button
         type="button"
         (click)="openGoalModal()"
-        class="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 font-medium transition-colors"
+        class="btn btn-primary"
       >
         <lucide-angular [img]="Plus" [size]="20" />
         <span>New Goal</span>
@@ -169,7 +169,7 @@
               <button
                 type="button"
                 (click)="openContributionModal(goal.id)"
-                class="flex-1 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 font-medium text-sm transition-colors"
+                class="btn btn-primary flex-1"
               >
                 Add Contribution
               </button>
@@ -295,14 +295,14 @@
           <button
             type="button"
             (click)="saveGoal()"
-            class="flex-1 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 font-medium"
+            class="btn btn-primary flex-1"
           >
             {{ editingGoal() ? 'Update Goal' : 'Create Goal' }}
           </button>
           <button
             type="button"
             (click)="closeGoalModal()"
-            class="px-4 py-2 border border-slate-300 text-slate-700 rounded-md hover:bg-slate-50"
+            class="btn btn-ghost"
           >
             Cancel
           </button>
@@ -342,14 +342,14 @@
           <button
             type="button"
             (click)="addContribution()"
-            class="flex-1 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 font-medium"
+            class="btn btn-primary flex-1"
           >
             Add Contribution
           </button>
           <button
             type="button"
             (click)="closeContributionModal()"
-            class="px-4 py-2 border border-slate-300 text-slate-700 rounded-md hover:bg-slate-50"
+            class="btn btn-ghost"
           >
             Cancel
           </button>

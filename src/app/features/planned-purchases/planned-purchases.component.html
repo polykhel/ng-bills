@@ -15,7 +15,7 @@
       <button
         type="button"
         (click)="openPurchaseModal()"
-        class="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 font-medium transition-colors"
+        class="btn btn-primary"
       >
         <lucide-angular [img]="Plus" [size]="20" />
         <span>New Purchase</span>
@@ -167,7 +167,7 @@
               <button
                 type="button"
                 (click)="openMarkPurchasedModal(purchase)"
-                class="flex-1 px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 font-medium text-sm transition-colors"
+                class="btn btn-green flex-1"
               >
                 Mark as Purchased
               </button>
@@ -337,14 +337,14 @@
           <button
             type="button"
             (click)="savePurchase()"
-            class="flex-1 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 font-medium"
+            class="btn btn-primary flex-1"
           >
             {{ editingPurchase() ? 'Update Purchase' : 'Create Purchase' }}
           </button>
           <button
             type="button"
             (click)="closePurchaseModal()"
-            class="px-4 py-2 border border-slate-300 text-slate-700 rounded-md hover:bg-slate-50"
+            class="btn btn-ghost"
           >
             Cancel
           </button>
@@ -422,14 +422,14 @@
           <button
             type="button"
             (click)="markAsPurchased()"
-            class="flex-1 px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 font-medium"
+            class="btn btn-green flex-1"
           >
             Mark as Purchased
           </button>
           <button
             type="button"
             (click)="closeMarkPurchasedModal()"
-            class="px-4 py-2 border border-slate-300 text-slate-700 rounded-md hover:bg-slate-50"
+            class="btn btn-ghost"
           >
             Cancel
           </button>

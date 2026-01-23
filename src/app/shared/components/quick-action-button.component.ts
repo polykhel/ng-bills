@@ -16,15 +16,7 @@ import { LucideAngularModule, LucideIconData } from 'lucide-angular';
       type="button"
       (click)="clicked.emit()"
       [disabled]="disabled()"
-      class="flex items-center justify-center gap-2 px-4 py-3 rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-      [class.bg-blue-600]="!disabled() && variant() === 'primary'"
-      [class.text-white]="!disabled() && variant() === 'primary'"
-      [class.hover:bg-blue-700]="!disabled() && variant() === 'primary'"
-      [class.bg-white]="!disabled() && variant() === 'secondary'"
-      [class.text-slate-700]="!disabled() && variant() === 'secondary'"
-      [class.border]="variant() === 'secondary'"
-      [class.border-slate-300]="variant() === 'secondary'"
-      [class.hover:bg-slate-50]="!disabled() && variant() === 'secondary'"
+      [class]="disabled() ? 'btn btn-disabled' : (variant() === 'primary' ? 'btn btn-primary' : 'btn btn-secondary')"
     >
       @if (icon()) {
         <lucide-angular [img]="icon()!" [size]="20" />

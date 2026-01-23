@@ -5,8 +5,10 @@ import {
   AlertCircle,
   Calendar,
   CheckCircle,
+  CheckCircle2,
   ChevronDown,
   ChevronUp,
+  Copy,
   CreditCard,
   DollarSign,
   FileText,
@@ -30,6 +32,7 @@ interface BillWithDetails {
   statement: Statement | null;
   cardId: string;
   cardName: string;
+  bankName: string;
   color: string;
   dueDate: Date;
   amount: number;
@@ -114,9 +117,11 @@ export class BillsComponent {
   readonly ChevronDown = ChevronDown;
   readonly ChevronUp = ChevronUp;
   readonly CheckCircle = CheckCircle;
+  readonly CheckCircle2 = CheckCircle2;
   readonly AlertCircle = AlertCircle;
   readonly X = X;
   readonly Plus = Plus;
+  readonly Copy = Copy;
 
   private appState = inject(AppStateService);
   private profileService = inject(ProfileService);
@@ -225,7 +230,8 @@ export class BillsComponent {
         const bill: BillWithDetails = {
           statement,
           cardId: card.id,
-          cardName: `${card.bankName} ${card.cardName}`,
+          cardName: card.cardName,
+          bankName: card.bankName,
           color: card.color,
           dueDate,
           amount,
@@ -240,6 +246,12 @@ export class BillsComponent {
       .sort((a, b) => a.dueDate.getTime() - b.dueDate.getTime());
   });
   private utils = inject(UtilsService);
+
+  // Bulk selection state
+  protected selectedBills = signal<Set<string>>(new Set());
+  protected bulkSelectMode = signal(false);
+  protected batchCopied = signal(false);
+  protected copiedBillId = signal<string | null>(null);
 
   protected get availableCards() {
     const profile = this.activeProfile();
@@ -256,7 +268,7 @@ export class BillsComponent {
     this.paymentModalState.set({
       isOpen: true,
       statement: bill.statement,
-      cardName: bill.cardName,
+      cardName: `${bill.bankName} ${bill.cardName}`,
       amount: bill.amount.toString(),
       date: new Date().toISOString().split('T')[0],
     });
@@ -429,5 +441,72 @@ export class BillsComponent {
       ...state,
       dueDate,
     }));
+  }
+
+  // Copy functionality
+  protected async copyBillInfo(bill: BillWithDetails): Promise<void> {
+    const amountDue = bill.statement?.adjustedAmount ?? bill.amount;
+    const text = `${bill.bankName} ${bill.cardName}\t${this.utils.formatCurrency(amountDue)}`;
+    await navigator.clipboard.writeText(text);
+    this.copiedBillId.set(bill.cardId);
+    setTimeout(() => {
+      this.copiedBillId.set(null);
+    }, 1200);
+  }
+
+  protected toggleBillSelection(billId: string): void {
+    const current = this.selectedBills();
+    const next = new Set(current);
+    if (next.has(billId)) {
+      next.delete(billId);
+    } else {
+      next.add(billId);
+    }
+    this.selectedBills.set(next);
+  }
+
+  protected toggleAllBills(): void {
+    const bills = this.billsWithDetails();
+    const current = this.selectedBills();
+    if (current.size === bills.length) {
+      this.selectedBills.set(new Set());
+    } else {
+      this.selectedBills.set(new Set(bills.map((b) => b.cardId)));
+    }
+  }
+
+  protected async copySelectedBills(): Promise<void> {
+    const bills = this.billsWithDetails();
+    const selected = this.selectedBills();
+    const lines = bills
+      .filter((bill) => selected.has(bill.cardId))
+      .map((bill) => {
+        const amountDue = bill.statement?.adjustedAmount ?? bill.amount;
+        return `${bill.bankName} ${bill.cardName}\t${this.utils.formatCurrency(amountDue)}`;
+      })
+      .filter((line) => line !== '');
+
+    await navigator.clipboard.writeText(lines.join('\n'));
+    this.batchCopied.set(true);
+    setTimeout(() => {
+      this.batchCopied.set(false);
+    }, 2000);
+  }
+
+  protected setBulkSelectMode(enabled: boolean): void {
+    this.bulkSelectMode.set(enabled);
+    if (!enabled) {
+      this.selectedBills.set(new Set());
+    }
+  }
+
+  protected isBillSelected(billId: string): boolean {
+    return this.selectedBills().has(billId);
+  }
+
+  protected get allBillsSelected(): boolean {
+    const bills = this.billsWithDetails();
+    const selected = this.selectedBills();
+    return bills.length > 0 && bills.every((b) => selected.has(b.cardId));
   }
 }
