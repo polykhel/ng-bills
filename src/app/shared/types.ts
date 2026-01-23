@@ -28,6 +28,7 @@ export interface Statement {
   paidAmount?: number;
   payments?: Payment[];
   customDueDate?: string;
+  customCutoffDay?: number;
   isUnbilled?: boolean;
   adjustedAmount?: number;
   isEstimated?: boolean;

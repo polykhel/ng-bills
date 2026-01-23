@@ -151,6 +151,7 @@ export class BillsComponent {
     cardId: string;
     amount: string;
     dueDate: string;
+    cutoffDay: string;
     notes: string;
     isEditing: boolean;
     editingMonthStr: string;
@@ -159,6 +160,7 @@ export class BillsComponent {
     cardId: '',
     amount: '',
     dueDate: '',
+    cutoffDay: '',
     notes: '',
     isEditing: false,
     editingMonthStr: '',
@@ -373,6 +375,7 @@ export class BillsComponent {
         cardId: defaultCard.id,
         amount: '',
         dueDate,
+        cutoffDay: defaultCard.cutoffDay.toString(),
         notes: '',
         isEditing: false,
         editingMonthStr: '',
@@ -383,11 +386,15 @@ export class BillsComponent {
   protected openBillFormForEdit(bill: BillWithDetails): void {
     if (!bill.statement) return;
 
+    const card = this.availableCards.find((c) => c.id === bill.cardId);
+    const cutoffDay = bill.statement.customCutoffDay ?? card?.cutoffDay ?? '';
+
     this.billFormState.set({
       isOpen: true,
       cardId: bill.cardId,
       amount: bill.statement.amount.toString(),
       dueDate: bill.statement.customDueDate || format(bill.dueDate, 'yyyy-MM-dd'),
+      cutoffDay: cutoffDay.toString(),
       notes: bill.statement.notes || '',
       isEditing: true,
       editingMonthStr: bill.statement.monthStr,
@@ -418,23 +425,41 @@ export class BillsComponent {
       }
 
       const monthStr = form.isEditing ? form.editingMonthStr : format(this.viewDate(), 'yyyy-MM');
+      const cutoffDayInput = form.cutoffDay?.trim();
+      const cutoffDay = cutoffDayInput ? parseInt(cutoffDayInput, 10) : undefined;
+      const card = this.availableCards.find((c) => c.id === form.cardId);
+      
+      // Build update object conditionally
+      const updates: Partial<Statement> = {
+        amount,
+        customDueDate: form.dueDate || undefined,
+        notes: form.notes || undefined,
+        isEstimated: true,
+      };
+
+      // Handle customCutoffDay:
+      // - If cutoff day is provided and differs from card default, save it
+      // - If cutoff day matches card default or is empty, clear any previous custom value
+      if (cutoffDay && card) {
+        if (cutoffDay !== card.cutoffDay) {
+          updates.customCutoffDay = cutoffDay;
+        } else {
+          // Matches default, clear custom value
+          updates.customCutoffDay = undefined;
+        }
+      } else if (form.isEditing) {
+        // Empty input when editing - clear any previous custom value
+        updates.customCutoffDay = undefined;
+      }
 
       if (form.isEditing) {
         // Update existing statement
-        this.statementService.updateStatement(form.cardId, monthStr, {
-          amount,
-          customDueDate: form.dueDate || undefined,
-          notes: form.notes || undefined,
-          isEstimated: true,
-        });
+        this.statementService.updateStatement(form.cardId, monthStr, updates);
       } else {
         // Create new manual statement
         this.statementService.updateStatement(form.cardId, monthStr, {
-          amount,
+          ...updates,
           isPaid: false,
-          customDueDate: form.dueDate || undefined,
-          notes: form.notes || undefined,
-          isEstimated: true,
         });
       }
 
@@ -455,6 +480,7 @@ export class BillsComponent {
     this.billFormState.update((state) => ({
       ...state,
       dueDate,
+      cutoffDay: card.cutoffDay.toString(),
     }));
   }
 
