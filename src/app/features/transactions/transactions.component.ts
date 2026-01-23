@@ -496,6 +496,12 @@ export class TransactionsComponent {
       paidByOther: transaction.paidByOther || false,
       paidByOtherProfileId: transaction.paidByOtherProfileId,
       paidByOtherName: transaction.paidByOtherName,
+      hasDebtObligation: transaction.hasDebtObligation || false,
+      debtAmount: transaction.debtAmount,
+      debtDueDate: transaction.debtDueDate,
+      debtPaid: transaction.debtPaid || false,
+      debtPaidDate: transaction.debtPaidDate,
+      linkedDebtTransactionId: transaction.linkedDebtTransactionId,
     };
     
     // Load recurring/installment data if present
@@ -681,6 +687,23 @@ export class TransactionsComponent {
 
   protected async onSubmitTransaction(): Promise<void> {
     if (!this.validateForm()) {
+      // Check for specific validation errors
+      if (
+        this.formData.type === 'income' &&
+        this.formData.hasDebtObligation &&
+        (!this.formData.debtAmount || this.formData.debtAmount <= 0)
+      ) {
+        alert('Please enter a valid debt amount');
+        return;
+      }
+      if (
+        this.formData.type === 'income' &&
+        this.formData.hasDebtObligation &&
+        !this.formData.debtDueDate
+      ) {
+        alert('Please enter a debt due date');
+        return;
+      }
       alert('Please fill in all required fields');
       return;
     }
@@ -825,6 +848,12 @@ export class TransactionsComponent {
           paidByOtherName: this.formData.paidByOtherName,
           isRecurring: this.isRecurringTransaction(),
           recurringRule,
+          hasDebtObligation: this.formData.hasDebtObligation || false,
+          debtAmount: this.formData.debtAmount,
+          debtDueDate: this.formData.debtDueDate,
+          debtPaid: this.formData.debtPaid || false,
+          debtPaidDate: this.formData.debtPaidDate,
+          linkedDebtTransactionId: this.formData.linkedDebtTransactionId,
         });
       } else {
         // Create new transaction
@@ -848,6 +877,12 @@ export class TransactionsComponent {
           paidByOtherName: this.formData.paidByOtherName,
           isRecurring: this.isRecurringTransaction(),
           recurringRule,
+          hasDebtObligation: this.formData.hasDebtObligation || false,
+          debtAmount: this.formData.debtAmount,
+          debtDueDate: this.formData.debtDueDate,
+          debtPaid: this.formData.debtPaid || false,
+          debtPaidDate: this.formData.debtPaidDate,
+          linkedDebtTransactionId: this.formData.linkedDebtTransactionId,
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
         };
@@ -1012,6 +1047,19 @@ export class TransactionsComponent {
       return false;
     }
 
+    // For income with debt obligation, debt amount and due date are required
+    if (
+      this.formData.type === 'income' &&
+      this.formData.hasDebtObligation
+    ) {
+      if (!this.formData.debtAmount || this.formData.debtAmount <= 0) {
+        return false;
+      }
+      if (!this.formData.debtDueDate) {
+        return false;
+      }
+    }
+
     return true;
   }
 
@@ -1030,6 +1078,12 @@ export class TransactionsComponent {
       fromBankId: undefined,
       toBankId: undefined,
       transferFee: undefined,
+      hasDebtObligation: false,
+      debtAmount: undefined,
+      debtDueDate: undefined,
+      debtPaid: false,
+      debtPaidDate: undefined,
+      linkedDebtTransactionId: undefined,
     };
   }
 
@@ -1117,6 +1171,67 @@ export class TransactionsComponent {
       if (calculatedTerm !== undefined) {
         this.recurringFormData.currentTerm = calculatedTerm;
       }
+    }
+  }
+
+  /**
+   * Check if transaction has debt obligation
+   */
+  protected hasDebtObligation(transaction: Transaction): boolean {
+    return Boolean(transaction.hasDebtObligation && transaction.type === 'income');
+  }
+
+  /**
+   * Check if debt is overdue
+   */
+  protected isDebtOverdue(transaction: Transaction): boolean {
+    if (!this.hasDebtObligation(transaction) || !transaction.debtDueDate) {
+      return false;
+    }
+    if (transaction.debtPaid) {
+      return false;
+    }
+    const today = new Date();
+    const dueDate = parseISO(transaction.debtDueDate);
+    return dueDate < today;
+  }
+
+  /**
+   * Get debt status text
+   */
+  protected getDebtStatus(transaction: Transaction): string {
+    if (!this.hasDebtObligation(transaction)) {
+      return '';
+    }
+    if (transaction.debtPaid) {
+      return 'Debt Paid';
+    }
+    if (this.isDebtOverdue(transaction)) {
+      return 'Debt Overdue';
+    }
+    return 'Debt Pending';
+  }
+
+  /**
+   * Format debt due date
+   */
+  protected formatDebtDueDate(transaction: Transaction): string {
+    if (!transaction.debtDueDate) return '';
+    return this.formatDate(transaction.debtDueDate);
+  }
+
+  /**
+   * Handle transaction type change - clear debt fields if switching from income to expense
+   */
+  protected onTransactionTypeChange(newType: TransactionType): void {
+    if (newType === 'expense' && this.formData.hasDebtObligation) {
+      // Clear debt fields when switching to expense
+      this.formData.hasDebtObligation = false;
+      this.formData.debtAmount = undefined;
+      this.formData.debtDueDate = undefined;
+      this.formData.debtPaid = false;
+      this.formData.debtPaidDate = undefined;
+      this.formData.linkedDebtTransactionId = undefined;
     }
   }
 }

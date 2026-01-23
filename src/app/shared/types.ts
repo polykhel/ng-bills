@@ -139,6 +139,14 @@ export interface Transaction {
   paidByOther?: boolean;           // True if someone else paid this charge
   paidByOtherProfileId?: string;   // Profile ID of who paid (link to other profile)
   paidByOtherName?: string;        // Name of the person who paid (e.g., "John", "Mom") - fallback for non-profile users
+  
+  // Debt obligation for income (e.g., loan, advance payment that must be repaid)
+  hasDebtObligation?: boolean;     // True if this income has a debt that must be paid back
+  debtAmount?: number;             // Amount that needs to be paid back
+  debtDueDate?: string;            // Date when the debt must be paid (ISO string)
+  debtPaid?: boolean;              // True if the debt has been paid
+  debtPaidDate?: string;           // Date when the debt was paid (ISO string)
+  linkedDebtTransactionId?: string; // ID of the expense transaction created when debt is paid
 }
 
 export interface TransactionFilter {

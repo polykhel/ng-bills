@@ -122,7 +122,7 @@
         <div class="form-row">
           <div class="form-group">
             <label>Type *</label>
-            <select [(ngModel)]="formData.type">
+            <select [(ngModel)]="formData.type" (ngModelChange)="onTransactionTypeChange($event)">
               <option value="expense">Expense</option>
               <option value="income">Income</option>
             </select>
@@ -300,6 +300,69 @@
           <label>Notes</label>
           <textarea [(ngModel)]="formData.notes" placeholder="Optional notes..." rows="2"></textarea>
         </div>
+
+        <!-- Debt Obligation Section (Income only) -->
+        @if (formData.type === 'income') {
+          <div class="border-t border-slate-200 pt-4 mt-4">
+            <div class="form-group" style="display: flex; align-items: center; gap: 8px; margin-bottom: 16px;">
+              <input 
+                type="checkbox" 
+                id="hasDebtObligation"
+                [(ngModel)]="formData.hasDebtObligation"
+              />
+              <label for="hasDebtObligation" style="margin-bottom: 0; font-weight: 600; cursor: pointer;">
+                This income has a debt that must be paid back
+              </label>
+            </div>
+
+            @if (formData.hasDebtObligation) {
+              <div class="space-y-4" style="background: rgb(249, 250, 251); padding: 16px; border-radius: 8px;">
+                <div class="form-row">
+                  <div class="form-group">
+                    <label>Debt Amount *</label>
+                    <input 
+                      type="number" 
+                      [(ngModel)]="formData.debtAmount" 
+                      placeholder="0.00" 
+                      step="0.01" 
+                      min="0.01"
+                    />
+                    <small style="color: rgb(100, 116, 139); font-size: 11px; margin-top: 4px; display: block;">
+                      Amount that needs to be paid back
+                    </small>
+                  </div>
+                  <div class="form-group">
+                    <label>Debt Due Date *</label>
+                    <input 
+                      type="date" 
+                      [(ngModel)]="formData.debtDueDate"
+                    />
+                    <small style="color: rgb(100, 116, 139); font-size: 11px; margin-top: 4px; display: block;">
+                      When the debt must be paid
+                    </small>
+                  </div>
+                </div>
+                @if (editingTransactionId() && formData.debtPaid) {
+                  <div class="form-group">
+                    <label style="display: flex; align-items: center; gap: 8px;">
+                      <input 
+                        type="checkbox" 
+                        [(ngModel)]="formData.debtPaid"
+                        disabled
+                      />
+                      <span>Debt has been paid</span>
+                    </label>
+                    @if (formData.debtPaidDate) {
+                      <small style="color: rgb(100, 116, 139); font-size: 11px; margin-top: 4px; display: block;">
+                        Paid on: {{ formatDate(formData.debtPaidDate) }}
+                      </small>
+                    }
+                  </div>
+                }
+              </div>
+            }
+          </div>
+        }
 
         <!-- Recurring Transaction Section -->
         <div class="border-t border-slate-200 pt-4 mt-4">
@@ -717,6 +780,25 @@
                         </div>
                       </div>
                     </div>
+                  }
+                  @if (hasDebtObligation(transaction)) {
+                    <span 
+                      [ngClass]="{
+                        'bg-red-100 text-red-800': isDebtOverdue(transaction),
+                        'bg-yellow-100 text-yellow-800': !isDebtOverdue(transaction) && !transaction.debtPaid,
+                        'bg-green-100 text-green-800': transaction.debtPaid
+                      }"
+                      class="inline-block ml-2 px-2 py-0.5 text-xs rounded font-semibold">
+                      💳 Debt: ₱{{ transaction.debtAmount?.toLocaleString() }}
+                      @if (transaction.debtPaid) {
+                        ✓ Paid
+                      } @else {
+                        • Due: {{ formatDebtDueDate(transaction) }}
+                        @if (isDebtOverdue(transaction)) {
+                          ⚠️ Overdue
+                        }
+                      }
+                    </span>
                   }
                   @if (getTransactionContext(transaction)) {
                     <span class="inline-block ml-2 px-2 py-0.5 bg-amber-100 text-amber-800 text-xs rounded font-semibold">
