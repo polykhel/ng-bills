@@ -91,7 +91,7 @@ export class StatementService {
     });
   }
 
-  addPayment(cardId: string, monthStr: string, amount: number): void {
+  addPayment(cardId: string, monthStr: string, amount: number, date?: string): void {
     this.statementsSignal.update((prev) => {
       const existing = prev.find((s) => s.cardId === cardId && s.monthStr === monthStr);
 
@@ -107,10 +107,10 @@ export class StatementService {
 
         const newPayments = [
           ...payments,
-          { amount: paymentAmount, date: new Date().toISOString() },
+          { amount: paymentAmount, date: date || new Date().toISOString() },
         ];
         const totalPaid = newPayments.reduce((sum, p) => sum + p.amount, 0);
-        const isPaid = totalPaid >= effectiveAmount;
+        const isPaid = totalPaid >= effectiveAmount; // Logic: is fully paid if total matches amount
 
         const updates = {
           payments: newPayments,

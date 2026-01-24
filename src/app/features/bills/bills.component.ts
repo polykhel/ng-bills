@@ -23,6 +23,7 @@ import {
   StatementService,
   TransactionService,
   UtilsService,
+  CategoryService,
 } from '@services';
 import { EmptyStateComponent, MetricCardComponent } from '@components';
 import type { Statement, Transaction } from '@shared/types';
@@ -201,6 +202,7 @@ export class BillsComponent {
     return { totalDue, unpaidCount, paidCount, totalPaid };
   });
   private transactionService = inject(TransactionService);
+  private categoryService = inject(CategoryService);
   // Get all bills with details for current month
   protected billsWithDetails = computed(() => {
     const profile = this.activeProfile();
@@ -222,7 +224,13 @@ export class BillsComponent {
             return parseISO(a.date).getTime() - parseISO(b.date).getTime();
           });
 
-        const dueDate = new Date(`${monthStr}-${String(card.dueDay).padStart(2, '0')}`);
+        let dueDate: Date;
+        if (statement?.customDueDate) {
+            dueDate = parseISO(statement.customDueDate);
+        } else {
+            dueDate = new Date(`${monthStr}-${String(card.dueDay).padStart(2, '0')}`);
+        }
+
         const amount = statement?.amount || transactions.reduce((sum, t) => sum + t.amount, 0);
 
         const bill: BillWithDetails = {
@@ -290,29 +298,64 @@ export class BillsComponent {
         return;
       }
 
-      await this.statementService.updateStatement(
+      await this.statementService.addPayment(
         modal.statement.cardId,
         modal.statement.monthStr,
-        {
-          isPaid: true,
-          paidAmount,
-          payments: [
-            ...(modal.statement.payments || []),
-            {
-              amount: paidAmount,
-              date: modal.date,
-            },
-          ],
-        },
+        paidAmount,
+        modal.date
       );
 
-      // Mark all transactions for this statement as paid
-      await this.transactionService.markStatementTransactionsPaidStatus(
-        modal.statement.cardId,
-        modal.statement.monthStr,
-        true,
-        modal.date,
+      // Determine if the statement is now fully paid
+      const updatedStatement = this.statementService.getStatementForMonth(
+          modal.statement.cardId,
+          modal.statement.monthStr
       );
+      const isFullyPaid = updatedStatement?.isPaid ?? false;
+
+      // Mark all transactions for this statement as paid if fully paid
+      if (isFullyPaid) {
+          await this.transactionService.markStatementTransactionsPaidStatus(
+            modal.statement.cardId,
+            modal.statement.monthStr,
+            true,
+            modal.date,
+          );
+      }
+
+      // Create a transaction for the payment (for record-keeping)
+      // This allows the user to see the payment in the transactions list
+      // Note: isBudgetImpacting=false to avoid double-counting against projected liquid balance
+      // (since credit card spends are already deducted from liquid balance projections)
+      const profile = this.activeProfile();
+      if (profile) {
+          // Find a suitable category
+          const categories = this.categoryService.getCategories();
+          // Look for "Credit Card Payment", "Debt Payment", "Payment", or fallback to "Utilities" or "Uncategorized"
+          let categoryId = 'uncategorized';
+          const paymentCategory = categories.find(c => 
+              c.name.toLowerCase().includes('credit card') || 
+              c.name.toLowerCase().includes('payment') ||
+              c.name.toLowerCase().includes('debt')
+          );
+          if (paymentCategory) {
+              categoryId = paymentCategory.id;
+          }
+
+          await this.transactionService.addTransaction({
+              id: crypto.randomUUID(),
+              profileId: profile.id,
+              type: 'expense',
+              amount: paidAmount,
+              date: modal.date,
+              description: `Payment for ${modal.cardName}`,
+              categoryId: categoryId,
+              paymentMethod: 'bank_transfer', // Default assumption for bill pay
+              notes: 'Auto-generated from Bills page',
+              isBudgetImpacting: false, // Critical: Don't reduce liquid balance again
+              createdAt: new Date().toISOString(),
+              updatedAt: new Date().toISOString()
+          });
+      }
 
       this.closePaymentModal();
     } catch (error) {
@@ -421,7 +464,7 @@ export class BillsComponent {
       }
 
       const monthStr = form.isEditing ? form.editingMonthStr : format(this.viewDate(), 'yyyy-MM');
-      const cutoffDayInput = form.cutoffDay?.trim();
+      const cutoffDayInput = form.cutoffDay;
       const cutoffDay = cutoffDayInput ? parseInt(cutoffDayInput, 10) : undefined;
       const card = this.availableCards.find((c) => c.id === form.cardId);
       
@@ -446,6 +489,14 @@ export class BillsComponent {
       } else if (form.isEditing) {
         // Empty input when editing - clear any previous custom value
         updates.customCutoffDay = undefined;
+      }
+      
+      // Update customDueDate based on form input
+      if (form.dueDate) {
+          updates.customDueDate = form.dueDate;
+      } else if (form.isEditing) {
+          // If editing and date is cleared, reset to undefined (will fallback to default calc)
+          updates.customDueDate = undefined;
       }
 
       if (form.isEditing) {

@@ -224,13 +224,13 @@
                         Mark Unpaid
                       </button>
                     }
-                    @if (bill.transactions.length > 0) {
+                    @if (bill.transactions.length > 0 || (bill.statement?.payments && bill.statement!.payments!.length > 0)) {
                       <button
                         type="button"
                         (click)="toggleExpand(bill)"
                         class="btn btn-ghost"
                       >
-                        <span>{{ bill.isExpanded ? 'Hide' : 'Show' }} Transactions</span>
+                        <span>{{ bill.isExpanded ? 'Hide' : 'Show' }} Details</span>
                         <lucide-angular [img]="bill.isExpanded ? ChevronUp : ChevronDown" [size]="16" />
                       </button>
                     }
@@ -240,28 +240,52 @@
             </div>
 
             <!-- Transactions List (Expandable) -->
-            @if (bill.isExpanded && bill.transactions.length > 0) {
+            @if (bill.isExpanded) {
               <div class="border-t border-slate-200 bg-slate-50">
                 <div class="p-4">
-                  <h4 class="text-sm font-semibold text-slate-700 mb-3">Linked Transactions</h4>
-                  <div class="bg-white rounded-md border border-slate-200">
-                    @for (transaction of bill.transactions; track transaction.id) {
-                      <div class="transaction-item">
-                        <div class="flex-1">
-                          <div class="font-medium text-slate-900">{{ transaction.description }}</div>
-                          <div class="text-xs text-slate-500 mt-0.5">
-                            {{ formatDate(transaction.date) }}
-                            @if (transaction.notes) {
-                              • {{ transaction.notes }}
-                            }
+                  <!-- Payment History -->
+                  @if (bill.statement?.payments && bill.statement!.payments!.length > 0) {
+                    <div class="mb-4">
+                      <h4 class="text-sm font-semibold text-slate-700 mb-2">Payment History</h4>
+                      <div class="bg-white rounded-md border border-slate-200">
+                        @for (payment of bill.statement!.payments; track $index) {
+                          <div class="transaction-item">
+                            <div class="flex-1">
+                              <div class="font-medium text-slate-900">Payment</div>
+                              <div class="text-xs text-slate-500 mt-0.5">
+                                {{ formatDate(payment.date) }}
+                              </div>
+                            </div>
+                            <div class="font-semibold text-green-600">
+                              +{{ formatCurrency(payment.amount) }}
+                            </div>
+                          </div>
+                        }
+                      </div>
+                    </div>
+                  }
+                  
+                  @if (bill.transactions.length > 0) {
+                    <h4 class="text-sm font-semibold text-slate-700 mb-2">Linked Transactions</h4>
+                    <div class="bg-white rounded-md border border-slate-200">
+                      @for (transaction of bill.transactions; track transaction.id) {
+                        <div class="transaction-item">
+                          <div class="flex-1">
+                            <div class="font-medium text-slate-900">{{ transaction.description }}</div>
+                            <div class="text-xs text-slate-500 mt-0.5">
+                              {{ formatDate(transaction.date) }}
+                              @if (transaction.notes) {
+                                • {{ transaction.notes }}
+                              }
+                            </div>
+                          </div>
+                          <div class="font-semibold text-red-600">
+                            -{{ formatCurrency(transaction.amount) }}
                           </div>
                         </div>
-                        <div class="font-semibold text-red-600">
-                          -{{ formatCurrency(transaction.amount) }}
-                        </div>
-                      </div>
-                    }
-                  </div>
+                      }
+                    </div>
+                  }
                 </div>
               </div>
             }
