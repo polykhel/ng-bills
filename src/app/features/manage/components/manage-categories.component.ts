@@ -129,44 +129,5 @@ export class ManageCategoriesComponent {
     }
   }
 
-
-  protected isDefaultCategory(id: string): boolean {
-    const defaultIds = [
-      'housing', 'transportation', 'food-dining', 'groceries', 'shopping',
-      'entertainment', 'healthcare', 'utilities', 'insurance', 'education',
-      'personal', 'subscriptions', 'travel', 'gifts',
-      'salary', 'business', 'investments', 'freelance', 'other-income',
-      'uncategorized',
-    ];
-    return defaultIds.includes(id);
-  }
-
-  protected getIconEmoji(iconName: string): string {
-    // Map common icon names to emojis for display
-    const iconMap: Record<string, string> = {
-      home: '🏠',
-      car: '🚗',
-      utensils: '🍴',
-      'shopping-cart': '🛒',
-      'shopping-bag': '🛍️',
-      tv: '📺',
-      heart: '❤️',
-      zap: '⚡',
-      shield: '🛡️',
-      book: '📚',
-      user: '👤',
-      'credit-card': '💳',
-      plane: '✈️',
-      gift: '🎁',
-      'dollar-sign': '💰',
-      briefcase: '💼',
-      'trending-up': '📈',
-      laptop: '💻',
-      'plus-circle': '➕',
-      'help-circle': '❓',
-    };
-    return iconMap[iconName] || '📁';
-  }
-
   trackCategory = (_: number, category: Category) => category.id;
 }

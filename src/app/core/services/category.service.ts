@@ -92,6 +92,13 @@ export class CategoryService {
       if (categories.length === 0) {
         categories = this.getDefaultCategories();
         await db.putAll(STORES.CATEGORIES, categories);
+      } else {
+        // Migrate legacy Lucide icons to emojis if needed
+        const migratedCategories = this.migrateIconsToEmojis(categories);
+        if (migratedCategories !== categories) {
+          categories = migratedCategories;
+          await db.putAll(STORES.CATEGORIES, categories);
+        }
       }
 
       this.categoriesSignal.set(categories);
@@ -102,6 +109,42 @@ export class CategoryService {
       this.categoriesSignal.set(this.getDefaultCategories());
       this.isLoadedSignal.set(true);
     }
+  }
+
+  private migrateIconsToEmojis(categories: Category[]): Category[] {
+    const iconMap: Record<string, string> = {
+      home: '🏠',
+      car: '🚗',
+      utensils: '🍴',
+      'shopping-cart': '🛒',
+      'shopping-bag': '🛍️',
+      tv: '📺',
+      heart: '❤️',
+      zap: '⚡',
+      shield: '🛡️',
+      book: '📚',
+      user: '👤',
+      'credit-card': '💳',
+      plane: '✈️',
+      gift: '🎁',
+      'dollar-sign': '💰',
+      briefcase: '💼',
+      'trending-up': '📈',
+      laptop: '💻',
+      'plus-circle': '➕',
+      'help-circle': '❓',
+    };
+
+    let hasChanges = false;
+    const migrated = categories.map(cat => {
+      if (cat.icon && iconMap[cat.icon]) {
+        hasChanges = true;
+        return { ...cat, icon: iconMap[cat.icon] };
+      }
+      return cat;
+    });
+
+    return hasChanges ? migrated : categories;
   }
 
   /**
@@ -122,58 +165,58 @@ export class CategoryService {
   private getDefaultCategories(): Category[] {
     return [
       // Expense Categories
-      { id: 'housing', name: 'Housing', icon: 'home', color: '#3b82f6', type: 'expense' },
+      { id: 'housing', name: 'Housing', icon: '🏠', color: '#3b82f6', type: 'expense' },
       {
         id: 'transportation',
         name: 'Transportation',
-        icon: 'car',
+        icon: '🚗',
         color: '#8b5cf6',
         type: 'expense',
       },
       {
         id: 'food-dining',
         name: 'Food & Dining',
-        icon: 'utensils',
+        icon: '🍴',
         color: '#f59e0b',
         type: 'expense',
       },
       {
         id: 'groceries',
         name: 'Groceries',
-        icon: 'shopping-cart',
+        icon: '🛒',
         color: '#10b981',
         type: 'expense',
       },
-      { id: 'shopping', name: 'Shopping', icon: 'shopping-bag', color: '#ec4899', type: 'expense' },
-      { id: 'entertainment', name: 'Entertainment', icon: 'tv', color: '#6366f1', type: 'expense' },
-      { id: 'healthcare', name: 'Healthcare', icon: 'heart', color: '#ef4444', type: 'expense' },
-      { id: 'utilities', name: 'Utilities', icon: 'zap', color: '#eab308', type: 'expense' },
-      { id: 'insurance', name: 'Insurance', icon: 'shield', color: '#06b6d4', type: 'expense' },
-      { id: 'education', name: 'Education', icon: 'book', color: '#14b8a6', type: 'expense' },
-      { id: 'personal', name: 'Personal Care', icon: 'user', color: '#a855f7', type: 'expense' },
+      { id: 'shopping', name: 'Shopping', icon: '🛍️', color: '#ec4899', type: 'expense' },
+      { id: 'entertainment', name: 'Entertainment', icon: '📺', color: '#6366f1', type: 'expense' },
+      { id: 'healthcare', name: 'Healthcare', icon: '❤️', color: '#ef4444', type: 'expense' },
+      { id: 'utilities', name: 'Utilities', icon: '⚡', color: '#eab308', type: 'expense' },
+      { id: 'insurance', name: 'Insurance', icon: '🛡️', color: '#06b6d4', type: 'expense' },
+      { id: 'education', name: 'Education', icon: '📚', color: '#14b8a6', type: 'expense' },
+      { id: 'personal', name: 'Personal Care', icon: '👤', color: '#a855f7', type: 'expense' },
       {
         id: 'subscriptions',
         name: 'Subscriptions',
-        icon: 'credit-card',
+        icon: '💳',
         color: '#f97316',
         type: 'expense',
       },
-      { id: 'travel', name: 'Travel', icon: 'plane', color: '#0ea5e9', type: 'expense' },
-      { id: 'gifts', name: 'Gifts & Donations', icon: 'gift', color: '#f43f5e', type: 'expense' },
+      { id: 'travel', name: 'Travel', icon: '✈️', color: '#0ea5e9', type: 'expense' },
+      { id: 'gifts', name: 'Gifts & Donations', icon: '🎁', color: '#f43f5e', type: 'expense' },
 
       // Income Categories
-      { id: 'salary', name: 'Salary', icon: 'dollar-sign', color: '#22c55e', type: 'income' },
+      { id: 'salary', name: 'Salary', icon: '💰', color: '#22c55e', type: 'income' },
       {
         id: 'business',
         name: 'Business Income',
-        icon: 'briefcase',
+        icon: '💼',
         color: '#3b82f6',
         type: 'income',
       },
       {
         id: 'investments',
         name: 'Investments',
-        icon: 'trending-up',
+        icon: '📈',
         color: '#10b981',
         type: 'income',
       },
@@ -181,7 +224,7 @@ export class CategoryService {
       {
         id: 'other-income',
         name: 'Other Income',
-        icon: 'plus-circle',
+        icon: '➕',
         color: '#06b6d4',
         type: 'income',
       },
@@ -190,7 +233,7 @@ export class CategoryService {
       {
         id: 'uncategorized',
         name: 'Uncategorized',
-        icon: 'help-circle',
+        icon: '❓',
         color: '#6b7280',
         type: 'both',
       },
