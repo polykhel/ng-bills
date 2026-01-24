@@ -312,7 +312,7 @@
 
   <!-- Payment Modal -->
   @if (paymentModal().isOpen) {
-    <div class="payment-modal" (click)="closePaymentModal()">
+    <div class="payment-modal">
       <div class="modal-content" (click)="$event.stopPropagation()">
         <div class="flex items-center justify-between mb-4">
           <h3 class="text-lg font-semibold text-slate-900">Record Payment</h3>
@@ -373,7 +373,7 @@
 
   <!-- Bill Form Modal (Create/Edit) -->
   @if (billFormState().isOpen) {
-    <div class="payment-modal" (click)="closeBillForm()">
+    <div class="payment-modal">
       <div class="modal-content" (click)="$event.stopPropagation()">
         <div class="flex items-center justify-between mb-4">
           <h3 class="text-lg font-semibold text-slate-900">

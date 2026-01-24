@@ -198,7 +198,7 @@
 
   <!-- Budget Modal -->
   @if (showBudgetModal()) {
-    <div class="budget-modal" (click)="closeBudgetModal()">
+    <div class="budget-modal">
       <div class="modal-content" (click)="$event.stopPropagation()">
         <div class="flex items-center justify-between mb-4">
           <h3 class="text-lg font-semibold text-slate-900">Add Category Budget</h3>
@@ -262,7 +262,7 @@
 
   <!-- Settings Modal -->
   @if (showSettingsModal() && activeBudget()) {
-    <div class="budget-modal" (click)="closeSettingsModal()">
+    <div class="budget-modal">
       <div class="modal-content" (click)="$event.stopPropagation()">
         <div class="flex items-center justify-between mb-4">
           <h3 class="text-lg font-semibold text-slate-900">Budget Settings</h3>

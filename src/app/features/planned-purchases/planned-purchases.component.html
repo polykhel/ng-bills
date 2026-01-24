@@ -180,7 +180,7 @@
 
   <!-- Purchase Modal -->
   @if (showPurchaseModal()) {
-    <div class="purchase-modal" (click)="closePurchaseModal()">
+    <div class="purchase-modal">
       <div class="modal-content" (click)="$event.stopPropagation()">
         <div class="flex items-center justify-between mb-4">
           <h3 class="text-lg font-semibold text-slate-900">
@@ -355,7 +355,7 @@
 
   <!-- Mark as Purchased Modal -->
   @if (showMarkPurchasedModal()) {
-    <div class="purchase-modal" (click)="closeMarkPurchasedModal()">
+    <div class="purchase-modal">
       <div class="modal-content" (click)="$event.stopPropagation()">
         <div class="flex items-center justify-between mb-4">
           <h3 class="text-lg font-semibold text-slate-900">Mark as Purchased</h3>

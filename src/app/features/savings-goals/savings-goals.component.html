@@ -182,7 +182,7 @@
 
   <!-- Goal Modal -->
   @if (showGoalModal()) {
-    <div class="goal-modal" (click)="closeGoalModal()">
+    <div class="goal-modal">
       <div class="modal-content" (click)="$event.stopPropagation()">
         <div class="flex items-center justify-between mb-4">
           <h3 class="text-lg font-semibold text-slate-900">
@@ -313,7 +313,7 @@
 
   <!-- Contribution Modal -->
   @if (showContributionModal()) {
-    <div class="goal-modal" (click)="closeContributionModal()">
+    <div class="goal-modal">
       <div class="modal-content" (click)="$event.stopPropagation()">
         <div class="flex items-center justify-between mb-4">
           <h3 class="text-lg font-semibold text-slate-900">Add Contribution</h3>
