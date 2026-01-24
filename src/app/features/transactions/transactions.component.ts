@@ -29,6 +29,7 @@ import {
   ProfileService,
   StatementService,
   TransactionService,
+  TransactionBucketService,
 } from '@services';
 import { EmptyStateComponent, MetricCardComponent, QuickActionButtonComponent } from '@components';
 import type { PaymentMethod, Transaction, TransactionFilter, TransactionType } from '@shared/types';
@@ -281,14 +282,31 @@ export class TransactionsComponent {
   });
   private transactionService = inject(TransactionService);
   private statementService = inject(StatementService);
+  private transactionBucketService = inject(TransactionBucketService);
   
+  // View mode: 'cash-flow' or 'statement-prep'
+  protected viewMode = signal<'cash-flow' | 'statement-prep'>('cash-flow');
+  
+  // Buffer calculation
+  protected bufferInfo = computed(() => {
+    const profile = this.activeProfile();
+    if (!profile) {
+      return { totalBalance: 0, totalCreditCardDebt: 0, buffer: 0, isDangerZone: false };
+    }
+    const monthStr = format(this.viewDate(), 'yyyy-MM');
+    return this.transactionBucketService.calculateBuffer(profile.id, monthStr);
+  });
 
   // Computed filtered transactions
   // Shows transactions where:
   // 1. User owns the transaction (profileId matches)
   // 2. User paid for it (paidByOtherProfileId matches current profile)
   // In multi-profile mode: shows transactions from selected profiles
+  // View mode affects what transactions are shown:
+  // - Cash Flow View: Shows all budget-impacting transactions (real-time spending)
+  // - Statement Prep View: Shows transactions grouped by statement cycle
   protected filteredTransactions = computed(() => {
+    const viewMode = this.viewMode();
     const multiMode = this.multiProfileMode();
     const selectedIds = this.selectedProfileIds();
     const profile = this.activeProfile();
@@ -379,6 +397,23 @@ export class TransactionsComponent {
         if (this.isInstallment(t) && this.isInstallmentCompleted(t)) return false;
         return true;
       });
+    }
+
+    // View mode filtering
+    if (viewMode === 'cash-flow') {
+      // Cash Flow View: Only show budget-impacting transactions
+      // Exclude parent transactions (they're for net worth tracking only)
+      relevantTransactions = relevantTransactions.filter((t) => {
+        // Include if it's budget impacting (default true if not set)
+        if (t.isBudgetImpacting === false) return false;
+        // Exclude parent transactions (they have isRecurring=true, type=installment, but no parentTransactionId)
+        if (this.transactionBucketService.isParentTransaction(t)) return false;
+        return true;
+      });
+    } else {
+      // Statement Prep View: Show transactions grouped by statement cycle
+      // Include all transactions, but we'll group them by statement period in the UI
+      // For now, just show all transactions (grouping can be done in template)
     }
 
     // Apply search filter
@@ -723,6 +758,45 @@ export class TransactionsComponent {
     return 'blue';
   }
 
+  /**
+   * Get transaction bucket type
+   */
+  protected getTransactionBucket(transaction: Transaction): 'direct' | 'recurring' | 'installment' {
+    return this.transactionBucketService.getTransactionBucket(transaction);
+  }
+
+  /**
+   * Get bucket badge class
+   */
+  protected getBucketBadgeClass(bucket: 'direct' | 'recurring' | 'installment'): string {
+    switch (bucket) {
+      case 'direct':
+        return 'bg-blue-100 text-blue-700 border-blue-200';
+      case 'recurring':
+        return 'bg-purple-100 text-purple-700 border-purple-200';
+      case 'installment':
+        return 'bg-orange-100 text-orange-700 border-orange-200';
+      default:
+        return 'bg-slate-100 text-slate-700 border-slate-200';
+    }
+  }
+
+  /**
+   * Get bucket label
+   */
+  protected getBucketLabel(bucket: 'direct' | 'recurring' | 'installment'): string {
+    switch (bucket) {
+      case 'direct':
+        return 'Direct Expense';
+      case 'recurring':
+        return 'Recurring Bill';
+      case 'installment':
+        return 'Installment';
+      default:
+        return '';
+    }
+  }
+
   protected async onSubmitTransaction(): Promise<void> {
     if (!this.validateForm()) {
       // Check for specific validation errors
@@ -814,8 +888,9 @@ export class TransactionsComponent {
           const monthlyAmort = this.recurringFormData.monthlyAmortization ||
             (this.recurringFormData.totalPrincipal! / this.recurringFormData.totalTerms!);
           
-          // Use monthly amortization as transaction amount
-          transactionAmount = monthlyAmort;
+          // For parent transaction: use totalPrincipal (for net worth/debt tracking)
+          // Virtual transactions will use monthlyAmort
+          transactionAmount = this.recurringFormData.totalPrincipal!;
           
           // Calculate end date
           const startDateObj = parseISO(calculatedStartDate!);
@@ -843,6 +918,7 @@ export class TransactionsComponent {
             type: 'installment' as const,
             frequency: 'monthly' as const,
             totalPrincipal: this.recurringFormData.totalPrincipal,
+            monthlyAmortization: monthlyAmort,
             currentTerm: calculatedCurrentTerm,
             totalTerms: this.recurringFormData.totalTerms,
             startDate: calculatedStartDate,
@@ -1271,6 +1347,18 @@ export class TransactionsComponent {
       this.formData.debtPaidDate = undefined;
       this.formData.linkedDebtTransactionId = undefined;
     }
+  }
+
+  /**
+   * Format currency for display
+   */
+  protected formatCurrency(amount: number): string {
+    return amount.toLocaleString('en-PH', {
+      style: 'currency',
+      currency: 'PHP',
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
   }
 
   /**

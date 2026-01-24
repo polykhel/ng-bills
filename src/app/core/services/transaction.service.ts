@@ -80,6 +80,7 @@ export class TransactionService {
   /**
    * Add a new transaction
    * If payment method is 'card', automatically creates/updates the bill
+   * If it's an installment, creates parent transaction and generates virtual transactions
    */
   async addTransaction(transaction: Transaction): Promise<void> {
     // Generate ID if not provided
@@ -92,12 +93,45 @@ export class TransactionService {
     transaction.createdAt = now;
     transaction.updatedAt = now;
 
-    // Add to signal
-    this.transactionsSignal.update((prev) => [...prev, transaction]);
+    // Handle installment parent transaction
+    const isInstallmentParent =
+      transaction.isRecurring &&
+      transaction.recurringRule?.type === 'installment' &&
+      !transaction.isVirtual &&
+      !transaction.parentTransactionId;
 
-    // Auto-link to credit card bill if applicable
-    if (transaction.paymentMethod === 'card' && transaction.cardId) {
-      await this.autoCreateOrUpdateBill(transaction);
+    if (isInstallmentParent) {
+      // Mark as parent transaction (non-budget impacting)
+      transaction.isBudgetImpacting = false;
+      
+      // Generate virtual transactions for each term
+      const virtualTransactions = await this.generateVirtualTransactions(transaction);
+      
+      // Add parent transaction
+      this.transactionsSignal.update((prev) => [...prev, transaction]);
+      
+      // Add all virtual transactions
+      for (const virtualTx of virtualTransactions) {
+        this.transactionsSignal.update((prev) => [...prev, virtualTx]);
+        
+        // Auto-link virtual transactions to bills if applicable
+        if (virtualTx.paymentMethod === 'card' && virtualTx.cardId) {
+          await this.autoCreateOrUpdateBill(virtualTx);
+        }
+      }
+    } else {
+      // Regular transaction - mark as budget impacting
+      if (transaction.isBudgetImpacting === undefined) {
+        transaction.isBudgetImpacting = true;
+      }
+      
+      // Add to signal
+      this.transactionsSignal.update((prev) => [...prev, transaction]);
+
+      // Auto-link to credit card bill if applicable
+      if (transaction.paymentMethod === 'card' && transaction.cardId) {
+        await this.autoCreateOrUpdateBill(transaction);
+      }
     }
   }
 
@@ -763,6 +797,64 @@ export class TransactionService {
         amount: newAmount,
       });
     }
+  }
+
+  /**
+   * Generate virtual transactions for an installment parent transaction
+   * Creates one transaction per term, each marked as virtual and budget-impacting
+   */
+  private async generateVirtualTransactions(parent: Transaction): Promise<Transaction[]> {
+    if (!parent.recurringRule || parent.recurringRule.type !== 'installment') {
+      return [];
+    }
+
+    const { totalTerms, startDate, monthlyAmortization, totalPrincipal } = parent.recurringRule;
+    if (!totalTerms || !startDate) {
+      return [];
+    }
+
+    // Use monthlyAmortization from recurringRule, or calculate from totalPrincipal
+    const monthlyAmount = monthlyAmortization || (totalPrincipal ? totalPrincipal / totalTerms : parent.amount / totalTerms);
+    const start = parseISO(startDate);
+    const virtualTransactions: Transaction[] = [];
+
+    for (let term = 1; term <= totalTerms; term++) {
+      const termDate = addMonths(start, term - 1);
+      const virtualTx: Transaction = {
+        id: crypto.randomUUID(),
+        profileId: parent.profileId,
+        type: parent.type,
+        amount: monthlyAmount,
+        date: format(termDate, 'yyyy-MM-dd'),
+        categoryId: parent.categoryId,
+        subcategoryId: parent.subcategoryId,
+        description: `${parent.description} (${term}/${totalTerms})`,
+        notes: parent.notes,
+        paymentMethod: parent.paymentMethod,
+        cardId: parent.cardId,
+        bankId: parent.bankId,
+        fromBankId: parent.fromBankId,
+        toBankId: parent.toBankId,
+        transferFee: parent.transferFee,
+        tags: parent.tags,
+        createdAt: parent.createdAt,
+        updatedAt: parent.updatedAt,
+        isRecurring: true,
+        recurringRule: {
+          ...parent.recurringRule,
+          currentTerm: term,
+        },
+        isEstimate: parent.isEstimate,
+        isPaid: false,
+        parentTransactionId: parent.id,
+        isVirtual: true,
+        isBudgetImpacting: true, // Virtual transactions impact budget
+      };
+
+      virtualTransactions.push(virtualTx);
+    }
+
+    return virtualTransactions;
   }
 
   private async initializeTransactions(): Promise<void> {

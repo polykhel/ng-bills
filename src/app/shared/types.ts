@@ -95,6 +95,7 @@ export interface RecurringRule {
   
   // Installment-specific fields
   totalPrincipal?: number;      // Total amount financed
+  monthlyAmortization?: number; // Monthly payment amount
   currentTerm?: number;          // Current payment number
   totalTerms?: number;           // Total number of payments
   startDate?: string;            // First payment date
@@ -147,6 +148,11 @@ export interface Transaction {
   debtPaid?: boolean;              // True if the debt has been paid
   debtPaidDate?: string;           // Date when the debt was paid (ISO string)
   linkedDebtTransactionId?: string; // ID of the expense transaction created when debt is paid
+  
+  // Parent/Virtual Transaction System (for installments)
+  parentTransactionId?: string;    // If this is a virtual transaction, link to parent
+  isVirtual?: boolean;             // True if this is an auto-generated virtual transaction
+  isBudgetImpacting?: boolean;     // False for parent transactions (don't count in budget), true for virtual transactions
 }
 
 export interface TransactionFilter {
@@ -160,6 +166,18 @@ export interface TransactionFilter {
   isRecurring?: boolean;
   recurringType?: RecurringRule['type'];
   installmentGroupId?: string;
+  includeVirtual?: boolean;      // Include virtual transactions in results
+  includeParent?: boolean;        // Include parent transactions in results
+  bucketType?: 'direct' | 'recurring' | 'installment' | 'all'; // Filter by transaction bucket
+}
+
+// Transaction Bucket Types
+export type TransactionBucket = 'direct' | 'recurring' | 'installment';
+
+export interface StatementPeriod {
+  start: string;  // ISO date string
+  end: string;    // ISO date string
+  monthStr: string; // yyyy-MM format
 }
 
 export interface InstallmentStatus {
