@@ -213,18 +213,10 @@ export class BillsComponent {
       .map((card) => {
         const statement = this.statementService.getStatementForMonth(card.id, monthStr) || null;
 
-        // Get transactions linked to this card for this month
+        // Get transactions linked to this statement (cutoff-aware, not calendar month)
         const transactions = this.transactionService
-          .getTransactions({
-            profileIds: [profile.id],
-            cardId: card.id,
-            paymentMethod: 'card',
-          })
-          .filter((t) => {
-            // Filter by month based on transaction date
-            const transactionMonth = t.date.substring(0, 7);
-            return transactionMonth === monthStr;
-          });
+          .getTransactionsForStatement(card.id, monthStr)
+          .filter((t) => t.profileId === profile.id);
 
         const dueDate = new Date(`${monthStr}-${String(card.dueDay).padStart(2, '0')}`);
         const amount = statement?.amount || transactions.reduce((sum, t) => sum + t.amount, 0);

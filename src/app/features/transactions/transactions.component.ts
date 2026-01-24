@@ -254,18 +254,28 @@ export class TransactionsComponent {
   });
 
   // Computed: Cutoff preview badge info (Task 3)
+  // Uses cutoff-aware logic: day >= cutoff → next month's statement, else this month's
   protected cutoffPreview = computed(() => {
     if (this.formData.paymentMethod !== 'card' || !this.formData.cardId || !this.formData.date) {
       return null;
     }
 
     try {
-      const transactionDate = parseISO(this.formData.date);
-      const monthStr = format(transactionDate, 'yyyy-MM');
-      const period = this.transactionBucketService.getStatementPeriod(this.formData.cardId, monthStr);
       const card = this.cardService.getCardById(this.formData.cardId);
-      
-      if (!period || !card) return null;
+      if (!card) return null;
+
+      const transactionDate = parseISO(this.formData.date);
+      const dayOfMonth = transactionDate.getDate();
+
+      // Determine statement month from transaction date (cutoff-aware)
+      const statementDate =
+        dayOfMonth >= card.cutoffDay
+          ? addMonths(startOfMonth(transactionDate), 1)
+          : startOfMonth(transactionDate);
+      const monthStr = format(statementDate, 'yyyy-MM');
+
+      const period = this.transactionBucketService.getStatementPeriod(this.formData.cardId, monthStr);
+      if (!period) return null;
 
       // Calculate due date for the statement
       const dueDate = new Date(period.monthStr + '-01');
