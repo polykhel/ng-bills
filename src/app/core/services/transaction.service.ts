@@ -333,6 +333,7 @@ export class TransactionService {
   /**
    * Mark an installment transaction as paid
    * Used for cash installments and other recurring transactions
+   * Note: Marking as paid does NOT increment currentTerm - currentTerm is calculated from dates
    */
   async markTransactionPaid(id: string, paidDate?: string, paidAmount?: number): Promise<void> {
     const transaction = this.getTransaction(id);
@@ -350,37 +351,20 @@ export class TransactionService {
       updatedAt: new Date().toISOString(),
     });
 
-    // Update currentTerm if this is an installment
+    // Update lastDate if this is an installment (for tracking purposes only)
     if (transaction.isRecurring && transaction.recurringRule?.type === 'installment') {
-      const currentTerm = (transaction.recurringRule.currentTerm || 0) + 1;
-      const totalTerms = transaction.recurringRule.totalTerms || 0;
-
-      // Update this transaction's term
       await this.updateTransaction(id, {
         recurringRule: {
           ...transaction.recurringRule,
-          currentTerm: currentTerm,
           lastDate: paid,
         },
       });
-
-      // If not the last payment, update nextDate for the next payment
-      if (currentTerm < totalTerms) {
-        const nextDate = addMonths(parseISO(paid), 1);
-        await this.updateTransaction(id, {
-          recurringRule: {
-            ...transaction.recurringRule,
-            currentTerm: currentTerm,
-            nextDate: format(nextDate, 'yyyy-MM-dd'),
-            lastDate: paid,
-          },
-        });
-      }
     }
   }
 
   /**
    * Mark an installment transaction as unpaid
+   * Note: Marking as unpaid does NOT decrement currentTerm - currentTerm is calculated from dates
    */
   async markTransactionUnpaid(id: string): Promise<void> {
     const transaction = this.getTransaction(id);
@@ -394,17 +378,6 @@ export class TransactionService {
       paidAmount: undefined,
       updatedAt: new Date().toISOString(),
     });
-
-    // Decrement currentTerm if this is an installment
-    if (transaction.isRecurring && transaction.recurringRule?.type === 'installment') {
-      const currentTerm = Math.max((transaction.recurringRule.currentTerm || 1) - 1, 0);
-      await this.updateTransaction(id, {
-        recurringRule: {
-          ...transaction.recurringRule,
-          currentTerm: currentTerm,
-        },
-      });
-    }
   }
 
   /**

@@ -566,6 +566,46 @@
               </div>
             }
           </div>
+
+          <!-- Cash Advance Section (Income only) -->
+          <div class="border-t border-slate-200 pt-4 mt-4">
+            <div class="form-group" style="display: flex; align-items: center; gap: 8px; margin-bottom: 16px;">
+              <input 
+                type="checkbox" 
+                id="isCashAdvance"
+                [checked]="isCashAdvance()"
+                (change)="isCashAdvance.set($any($event.target).checked)"
+              />
+              <label for="isCashAdvance" style="margin-bottom: 0; font-weight: 600; cursor: pointer;">
+                This is a cash advance (will also create expense on card)
+              </label>
+            </div>
+
+            @if (isCashAdvance()) {
+              <div class="space-y-4" style="background: rgb(249, 250, 251); padding: 16px; border-radius: 8px;">
+                <div class="form-group">
+                  <label>Card for Cash Advance *</label>
+                  <select 
+                    [(ngModel)]="cashAdvanceCardId"
+                    (ngModelChange)="cashAdvanceCardId.set($event)"
+                  >
+                    <option [value]="undefined">Select a card...</option>
+                    @for (card of cards(); track card.id) {
+                      <option [value]="card.id">{{ card.bankName }} {{ card.cardName }}</option>
+                    }
+                  </select>
+                  <small style="color: rgb(100, 116, 139); font-size: 11px; margin-top: 4px; display: block;">
+                    The card that will be charged for this cash advance
+                  </small>
+                </div>
+                <div class="p-3 bg-amber-50 border border-amber-200 rounded-md">
+                  <p class="text-sm text-amber-800">
+                    <strong>Note:</strong> When you save this income transaction, an expense transaction will automatically be created on the selected card for the same amount.
+                  </p>
+                </div>
+              </div>
+            }
+          </div>
         }
 
         <!-- Recurring Transaction Section (only show if NOT installment purchase) -->

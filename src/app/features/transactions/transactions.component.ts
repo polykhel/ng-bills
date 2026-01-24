@@ -19,7 +19,7 @@ import {
   TrendingDown,
   TrendingUp,
   Wallet,
-  X
+  X,
 } from 'lucide-angular';
 import {
   AppStateService,
@@ -31,9 +31,14 @@ import {
   ProfileService,
   StatementService,
   TransactionBucketService,
-  TransactionService
+  TransactionService,
 } from '@services';
-import { EmptyStateComponent, MetricCardComponent, ModalComponent, QuickActionButtonComponent } from '@components';
+import {
+  EmptyStateComponent,
+  MetricCardComponent,
+  ModalComponent,
+  QuickActionButtonComponent,
+} from '@components';
 import type { PaymentMethod, Transaction, TransactionType } from '@shared/types';
 import {
   addMonths,
@@ -43,7 +48,7 @@ import {
   parseISO,
   setDate,
   startOfMonth,
-  subMonths
+  subMonths,
 } from 'date-fns';
 import type { Cell, Row } from '@cj-tech-master/excelts';
 import { Workbook, Worksheet } from '@cj-tech-master/excelts';
@@ -232,6 +237,9 @@ export class TransactionsComponent {
   protected installmentMode = signal<'date' | 'term'>('date');
   // Smart installment toggle (only shown when payment method is 'card')
   protected isInstallmentPurchase = signal<boolean>(false);
+  // Cash advance feature: when income is added, also create expense on card
+  protected isCashAdvance = signal<boolean>(false);
+  protected cashAdvanceCardId = signal<string | undefined>(undefined);
   protected recurringFormData = {
     // Installment fields
     totalPrincipal: undefined as number | undefined,
@@ -1304,6 +1312,9 @@ export class TransactionsComponent {
     this.editingTransactionId.set(null);
     this.formData = this.getEmptyForm();
     this.resetRecurringForm();
+    // Reset cash advance fields
+    this.isCashAdvance.set(false);
+    this.cashAdvanceCardId.set(undefined);
   }
 
   protected onEditTransaction(transaction: Transaction, event?: Event): void {
@@ -1610,6 +1621,14 @@ export class TransactionsComponent {
       return;
     }
 
+    // Validate cash advance fields if enabled
+    if (this.formData.type === 'income' && this.isCashAdvance()) {
+      if (!this.cashAdvanceCardId()) {
+        alert('Please select a card for the cash advance');
+        return;
+      }
+    }
+
     // Validate recurring transaction fields if enabled
     if (this.isRecurringTransaction()) {
       if (this.recurringType() === 'installment' || this.isInstallmentPurchase()) {
@@ -1769,6 +1788,25 @@ export class TransactionsComponent {
           updatedAt: new Date().toISOString(),
         };
         await this.transactionService.addTransaction(transaction);
+
+        // If this is a cash advance (income with card), create the corresponding expense transaction
+        if (this.formData.type === 'income' && this.isCashAdvance() && this.cashAdvanceCardId()) {
+          const expenseTransaction: Transaction = {
+            id: crypto.randomUUID(),
+            profileId: profile.id,
+            type: 'expense',
+            amount: transactionAmount,
+            date: transaction.date,
+            categoryId: this.formData.categoryId || 'uncategorized',
+            description: `Cash Advance: ${transaction.description}`,
+            notes: `Linked to income transaction: ${transaction.id}`,
+            paymentMethod: 'card',
+            cardId: this.cashAdvanceCardId(),
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+          };
+          await this.transactionService.addTransaction(expenseTransaction);
+        }
       }
 
       this.closeTransactionModal();
@@ -2122,14 +2160,19 @@ export class TransactionsComponent {
    * Handle transaction type change - clear debt fields if switching from income to expense
    */
   protected onTransactionTypeChange(newType: TransactionType): void {
-    if (newType === 'expense' && this.formData.hasDebtObligation) {
+    if (newType === 'expense') {
       // Clear debt fields when switching to expense
-      this.formData.hasDebtObligation = false;
-      this.formData.debtAmount = undefined;
-      this.formData.debtDueDate = undefined;
-      this.formData.debtPaid = false;
-      this.formData.debtPaidDate = undefined;
-      this.formData.linkedDebtTransactionId = undefined;
+      if (this.formData.hasDebtObligation) {
+        this.formData.hasDebtObligation = false;
+        this.formData.debtAmount = undefined;
+        this.formData.debtDueDate = undefined;
+        this.formData.debtPaid = false;
+        this.formData.debtPaidDate = undefined;
+        this.formData.linkedDebtTransactionId = undefined;
+      }
+      // Clear cash advance fields when switching to expense
+      this.isCashAdvance.set(false);
+      this.cashAdvanceCardId.set(undefined);
     }
   }
 
