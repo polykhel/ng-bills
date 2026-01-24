@@ -65,25 +65,6 @@ export class SyncComponent implements OnInit {
   firebaseAuthState: any;
   firebaseSyncStatus: any;
 
-  // Installment date migration
-  migrationPreview: {
-    total: number;
-    wouldUpdate: number;
-    byCard: Array<{ cardId: string; cardName: string; count: number }>;
-  } | null = null;
-  isMigrationRunning = false;
-  migrationMessage = '';
-  migrationError = false;
-
-  // Orphaned transactions migration
-  orphanedPreview: {
-    total: number;
-    orphaned: Array<{ id: string; description: string; cardId: string; date: string }>;
-  } | null = null;
-  isOrphanedMigrationRunning = false;
-  orphanedMigrationMessage = '';
-  orphanedMigrationError = false;
-
   constructor(
     private syncService: SyncService,
     private syncUtils: SyncUtilsService,
@@ -110,74 +91,6 @@ export class SyncComponent implements OnInit {
     void this.syncUtils.getDataSize().then((size) => {
       this.dataSize = size;
     });
-    this.refreshMigrationPreview();
-    this.refreshOrphanedPreview();
-  }
-
-  refreshMigrationPreview(): void {
-    this.migrationPreview = this.transactionService.previewInstallmentDateMigration();
-    this.migrationMessage = '';
-    this.migrationError = false;
-  }
-
-  async handleInstallmentDateMigration(): Promise<void> {
-    this.isMigrationRunning = true;
-    this.migrationMessage = '';
-    this.migrationError = false;
-
-    try {
-      const result = await this.transactionService.migrateInstallmentDatesToCardDueDate();
-      const parts: string[] = [];
-      if (result.updated > 0) parts.push(`${result.updated} updated`);
-      if (result.skipped > 0) parts.push(`${result.skipped} already correct`);
-      this.migrationMessage =
-        parts.length > 0
-          ? `✓ Migration complete: ${parts.join(', ')}.`
-          : 'No changes made.';
-      if (result.errors.length > 0) {
-        this.migrationMessage += ` ${result.errors.length} error(s).`;
-        this.migrationError = true;
-      }
-      this.refreshMigrationPreview();
-    } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : String(e);
-      this.migrationMessage = `✗ Migration failed: ${msg}`;
-      this.migrationError = true;
-    } finally {
-      this.isMigrationRunning = false;
-    }
-  }
-
-  refreshOrphanedPreview(): void {
-    this.orphanedPreview = this.transactionService.previewOrphanedTransactions();
-    this.orphanedMigrationMessage = '';
-    this.orphanedMigrationError = false;
-  }
-
-  async handleOrphanedTransactionsMigration(): Promise<void> {
-    this.isOrphanedMigrationRunning = true;
-    this.orphanedMigrationMessage = '';
-    this.orphanedMigrationError = false;
-
-    try {
-      const result = await this.transactionService.deleteOrphanedTransactions();
-      if (result.deleted > 0) {
-        this.orphanedMigrationMessage = `✓ Migration complete: ${result.deleted} orphaned transaction(s) deleted.`;
-      } else {
-        this.orphanedMigrationMessage = 'No orphaned transactions found.';
-      }
-      if (result.errors.length > 0) {
-        this.orphanedMigrationMessage += ` ${result.errors.length} error(s).`;
-        this.orphanedMigrationError = true;
-      }
-      this.refreshOrphanedPreview();
-    } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : String(e);
-      this.orphanedMigrationMessage = `✗ Migration failed: ${msg}`;
-      this.orphanedMigrationError = true;
-    } finally {
-      this.isOrphanedMigrationRunning = false;
-    }
   }
 
   async handleExport(): Promise<void> {
