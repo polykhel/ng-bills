@@ -1,24 +1,42 @@
 import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { 
-  LucideAngularModule, 
-  Wallet, 
-  TrendingUp, 
-  TrendingDown, 
-  CreditCard, 
-  Calendar, 
+import {
+  Calendar,
+  CreditCard,
+  LucideAngularModule,
   PieChart,
   Plus,
-  Target
+  Target,
+  TrendingDown,
+  TrendingUp,
+  Wallet
 } from 'lucide-angular';
-import { startOfDay, differenceInDays, setDate, parseISO, isValid, addMonths, format, startOfMonth, endOfMonth } from 'date-fns';
-import { AppStateService, ProfileService, CardService, StatementService, BankBalanceService, BankAccountService, SavingsGoalService, TransactionService, BudgetService, CategoryService, UtilsService } from '@services';
-import { 
-  MetricCardComponent, 
-  QuickActionButtonComponent, 
-  SectionHeaderComponent,
-  EmptyStateComponent
-} from '@components';
+import {
+  addDays,
+  addMonths,
+  differenceInDays,
+  endOfMonth,
+  format,
+  isValid,
+  parseISO,
+  setDate,
+  startOfDay,
+  startOfMonth
+} from 'date-fns';
+import {
+  AppStateService,
+  BankAccountService,
+  BankBalanceService,
+  BudgetService,
+  CardService,
+  CategoryService,
+  ProfileService,
+  SavingsGoalService,
+  StatementService,
+  TransactionService,
+  UtilsService
+} from '@services';
+import { EmptyStateComponent } from '@components';
 
 /**
  * Overview Page Component
@@ -28,18 +46,15 @@ import {
   selector: 'app-overview',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [
-    CommonModule,
-    LucideAngularModule,
-    QuickActionButtonComponent,
-    EmptyStateComponent
-  ],
+  imports: [CommonModule, LucideAngularModule, EmptyStateComponent],
   templateUrl: './overview.component.html',
-  styles: [`
-    :host {
-      display: block;
-    }
-  `]
+  styles: [
+    `
+      :host {
+        display: block;
+      }
+    `,
+  ],
 })
 export class OverviewComponent {
   readonly Wallet = Wallet;
@@ -67,70 +82,91 @@ export class OverviewComponent {
   protected activeProfile = this.profileService.activeProfile;
   protected viewDate = this.appState.viewDate;
 
-  // Financial Health metrics (Task 5)
+  // Financial Health metrics with Forecasting mindset
   protected financialHealth = computed(() => {
     const profile = this.activeProfile();
     if (!profile) {
       return {
-        liquidCash: 0,
-        committedFunds: 0,
-        trueFreeCash: 0,
-        isPositive: true
+        projectedLanding: 0,
+        availableRightNow: 0,
+        currentLiquidBalance: 0,
+        projectedIncome: 0,
+        committedExpenses: 0,
+        billsDueIn7Days: 0,
+        isPositive: true,
       };
     }
 
-    // Get bank balance for current month (always use today's month for balances)
     const monthStr = format(startOfMonth(new Date()), 'yyyy-MM');
-    
-    // Liquid Cash: Sum of all Bank Balances
-    const accounts = this.bankAccountService.activeBankAccounts();
-    let liquidCash = 0;
-    for (const account of accounts) {
-      const storedBalance = this.bankBalanceService.getBankAccountBalance(account.profileId, monthStr, account.id);
-      const accountBalance = storedBalance !== null ? storedBalance : (account.initialBalance || 0);
-      liquidCash += accountBalance;
-    }
-    
-    // Committed Funds: Sum of all Unpaid Bills + Unpaid Virtual Transactions due this month
-    const cards = this.cardService.getCardsForProfiles([profile.id]);
-    let committedFunds = 0;
 
-    // Add unpaid bills
+    // Get projected landing (the big number - forecasting mindset)
+    const projectedLanding = this.bankBalanceService.projectedEndOfMonthBalance();
+
+    // Get current liquid balance
+    const accounts = this.bankAccountService.activeBankAccounts();
+    let currentLiquidBalance = 0;
+    for (const account of accounts) {
+      if (account.profileId === profile.id) {
+        const storedBalance = this.bankBalanceService.getBankAccountBalance(
+          account.profileId,
+          monthStr,
+          account.id,
+        );
+        const accountBalance = storedBalance !== null ? storedBalance : account.initialBalance || 0;
+        currentLiquidBalance += accountBalance;
+      }
+    }
+    // Add transaction balance
+    currentLiquidBalance += this.transactionService.getCurrentLiquidBalance(profile.id);
+
+    // Get projected income
+    const projectedIncome = this.transactionService.getProjectedIncome(profile.id, monthStr);
+
+    // Get committed expenses
+    const committedExpenses = this.transactionService.getCommittedExpenses(profile.id, monthStr);
+
+    // Calculate bills due within 7 days
+    const today = startOfDay(new Date());
+    const nextWeek = addDays(today, 7);
+    const cards = this.cardService.getCardsForProfiles([profile.id]);
+    let billsDueIn7Days = 0;
+
     for (const card of cards) {
       const statement = this.statementService.getStatementForMonth(card.id, monthStr);
       if (statement && !statement.isPaid) {
-        committedFunds += statement.amount || 0;
+        // Calculate due date
+        let dueDate: Date;
+        if (statement.customDueDate) {
+          dueDate = parseISO(statement.customDueDate);
+          if (!isValid(dueDate)) {
+            dueDate = setDate(startOfMonth(parseISO(`${monthStr}-01`)), card.dueDay);
+          }
+        } else {
+          dueDate = setDate(startOfMonth(parseISO(`${monthStr}-01`)), card.dueDay);
+        }
+
+        const dueDateNormalized = startOfDay(dueDate);
+        const daysUntilDue = differenceInDays(dueDateNormalized, today);
+
+        // Include bills due today or within the next 7 days
+        if (daysUntilDue >= 0 && daysUntilDue <= 7) {
+          billsDueIn7Days += statement.amount || 0;
+        }
       }
     }
 
-    // Add unpaid virtual transactions due this month
-    const today = new Date();
-    const monthStart = startOfMonth(today);
-    const monthEnd = endOfMonth(today);
-    const allTransactions = this.transactionService.transactions();
-    
-    const unpaidVirtualTransactions = allTransactions.filter(t => {
-      if (t.profileId !== profile.id) return false;
-      if (!t.isVirtual) return false;
-      if (t.isPaid) return false;
-      
-      const transactionDate = parseISO(t.date);
-      return transactionDate >= monthStart && transactionDate <= monthEnd;
-    });
-
-    for (const transaction of unpaidVirtualTransactions) {
-      committedFunds += transaction.amount;
-    }
-
-    // True Free Cash: Liquid Cash - Committed Funds
-    const trueFreeCash = liquidCash - committedFunds;
-    const isPositive = trueFreeCash >= 0;
+    // Available Right Now: Current Liquid Balance - Bills Due within 7 days
+    const availableRightNow = currentLiquidBalance - billsDueIn7Days;
+    const isPositive = projectedLanding >= 0;
 
     return {
-      liquidCash,
-      committedFunds,
-      trueFreeCash,
-      isPositive
+      projectedLanding,
+      availableRightNow,
+      currentLiquidBalance,
+      projectedIncome,
+      committedExpenses,
+      billsDueIn7Days,
+      isPositive,
     };
   });
 
@@ -144,22 +180,26 @@ export class OverviewComponent {
         committedBalance: 0,
         monthlyIncome: 0,
         monthlyExpenses: 0,
-        netCashFlow: 0
+        netCashFlow: 0,
       };
     }
 
     // Get bank balance for current month (always use today's month for balances)
     const monthStr = format(startOfMonth(new Date()), 'yyyy-MM');
-    
+
     // Sum all account balances, including initialBalance for accounts without stored balances
     const accounts = this.bankAccountService.activeBankAccounts();
     let bankBalance = 0;
     for (const account of accounts) {
-      const storedBalance = this.bankBalanceService.getBankAccountBalance(account.profileId, monthStr, account.id);
-      const accountBalance = storedBalance !== null ? storedBalance : (account.initialBalance || 0);
+      const storedBalance = this.bankBalanceService.getBankAccountBalance(
+        account.profileId,
+        monthStr,
+        account.id,
+      );
+      const accountBalance = storedBalance !== null ? storedBalance : account.initialBalance || 0;
       bankBalance += accountBalance;
     }
-    
+
     // Calculate total bills due this month (committed balance)
     const cards = this.cardService.getCardsForProfiles([profile.id]);
     let committedBalance = 0;
@@ -175,13 +215,13 @@ export class OverviewComponent {
     const viewDate = this.viewDate();
     const monthStart = new Date(viewDate.getFullYear(), viewDate.getMonth(), 1);
     const monthEnd = new Date(viewDate.getFullYear(), viewDate.getMonth() + 1, 0);
-    
+
     const transactions = this.transactionService.getTransactions({
       profileIds: [profile.id],
       dateRange: {
         start: monthStart.toISOString().slice(0, 10),
-        end: monthEnd.toISOString().slice(0, 10)
-      }
+        end: monthEnd.toISOString().slice(0, 10),
+      },
     });
 
     let monthlyIncome = 0;
@@ -191,7 +231,7 @@ export class OverviewComponent {
     const allCards = this.cardService.cards();
     const statements = this.statementService.statements();
 
-    transactions.forEach(t => {
+    transactions.forEach((t) => {
       // Skip transactions where someone else paid
       if (t.paidByOther) return;
       // Skip transactions where this profile paid for someone else
@@ -203,12 +243,12 @@ export class OverviewComponent {
         // For credit card expenses: only count if statement is paid (cash flow perspective)
         // Other payment methods count immediately
         if (t.paymentMethod === 'card' && t.cardId) {
-          const card = allCards.find(c => c.id === t.cardId);
+          const card = allCards.find((c) => c.id === t.cardId);
           if (card) {
             // Determine which statement month this transaction belongs to (cutoff-aware)
             const transactionDate = parseISO(t.date);
             const dayOfMonth = transactionDate.getDate();
-            
+
             let statementDate: Date;
             if (dayOfMonth >= card.cutoffDay) {
               // Transaction is at or after cutoff → belongs to NEXT month's statement
@@ -219,8 +259,10 @@ export class OverviewComponent {
             }
 
             const monthStr = format(statementDate, 'yyyy-MM');
-            const statement = statements.find(s => s.cardId === t.cardId && s.monthStr === monthStr);
-            
+            const statement = statements.find(
+              (s) => s.cardId === t.cardId && s.monthStr === monthStr,
+            );
+
             // Only count if statement exists and is paid
             if (statement && statement.isPaid) {
               monthlyExpenses += t.amount;
@@ -247,7 +289,7 @@ export class OverviewComponent {
       committedBalance,
       monthlyIncome,
       monthlyExpenses,
-      netCashFlow
+      netCashFlow,
     };
   });
 
@@ -277,7 +319,7 @@ export class OverviewComponent {
       // Check current month
       let statement = this.statementService.getStatementForMonth(card.id, currentMonthStr);
       let monthDate = viewDate;
-      
+
       // If no statement in current month or it's paid, check next month
       if (!statement || statement.isPaid) {
         statement = this.statementService.getStatementForMonth(card.id, nextMonthStr);
@@ -309,7 +351,7 @@ export class OverviewComponent {
           cardName: `${card.bankName} ${card.cardName}`,
           amount: statement.amount,
           dueDate: dueDateNormalized,
-          cardId: card.id
+          cardId: card.id,
         });
       }
     }
@@ -317,29 +359,14 @@ export class OverviewComponent {
     return bills.sort((a, b) => a.dueDate.getTime() - b.dueDate.getTime());
   });
 
-  // Quick actions
-  protected onAddTransaction(): void {
-    // Will be implemented in Phase 1
-    console.log('Add transaction');
-  }
-
-  protected onPayBill(): void {
-    // Open pay bill modal
-    console.log('Pay bill');
-  }
-
-  protected onViewBudget(): void {
-    // Navigate to budget page
-    console.log('View budget');
-  }
-
   // Savings goals with progress
   protected savingsGoals = computed(() => {
     const profile = this.activeProfile();
     if (!profile) return [];
-    
-    return this.savingsGoalService.getGoalsWithProgress(profile.id)
-      .filter(g => !g.progress.isCompleted)
+
+    return this.savingsGoalService
+      .getGoalsWithProgress(profile.id)
+      .filter((g) => !g.progress.isCompleted)
       .slice(0, 3); // Show top 3 active goals
   });
 
@@ -349,11 +376,11 @@ export class OverviewComponent {
     if (!profile) return [];
 
     const transactions = this.transactionService.getTransactions({
-      profileIds: [profile.id]
+      profileIds: [profile.id],
     });
 
     // Filter out transactions where someone else paid
-    const relevantTransactions = transactions.filter(t => {
+    const relevantTransactions = transactions.filter((t) => {
       if (t.paidByOther) return false;
       if (t.paidByOtherProfileId === profile.id && t.profileId !== profile.id) return false;
       return true;
@@ -372,7 +399,7 @@ export class OverviewComponent {
 
     const viewDate = this.viewDate();
     const budget = this.budgetService.getActiveBudget(profile.id, viewDate, 'monthly');
-    
+
     if (!budget) return null;
 
     const budgetWithSpending = this.budgetService.getBudgetWithSpending(budget, viewDate);
@@ -380,11 +407,12 @@ export class OverviewComponent {
 
     // Get top 3 categories by spending
     const topCategories = budgetWithSpending.allocations
-      .map(alloc => {
-        const category = categories.find(c => c.id === alloc.categoryId);
-        const percentage = alloc.allocatedAmount > 0 
-          ? Math.min((alloc.spent / alloc.allocatedAmount) * 100, 100)
-          : 0;
+      .map((alloc) => {
+        const category = categories.find((c) => c.id === alloc.categoryId);
+        const percentage =
+          alloc.allocatedAmount > 0
+            ? Math.min((alloc.spent / alloc.allocatedAmount) * 100, 100)
+            : 0;
         return {
           categoryId: alloc.categoryId,
           categoryName: category?.name || 'Unknown',
@@ -392,10 +420,10 @@ export class OverviewComponent {
           spent: alloc.spent,
           remaining: alloc.remaining,
           percentage,
-          color: category?.color || '#6b7280'
+          color: category?.color || '#6b7280',
         };
       })
-      .filter(alloc => alloc.allocated > 0)
+      .filter((alloc) => alloc.allocated > 0)
       .sort((a, b) => b.spent - a.spent)
       .slice(0, 3);
 
@@ -405,7 +433,7 @@ export class OverviewComponent {
       remaining: budgetWithSpending.totalRemaining,
       percentageUsed: budgetWithSpending.percentageUsed,
       topCategories,
-      hasAlerts: budgetWithSpending.alerts.length > 0
+      hasAlerts: budgetWithSpending.alerts.length > 0,
     };
   });
 
@@ -422,4 +450,65 @@ export class OverviewComponent {
   protected formatCurrency(amount: number): string {
     return this.utils.formatCurrency(amount);
   }
+
+  // Progress bar data for runway visualization
+  protected progressBarData = computed(() => {
+    const profile = this.activeProfile();
+    if (!profile) {
+      return {
+        spentSoFar: 0,
+        projectedIncome: 0,
+        targetSavings: 0,
+        totalProjected: 0,
+        spentPercentage: 0,
+        incomePercentage: 0,
+        savingsPercentage: 0,
+      };
+    }
+
+    const monthStr = format(startOfMonth(new Date()), 'yyyy-MM');
+    const today = new Date();
+    const monthStart = startOfMonth(today);
+    const monthEnd = endOfMonth(today);
+
+    // Get transactions for current month
+    const transactions = this.transactionService.getTransactions({
+      profileIds: [profile.id],
+      dateRange: {
+        start: format(monthStart, 'yyyy-MM-dd'),
+        end: format(monthEnd, 'yyyy-MM-dd'),
+      },
+    });
+
+    // Calculate spent so far (expenses up to today)
+    let spentSoFar = 0;
+    for (const transaction of transactions) {
+      if (transaction.type === 'expense' && transaction.isBudgetImpacting !== false) {
+        const transactionDate = parseISO(transaction.date);
+        if (transactionDate <= today) {
+          spentSoFar += transaction.amount;
+        }
+      }
+    }
+
+    // Get projected income
+    const projectedIncome = this.transactionService.getProjectedIncome(profile.id, monthStr);
+
+    // Get target savings (for now, use a placeholder - could be from savings goals)
+    const targetSavings = 0; // TODO: Calculate from savings goals
+
+    // Calculate total projected (spent + projected income)
+    const totalProjected = spentSoFar + projectedIncome;
+    const maxValue = Math.max(totalProjected, targetSavings, 1);
+
+    return {
+      spentSoFar,
+      projectedIncome,
+      targetSavings,
+      totalProjected,
+      spentPercentage: maxValue > 0 ? (spentSoFar / maxValue) * 100 : 0,
+      incomePercentage: maxValue > 0 ? (projectedIncome / maxValue) * 100 : 0,
+      savingsPercentage: maxValue > 0 ? (targetSavings / maxValue) * 100 : 0,
+    };
+  });
 }

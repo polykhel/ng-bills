@@ -1,6 +1,9 @@
-import { effect, Injectable, signal } from '@angular/core';
+import { computed, effect, inject, Injectable, signal } from '@angular/core';
 import { IndexedDBService, STORES } from './indexeddb.service';
 import { ProfileService } from './profile.service';
+import { TransactionService } from './transaction.service';
+import { BankAccountService } from './bank-account.service';
+import { format, startOfMonth } from 'date-fns';
 import type { BankBalance } from '@shared/types';
 
 @Injectable({
@@ -12,6 +15,9 @@ export class BankBalanceService {
   bankBalances = this.bankBalancesSignal.asReadonly();
   private bankBalanceTrackingEnabledSignal = signal<boolean>(false);
   bankBalanceTrackingEnabled = this.bankBalanceTrackingEnabledSignal.asReadonly();
+
+  private transactionService = inject(TransactionService);
+  private bankAccountService = inject(BankAccountService);
 
   constructor(
     private idb: IndexedDBService,
@@ -27,7 +33,9 @@ export class BankBalanceService {
 
   updateBankBalance(profileId: string, monthStr: string, balance: number): void {
     this.bankBalancesSignal.update((balances) => {
-      const existing = balances.find((b) => b.profileId === profileId && b.monthStr === monthStr && !b.bankAccountId);
+      const existing = balances.find(
+        (b) => b.profileId === profileId && b.monthStr === monthStr && !b.bankAccountId,
+      );
 
       if (existing) {
         return balances.map((b) => (b.id === existing.id ? { ...b, balance } : b));
@@ -45,10 +53,16 @@ export class BankBalanceService {
     });
   }
 
-  updateBankAccountBalance(profileId: string, monthStr: string, bankAccountId: string, balance: number): void {
+  updateBankAccountBalance(
+    profileId: string,
+    monthStr: string,
+    bankAccountId: string,
+    balance: number,
+  ): void {
     this.bankBalancesSignal.update((balances) => {
       const existing = balances.find(
-        (b) => b.profileId === profileId && b.monthStr === monthStr && b.bankAccountId === bankAccountId,
+        (b) =>
+          b.profileId === profileId && b.monthStr === monthStr && b.bankAccountId === bankAccountId,
       );
 
       if (existing) {
@@ -104,7 +118,8 @@ export class BankBalanceService {
 
   getBankAccountBalance(profileId: string, monthStr: string, bankAccountId: string): number | null {
     const balance = this.bankBalancesSignal().find(
-      (b) => b.profileId === profileId && b.monthStr === monthStr && b.bankAccountId === bankAccountId,
+      (b) =>
+        b.profileId === profileId && b.monthStr === monthStr && b.bankAccountId === bankAccountId,
     );
     return balance ? balance.balance : null;
   }
@@ -139,5 +154,66 @@ export class BankBalanceService {
 
   private generateId(): string {
     return crypto.randomUUID();
+  }
+
+  /**
+   * Get Projected End of Month Balance
+   * Formula: Current Liquid Balance + Projected Income - Committed Expenses
+   * This represents the 'True' financial position at the end of the month
+   */
+  projectedEndOfMonthBalance = computed(() => {
+    const activeProfile = this.profileService.activeProfile();
+    if (!activeProfile) return 0;
+
+    const monthStr = format(startOfMonth(new Date()), 'yyyy-MM');
+
+    // Get current liquid balance from bank accounts
+    const accounts = this.bankAccountService.activeBankAccounts();
+    let currentLiquidBalance = 0;
+    for (const account of accounts) {
+      const storedBalance = this.getBankAccountBalance(account.profileId, monthStr, account.id);
+      const accountBalance = storedBalance !== null ? storedBalance : account.initialBalance || 0;
+      currentLiquidBalance += accountBalance;
+    }
+
+    // Add current liquid balance from transactions (income - expenses up to today)
+    const transactionBalance = this.transactionService.getCurrentLiquidBalance(activeProfile.id);
+    currentLiquidBalance += transactionBalance;
+
+    // Get projected income (future income this month)
+    const projectedIncome = this.transactionService.getProjectedIncome(activeProfile.id, monthStr);
+
+    // Get committed expenses (future expenses this month)
+    const committedExpenses = this.transactionService.getCommittedExpenses(
+      activeProfile.id,
+      monthStr,
+    );
+
+    // Calculate projected landing
+    return currentLiquidBalance + projectedIncome - committedExpenses;
+  });
+
+  /**
+   * Get Available Right Now: Current Liquid Balance - Bills Due within 7 days
+   * This is the YNAB-style number showing what's available immediately
+   */
+  getAvailableRightNow(profileId: string, monthStr: string): number {
+    // Get current liquid balance from bank accounts
+    const allAccounts = this.bankAccountService.bankAccounts();
+    const accounts = allAccounts.filter((a) => a.profileId === profileId);
+    let currentLiquidBalance = 0;
+    for (const account of accounts) {
+      const storedBalance = this.getBankAccountBalance(account.profileId, monthStr, account.id);
+      const accountBalance = storedBalance !== null ? storedBalance : account.initialBalance || 0;
+      currentLiquidBalance += accountBalance;
+    }
+
+    // Add current liquid balance from transactions
+    const transactionBalance = this.transactionService.getCurrentLiquidBalance(profileId);
+    currentLiquidBalance += transactionBalance;
+
+    // Note: Bills due within 7 days are calculated in OverviewComponent
+    // This method returns the base current liquid balance
+    return currentLiquidBalance;
   }
 }

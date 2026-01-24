@@ -1,11 +1,23 @@
-import { Injectable, computed, inject } from '@angular/core';
+import { inject, Injectable } from '@angular/core';
 import { TransactionService } from './transaction.service';
 import { CardService } from './card.service';
 import { StatementService } from './statement.service';
 import { BankBalanceService } from './bank-balance.service';
 import { ProfileService } from './profile.service';
-import type { Transaction, TransactionBucket, StatementPeriod } from '@shared/types';
-import { format, parseISO, startOfMonth, addMonths, getDate, setDate, lastDayOfMonth, differenceInCalendarMonths } from 'date-fns';
+import type { StatementPeriod, Transaction, TransactionBucket } from '@shared/types';
+import {
+  addMonths,
+  differenceInCalendarMonths,
+  endOfMonth,
+  format,
+  getDate,
+  isAfter,
+  isBefore,
+  lastDayOfMonth,
+  parseISO,
+  setDate,
+  startOfMonth
+} from 'date-fns';
 
 /**
  * Transaction Bucket Service
@@ -75,18 +87,21 @@ export class TransactionBucketService {
     // Parse the month string (yyyy-MM)
     const [year, month] = monthStr.split('-').map(Number);
     const monthStart = new Date(year, month - 1, 1);
-    
+
     // Statement period: from cutoff day of previous month to cutoff day - 1 of current month
     // Example: If cutoff is 20, statement period for Feb is Jan 20 - Feb 19
     const prevMonth = addMonths(monthStart, -1);
     const cutoffDay = card.cutoffDay;
-    
+
     // Start: cutoff day of previous month
     const periodStart = setDate(prevMonth, Math.min(cutoffDay, getDate(lastDayOfMonth(prevMonth))));
-    
+
     // End: cutoff day - 1 of current month
-    const periodEnd = setDate(monthStart, Math.min(cutoffDay - 1, getDate(lastDayOfMonth(monthStart))));
-    
+    const periodEnd = setDate(
+      monthStart,
+      Math.min(cutoffDay - 1, getDate(lastDayOfMonth(monthStart))),
+    );
+
     // If cutoff is 1, end should be last day of previous month
     if (cutoffDay === 1) {
       const lastDay = lastDayOfMonth(prevMonth);
@@ -117,7 +132,7 @@ export class TransactionBucketService {
 
     return transactions.filter((t) => {
       if (t.paymentMethod !== 'card' || t.cardId !== cardId) return false;
-      
+
       const transactionDate = t.date;
       return transactionDate >= period.start && transactionDate <= period.end;
     });
@@ -127,7 +142,10 @@ export class TransactionBucketService {
    * Calculate buffer: Total Balance - Total Credit Card Debt
    * Returns negative value if debt exceeds balance (danger zone)
    */
-  calculateBuffer(profileId: string, monthStr: string): {
+  calculateBuffer(
+    profileId: string,
+    monthStr: string,
+  ): {
     totalBalance: number;
     totalCreditCardDebt: number;
     buffer: number;
@@ -166,7 +184,7 @@ export class TransactionBucketService {
       const start = parseISO(startDate);
       const currentMonth = startOfMonth(viewDate);
       const startMonth = startOfMonth(start);
-      
+
       const diff = differenceInCalendarMonths(currentMonth, startMonth);
       return Math.max(1, diff + 1);
     } catch {
@@ -203,5 +221,27 @@ export class TransactionBucketService {
     return allTransactions.filter(
       (t) => t.parentTransactionId === parentId || (t.isVirtual && t.id === parentId),
     );
+  }
+
+  /**
+   * Check if a transaction belongs to the current month's bucket
+   * This ensures future-dated income is included in the current month if date <= endOfMonth
+   * Used for forecasting calculations
+   */
+  belongsToCurrentMonth(transaction: Transaction, monthStr: string): boolean {
+    const transactionDate = parseISO(transaction.date);
+    const monthStart = startOfMonth(parseISO(`${monthStr}-01`));
+    const monthEnd = endOfMonth(monthStart);
+
+    // Transaction belongs to this month if its date is within the month range
+    return !isBefore(transactionDate, monthStart) && !isAfter(transactionDate, monthEnd);
+  }
+
+  /**
+   * Get transactions for a specific month bucket (including future-dated transactions)
+   * This ensures future-dated income is included in the current month's calculations
+   */
+  getTransactionsForMonth(transactions: Transaction[], monthStr: string): Transaction[] {
+    return transactions.filter((t) => this.belongsToCurrentMonth(t, monthStr));
   }
 }

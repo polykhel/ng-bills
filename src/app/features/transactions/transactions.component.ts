@@ -19,7 +19,7 @@ import {
   TrendingDown,
   TrendingUp,
   Wallet,
-  X,
+  X
 } from 'lucide-angular';
 import {
   AppStateService,
@@ -31,14 +31,9 @@ import {
   ProfileService,
   StatementService,
   TransactionBucketService,
-  TransactionService,
+  TransactionService
 } from '@services';
-import {
-  EmptyStateComponent,
-  MetricCardComponent,
-  ModalComponent,
-  QuickActionButtonComponent,
-} from '@components';
+import { EmptyStateComponent, MetricCardComponent, ModalComponent, QuickActionButtonComponent } from '@components';
 import type { PaymentMethod, Transaction, TransactionType } from '@shared/types';
 import {
   addMonths,
@@ -48,7 +43,7 @@ import {
   parseISO,
   setDate,
   startOfMonth,
-  subMonths,
+  subMonths
 } from 'date-fns';
 import type { Cell, Row } from '@cj-tech-master/excelts';
 import { Workbook, Worksheet } from '@cj-tech-master/excelts';
@@ -2114,6 +2109,13 @@ export class TransactionsComponent {
   protected formatDebtDueDate(transaction: Transaction): string {
     if (!transaction.debtDueDate) return '';
     return this.formatDate(transaction.debtDueDate);
+  }
+
+  /**
+   * Check if a transaction is projected (future-dated)
+   */
+  protected isProjectedTransaction(transaction: Transaction): boolean {
+    return this.transactionService.isProjectedTransaction(transaction);
   }
 
   /**

@@ -2,11 +2,14 @@ import { effect, Injectable, signal } from '@angular/core';
 import {
   addMonths,
   differenceInCalendarMonths,
+  endOfMonth,
   format,
   getDate,
+  isAfter,
   lastDayOfMonth,
   parseISO,
   setDate,
+  startOfDay,
   startOfMonth
 } from 'date-fns';
 import { IndexedDBService, STORES } from './indexeddb.service';
@@ -48,36 +51,6 @@ export class TransactionService {
   }
 
   /**
-   * Watch for card due date changes and sync installments
-   */
-  private setupCardChangeWatcher(): void {
-    effect(() => {
-      const cards = this.cardService.cards();
-      
-      // Check each card for dueDay changes
-      for (const card of cards) {
-        const previousDueDay = this.previousCards.get(card.id);
-        
-        // If dueDay changed, sync installments
-        if (previousDueDay !== undefined && previousDueDay !== card.dueDay) {
-          void this.syncInstallmentsForCard(card.id, card.dueDay);
-        }
-        
-        // Update tracking
-        this.previousCards.set(card.id, card.dueDay);
-      }
-      
-      // Remove cards that no longer exist
-      const currentCardIds = new Set(cards.map(c => c.id));
-      for (const cardId of this.previousCards.keys()) {
-        if (!currentCardIds.has(cardId)) {
-          this.previousCards.delete(cardId);
-        }
-      }
-    });
-  }
-
-  /**
    * Add a new transaction
    * If payment method is 'card', automatically creates/updates the bill
    * If it's an installment, creates parent transaction and generates virtual transactions
@@ -103,17 +76,17 @@ export class TransactionService {
     if (isInstallmentParent) {
       // Mark as parent transaction (non-budget impacting)
       transaction.isBudgetImpacting = false;
-      
+
       // Generate virtual transactions for each term
       const virtualTransactions = await this.generateVirtualTransactions(transaction);
-      
+
       // Add parent transaction
       this.transactionsSignal.update((prev) => [...prev, transaction]);
-      
+
       // Add all virtual transactions
       for (const virtualTx of virtualTransactions) {
         this.transactionsSignal.update((prev) => [...prev, virtualTx]);
-        
+
         // Auto-link virtual transactions to bills if applicable
         if (virtualTx.paymentMethod === 'card' && virtualTx.cardId) {
           await this.autoCreateOrUpdateBill(virtualTx);
@@ -124,7 +97,7 @@ export class TransactionService {
       if (transaction.isBudgetImpacting === undefined) {
         transaction.isBudgetImpacting = true;
       }
-      
+
       // Add to signal
       this.transactionsSignal.update((prev) => [...prev, transaction]);
 
@@ -133,6 +106,31 @@ export class TransactionService {
         await this.autoCreateOrUpdateBill(transaction);
       }
     }
+  }
+
+  /**
+   * Preview orphaned transactions: transactions with cardId that no longer exists
+   */
+  previewOrphanedTransactions(): {
+    total: number;
+    orphaned: Array<{ id: string; description: string; cardId: string; date: string }>;
+  } {
+    const allTransactions = this.transactionsSignal();
+    const allCardIds = new Set(this.cardService.cards().map((c) => c.id));
+
+    const orphaned = allTransactions.filter(
+      (tx) => tx.cardId !== undefined && !allCardIds.has(tx.cardId),
+    );
+
+    return {
+      total: orphaned.length,
+      orphaned: orphaned.map((tx) => ({
+        id: tx.id,
+        description: tx.description,
+        cardId: tx.cardId!,
+        date: tx.date,
+      })),
+    };
   }
 
   /**
@@ -427,28 +425,62 @@ export class TransactionService {
   }
 
   /**
-   * Preview orphaned transactions: transactions with cardId that no longer exists
+   * Update all installment transactions for a card when card's due date changes
+   * Recalculates startDate and endDate based on new due date, preserving the original month
    */
-  previewOrphanedTransactions(): {
-    total: number;
-    orphaned: Array<{ id: string; description: string; cardId: string; date: string }>;
-  } {
+  async syncInstallmentsForCard(cardId: string, newDueDay: number): Promise<void> {
     const allTransactions = this.transactionsSignal();
-    const allCardIds = new Set(this.cardService.cards().map((c) => c.id));
-    
-    const orphaned = allTransactions.filter(
-      (tx) => tx.cardId !== undefined && !allCardIds.has(tx.cardId),
+    const cardInstallments = allTransactions.filter(
+      (t) =>
+        t.isRecurring &&
+        t.recurringRule?.type === 'installment' &&
+        t.cardId === cardId &&
+        t.recurringRule.startDate,
     );
 
-    return {
-      total: orphaned.length,
-      orphaned: orphaned.map((tx) => ({
-        id: tx.id,
-        description: tx.description,
-        cardId: tx.cardId!,
-        date: tx.date,
-      })),
-    };
+    if (cardInstallments.length === 0) {
+      return;
+    }
+
+    const transactionUpdates: Array<{ id: string; updates: Partial<Transaction> }> = [];
+
+    for (const transaction of cardInstallments) {
+      if (!transaction.recurringRule?.startDate) continue;
+
+      const oldStartDate = parseISO(transaction.recurringRule.startDate);
+
+      // Preserve the original month/year, just change the day to the new due day
+      const newStartDate = setDate(oldStartDate, newDueDay);
+
+      // Recalculate end date based on total terms
+      const totalTerms = transaction.recurringRule.totalTerms || 0;
+      const newEndDate = addMonths(newStartDate, totalTerms);
+
+      // Recalculate current term based on new start date and current date
+      const currentMonth = startOfMonth(new Date());
+      const newStartMonth = startOfMonth(newStartDate);
+      const diff = differenceInCalendarMonths(currentMonth, newStartMonth);
+      const newCurrentTerm = Math.max(1, diff + 1);
+
+      transactionUpdates.push({
+        id: transaction.id,
+        updates: {
+          date: format(newStartDate, 'yyyy-MM-dd'),
+          recurringRule: {
+            ...transaction.recurringRule,
+            startDate: format(newStartDate, 'yyyy-MM-dd'),
+            endDate: format(newEndDate, 'yyyy-MM-dd'),
+            currentTerm: newCurrentTerm,
+          },
+          updatedAt: new Date().toISOString(),
+        },
+      });
+    }
+
+    // Apply all updates
+    for (const { id, updates } of transactionUpdates) {
+      await this.updateTransaction(id, updates);
+    }
   }
 
   /**
@@ -535,62 +567,13 @@ export class TransactionService {
   }
 
   /**
-   * Update all installment transactions for a card when card's due date changes
-   * Recalculates startDate and endDate based on new due date, preserving the original month
+   * Check if a transaction is 'Projected' (future-dated)
+   * Projected transactions have date > today
    */
-  async syncInstallmentsForCard(cardId: string, newDueDay: number): Promise<void> {
-    const allTransactions = this.transactionsSignal();
-    const cardInstallments = allTransactions.filter(
-      (t) =>
-        t.isRecurring &&
-        t.recurringRule?.type === 'installment' &&
-        t.cardId === cardId &&
-        t.recurringRule.startDate,
-    );
-
-    if (cardInstallments.length === 0) {
-      return;
-    }
-
-    const transactionUpdates: Array<{ id: string; updates: Partial<Transaction> }> = [];
-
-    for (const transaction of cardInstallments) {
-      if (!transaction.recurringRule?.startDate) continue;
-
-      const oldStartDate = parseISO(transaction.recurringRule.startDate);
-      
-      // Preserve the original month/year, just change the day to the new due day
-      const newStartDate = setDate(oldStartDate, newDueDay);
-
-      // Recalculate end date based on total terms
-      const totalTerms = transaction.recurringRule.totalTerms || 0;
-      const newEndDate = addMonths(newStartDate, totalTerms);
-
-      // Recalculate current term based on new start date and current date
-      const currentMonth = startOfMonth(new Date());
-      const newStartMonth = startOfMonth(newStartDate);
-      const diff = differenceInCalendarMonths(currentMonth, newStartMonth);
-      const newCurrentTerm = Math.max(1, diff + 1);
-
-      transactionUpdates.push({
-        id: transaction.id,
-        updates: {
-          date: format(newStartDate, 'yyyy-MM-dd'),
-          recurringRule: {
-            ...transaction.recurringRule,
-            startDate: format(newStartDate, 'yyyy-MM-dd'),
-            endDate: format(newEndDate, 'yyyy-MM-dd'),
-            currentTerm: newCurrentTerm,
-          },
-          updatedAt: new Date().toISOString(),
-        },
-      });
-    }
-
-    // Apply all updates
-    for (const { id, updates } of transactionUpdates) {
-      await this.updateTransaction(id, updates);
-    }
+  isProjectedTransaction(transaction: Transaction): boolean {
+    const today = startOfDay(new Date());
+    const transactionDate = startOfDay(parseISO(transaction.date));
+    return isAfter(transactionDate, today);
   }
 
   /**
@@ -703,6 +686,136 @@ export class TransactionService {
   }
 
   /**
+   * Get Current Liquid Balance: Sum of all Income minus Expense where date <= today
+   * This represents money that has actually been received/spent
+   */
+  getCurrentLiquidBalance(profileId: string): number {
+    const today = startOfDay(new Date());
+    const transactions = this.transactionsSignal().filter(
+      (t) => t.profileId === profileId && !t.isVirtual && t.isBudgetImpacting !== false,
+    );
+
+    let balance = 0;
+    for (const transaction of transactions) {
+      const transactionDate = startOfDay(parseISO(transaction.date));
+
+      // Only count transactions up to today
+      if (!isAfter(transactionDate, today)) {
+        if (transaction.type === 'income') {
+          balance += transaction.amount;
+        } else {
+          balance -= transaction.amount;
+        }
+      }
+    }
+
+    return balance;
+  }
+
+  /**
+   * Get Projected Income: Sum of all Income where date > today AND date <= endOfMonth
+   * This represents expected future income this month
+   */
+  getProjectedIncome(profileId: string, monthStr?: string): number {
+    const today = startOfDay(new Date());
+    const monthEnd = monthStr ? endOfMonth(parseISO(`${monthStr}-01`)) : endOfMonth(today);
+
+    const transactions = this.transactionsSignal().filter(
+      (t) =>
+        t.profileId === profileId &&
+        t.type === 'income' &&
+        !t.isVirtual &&
+        t.isBudgetImpacting !== false,
+    );
+
+    let projectedIncome = 0;
+    for (const transaction of transactions) {
+      const transactionDate = startOfDay(parseISO(transaction.date));
+
+      // Only count future transactions within the month
+      if (isAfter(transactionDate, today) && !isAfter(transactionDate, monthEnd)) {
+        projectedIncome += transaction.amount;
+      }
+    }
+
+    return projectedIncome;
+  }
+
+  /**
+   * Get Committed Expenses: Sum of all Expenses (including Virtual Installments and Bills)
+   * where date > today AND date <= endOfMonth
+   * This represents expected future expenses this month
+   */
+  getCommittedExpenses(profileId: string, monthStr?: string): number {
+    const today = startOfDay(new Date());
+    const monthEnd = monthStr ? endOfMonth(parseISO(`${monthStr}-01`)) : endOfMonth(today);
+
+    const transactions = this.transactionsSignal().filter(
+      (t) => t.profileId === profileId && t.type === 'expense' && t.isBudgetImpacting !== false,
+    );
+
+    let committedExpenses = 0;
+    for (const transaction of transactions) {
+      const transactionDate = startOfDay(parseISO(transaction.date));
+
+      // Count future expenses within the month (including virtual transactions)
+      if (isAfter(transactionDate, today) && !isAfter(transactionDate, monthEnd)) {
+        committedExpenses += transaction.amount;
+      }
+    }
+
+    return committedExpenses;
+  }
+
+  private async initializeTransactions(): Promise<void> {
+    const db = this.idb.getDB();
+    const data = await db.getAll<Transaction>(STORES.TRANSACTIONS);
+    const migrated = this.migrateTransactionsForParentVirtualFields(data);
+    this.transactionsSignal.set(migrated);
+    if (migrated !== data) {
+      await db.putAll(STORES.TRANSACTIONS, migrated);
+    }
+  }
+
+  /**
+   * Watch for card due date changes and sync installments
+   */
+  private setupCardChangeWatcher(): void {
+    effect(() => {
+      const cards = this.cardService.cards();
+
+      // Check each card for dueDay changes
+      for (const card of cards) {
+        const previousDueDay = this.previousCards.get(card.id);
+
+        // If dueDay changed, sync installments
+        if (previousDueDay !== undefined && previousDueDay !== card.dueDay) {
+          void this.syncInstallmentsForCard(card.id, card.dueDay);
+        }
+
+        // Update tracking
+        this.previousCards.set(card.id, card.dueDay);
+      }
+
+      // Remove cards that no longer exist
+      const currentCardIds = new Set(cards.map((c) => c.id));
+      for (const cardId of this.previousCards.keys()) {
+        if (!currentCardIds.has(cardId)) {
+          this.previousCards.delete(cardId);
+        }
+      }
+    });
+  }
+
+  private setupAutoSave(): void {
+    effect(() => {
+      if (this.profileService.isLoaded()) {
+        void this.idb.getDB().putAll(STORES.TRANSACTIONS, this.transactionsSignal());
+      }
+    });
+  }
+
+  /**
    * CORE LOGIC: Auto-create or update bill based on transaction
    * Handles cutoff-aware month calculation
    *
@@ -724,7 +837,9 @@ export class TransactionService {
 
     // ⭐ CUTOFF-AWARE: Determine which statement month this transaction belongs to
     // Use postingDate for cutoff calculation if available, otherwise use transaction date
-    const dateForCutoff = transaction.postingDate ? parseISO(transaction.postingDate) : parseISO(transaction.date);
+    const dateForCutoff = transaction.postingDate
+      ? parseISO(transaction.postingDate)
+      : parseISO(transaction.date);
     const dayOfMonth = dateForCutoff.getDate();
 
     // Determine statement month based on cutoff day
@@ -780,7 +895,9 @@ export class TransactionService {
 
     // Calculate which statement month this belongs to
     // Use postingDate for cutoff calculation if available, otherwise use transaction date
-    const dateForCutoff = transaction.postingDate ? parseISO(transaction.postingDate) : parseISO(transaction.date);
+    const dateForCutoff = transaction.postingDate
+      ? parseISO(transaction.postingDate)
+      : parseISO(transaction.date);
     const dayOfMonth = dateForCutoff.getDate();
 
     let statementDate: Date;
@@ -816,7 +933,9 @@ export class TransactionService {
     }
 
     // Use monthlyAmortization from recurringRule, or calculate from totalPrincipal
-    const monthlyAmount = monthlyAmortization || (totalPrincipal ? totalPrincipal / totalTerms : parent.amount / totalTerms);
+    const monthlyAmount =
+      monthlyAmortization ||
+      (totalPrincipal ? totalPrincipal / totalTerms : parent.amount / totalTerms);
     const start = parseISO(startDate);
     const virtualTransactions: Transaction[] = [];
 
@@ -859,24 +978,12 @@ export class TransactionService {
     return virtualTransactions;
   }
 
-  private async initializeTransactions(): Promise<void> {
-    const db = this.idb.getDB();
-    const data = await db.getAll<Transaction>(STORES.TRANSACTIONS);
-    const migrated = this.migrateTransactionsForParentVirtualFields(data);
-    this.transactionsSignal.set(migrated);
-    if (migrated !== data) {
-      await db.putAll(STORES.TRANSACTIONS, migrated);
-    }
-  }
-
   /**
    * Migration: backfill isVirtual and isBudgetImpacting for existing transactions
    * created before the parent/virtual installment model. Ensures legacy installments
    * are not hidden as "parents" and all transactions have explicit flags.
    */
-  private migrateTransactionsForParentVirtualFields(
-    transactions: Transaction[],
-  ): Transaction[] {
+  private migrateTransactionsForParentVirtualFields(transactions: Transaction[]): Transaction[] {
     let changed = false;
     const result = transactions.map((t) => {
       let isVirtual = t.isVirtual;
@@ -892,13 +999,5 @@ export class TransactionService {
       return { ...t, isVirtual, isBudgetImpacting };
     });
     return changed ? result : transactions;
-  }
-
-  private setupAutoSave(): void {
-    effect(() => {
-      if (this.profileService.isLoaded()) {
-        void this.idb.getDB().putAll(STORES.TRANSACTIONS, this.transactionsSignal());
-      }
-    });
   }
 }

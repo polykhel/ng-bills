@@ -997,6 +997,13 @@
                         Virtual
                       </span>
                     }
+                    <!-- Upcoming/Projected Transaction Indicator -->
+                    @if (isProjectedTransaction(transaction)) {
+                      <span
+                        class="inline-block px-2 py-0.5 text-xs rounded font-medium bg-amber-100 text-amber-800 border border-amber-200">
+                        Upcoming
+                      </span>
+                    }
                   </div>
                   @if (isInstallment(transaction)) {
                     <div class="inline-flex items-center gap-2 ml-2">

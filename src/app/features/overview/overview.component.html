@@ -6,101 +6,147 @@
       message="Select a profile to view your financial overview"
     />
   } @else {
-    <!-- Financial Health Card (Task 5) -->
+    <!-- Financial Health Card with Forecasting Mindset -->
     <div class="bg-white rounded-lg border-2 shadow-lg p-8 mb-8"
          [ngClass]="{
            'border-green-300': financialHealth().isPositive,
            'border-red-300': !financialHealth().isPositive
          }">
       <h2 class="text-2xl font-bold text-slate-900 mb-6">Financial Health</h2>
-      <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <!-- Liquid Cash -->
-        <div class="text-center">
-          <div class="text-sm font-medium text-slate-600 mb-2">Liquid Cash</div>
-          <div class="text-3xl font-bold text-slate-900">
-            ₱{{ financialHealth().liquidCash.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }}
-          </div>
-          <div class="text-xs text-slate-500 mt-1">Sum of all bank balances</div>
-        </div>
 
-        <!-- Committed Funds -->
-        <div class="text-center">
-          <div class="text-sm font-medium text-slate-600 mb-2">Committed Funds</div>
-          <div class="text-3xl font-bold text-slate-900">
-            ₱{{ financialHealth().committedFunds.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }}
-          </div>
-          <div class="text-xs text-slate-500 mt-1">Unpaid bills + installments due this month</div>
-        </div>
-
-        <!-- True Free Cash -->
-        <div class="text-center">
-          <div class="text-sm font-medium text-slate-600 mb-2">True Free Cash</div>
-          <div 
-            class="text-4xl font-bold"
+      <!-- Two-Horizon View -->
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
+        <!-- Primary Stat: Projected Landing (The big number) -->
+        <div class="text-center p-6 bg-gradient-to-br from-blue-50 to-indigo-50 rounded-lg border border-blue-200">
+          <div class="text-sm font-medium text-slate-600 mb-2">Projected Landing</div>
+          <div
+            class="text-5xl font-bold mb-2"
             [ngClass]="{
               'text-green-600': financialHealth().isPositive,
               'text-red-600': !financialHealth().isPositive
             }">
-            ₱{{ financialHealth().trueFreeCash.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }}
+            ₱{{
+              financialHealth().projectedLanding.toLocaleString('en-US', {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2
+              })
+            }}
           </div>
-          <div 
-            class="text-xs font-semibold mt-1"
+          <div class="text-xs text-slate-500 mt-1">End of month forecast</div>
+          <div class="text-xs text-slate-400 mt-2">
+            Current: ₱{{
+              financialHealth().currentLiquidBalance.toLocaleString('en-US', {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2
+              })
+            }}
+            + Income: ₱{{
+              financialHealth().projectedIncome.toLocaleString('en-US', {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2
+              })
+            }}
+            - Expenses: ₱{{
+              financialHealth().committedExpenses.toLocaleString('en-US', {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2
+              })
+            }}
+          </div>
+        </div>
+
+        <!-- Secondary Stat: Available Right Now (YNAB-style) -->
+        <div class="text-center p-6 bg-gradient-to-br from-slate-50 to-gray-50 rounded-lg border border-slate-200">
+          <div class="text-sm font-medium text-slate-600 mb-2">Available Right Now</div>
+          <div
+            class="text-4xl font-bold mb-2"
             [ngClass]="{
-              'text-green-600': financialHealth().isPositive,
-              'text-red-600': !financialHealth().isPositive
+              'text-green-600': financialHealth().availableRightNow >= 0,
+              'text-red-600': financialHealth().availableRightNow < 0
             }">
-            {{ financialHealth().isPositive ? 'Available to spend' : '⚠️ Overcommitted' }}
+            ₱{{
+              financialHealth().availableRightNow.toLocaleString('en-US', {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2
+              })
+            }}
           </div>
+          <div class="text-xs text-slate-500 mt-1">Current balance - bills due in 7 days</div>
+          @if (financialHealth().billsDueIn7Days > 0) {
+            <div class="text-xs text-amber-600 mt-2 font-semibold">
+              ⚠️ ₱{{
+                financialHealth().billsDueIn7Days.toLocaleString('en-US', {
+                  minimumFractionDigits: 2,
+                  maximumFractionDigits: 2
+                })
+              }} due soon
+            </div>
+          }
         </div>
       </div>
-    </div>
 
-    <!-- Quick Actions -->
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
-      <app-quick-action-button
-        [icon]="Plus"
-        label="Add Transaction"
-        variant="primary"
-        (clicked)="onAddTransaction()"
-      />
+      <!-- Progress Bar / Runway Visualization -->
+      <div class="mt-6">
+        <div class="text-sm font-medium text-slate-700 mb-3">Monthly Runway</div>
+        <div class="relative h-8 bg-slate-100 rounded-lg overflow-hidden border border-slate-200">
+          <!-- Spent so far (red) -->
+          <div
+            class="absolute left-0 top-0 h-full bg-red-400 transition-all duration-300"
+            [style.width.%]="progressBarData().spentPercentage"
+            title="Spent so far: ₱{{ progressBarData().spentSoFar.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }}"
+          ></div>
 
-      <app-quick-action-button
-        [icon]="CreditCard"
-        label="Pay Bill"
-        variant="secondary"
-        (clicked)="onPayBill()"
-      />
+          <!-- Today marker -->
+          <div
+            class="absolute top-0 h-full w-0.5 bg-slate-900 z-10"
+            [style.left.%]="progressBarData().spentPercentage"
+            title="Today"
+          >
+            <div class="absolute -top-1 left-1/2 transform -translate-x-1/2 text-xs font-bold text-slate-900">│</div>
+          </div>
 
-      <app-quick-action-button
-        [icon]="PieChart"
-        label="View Budget"
-        variant="secondary"
-        (clicked)="onViewBudget()"
-      />
-    </div>
+          <!-- Projected Income (green) -->
+          <div
+            class="absolute top-0 h-full bg-green-400 transition-all duration-300"
+            [style.left.%]="progressBarData().spentPercentage"
+            [style.width.%]="progressBarData().incomePercentage"
+            title="Projected Income: ₱{{ progressBarData().projectedIncome.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }}"
+          ></div>
 
-    <!-- Quick Actions -->
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-      <app-quick-action-button
-        [icon]="Plus"
-        label="Add Transaction"
-        variant="primary"
-        (clicked)="onAddTransaction()"
-      />
-
-      <app-quick-action-button
-        [icon]="CreditCard"
-        label="Pay Bill"
-        variant="secondary"
-        (clicked)="onPayBill()"
-      />
-
-      <app-quick-action-button
-        [icon]="PieChart"
-        label="View Budget"
-        variant="secondary"
-        (clicked)="onViewBudget()"
-      />
+          <!-- Target Savings (blue) -->
+          @if (progressBarData().targetSavings > 0) {
+            <div
+              class="absolute top-0 h-full bg-blue-400 transition-all duration-300 border-l-2 border-blue-600"
+              [style.left.%]="progressBarData().spentPercentage + progressBarData().incomePercentage"
+              [style.width.%]="progressBarData().savingsPercentage"
+              title="Target Savings: ₱{{ progressBarData().targetSavings.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }}"
+            ></div>
+          }
+        </div>
+        <div class="flex justify-between text-xs text-slate-500 mt-2">
+          <span>Spent: ₱{{
+              progressBarData().spentSoFar.toLocaleString('en-US', {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2
+              })
+            }}</span>
+          <span class="font-semibold text-slate-700">Today</span>
+          <span>Income: ₱{{
+              progressBarData().projectedIncome.toLocaleString('en-US', {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2
+              })
+            }}</span>
+          @if (progressBarData().targetSavings > 0) {
+            <span>Target: ₱{{
+                progressBarData().targetSavings.toLocaleString('en-US', {
+                  minimumFractionDigits: 2,
+                  maximumFractionDigits: 2
+                })
+              }}</span>
+          }
+        </div>
+      </div>
     </div>
   }
 </div>
