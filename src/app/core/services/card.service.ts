@@ -14,7 +14,9 @@ export class CardService {
 
   // Computed active cards (cards for current profile)
   activeCards = computed(() => {
-    const cards = this.cardsSignal();
+    const cards = this.cardsSignal().sort(
+      (c1, c2) => c1.bankName.localeCompare(c2.bankName) || c1.cardName.localeCompare(c2.cardName),
+    );
     const activeProfileId = this.profileService.activeProfileId();
     return cards.filter((c) => c.profileId === activeProfileId);
   });
@@ -51,7 +53,12 @@ export class CardService {
   }
 
   getCardsForProfiles(profileIds: string[]): CreditCard[] {
-    return this.cardsSignal().filter((c) => profileIds.includes(c.profileId));
+    return this.cardsSignal()
+      .filter((c) => profileIds.includes(c.profileId))
+      .sort(
+        (c1, c2) =>
+          c1.bankName.localeCompare(c2.bankName) || c1.cardName.localeCompare(c2.cardName),
+      );
   }
 
   getCardById(cardId: string): CreditCard | undefined {
