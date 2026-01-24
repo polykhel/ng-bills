@@ -19,7 +19,7 @@ import {
   TrendingDown,
   TrendingUp,
   Wallet,
-  X,
+  X
 } from 'lucide-angular';
 import {
   AppStateService,
@@ -32,14 +32,9 @@ import {
   StatementService,
   TransactionBucketService,
   TransactionService,
-  UtilsService,
+  UtilsService
 } from '@services';
-import {
-  EmptyStateComponent,
-  MetricCardComponent,
-  ModalComponent,
-  QuickActionButtonComponent,
-} from '@components';
+import { EmptyStateComponent, MetricCardComponent, ModalComponent, QuickActionButtonComponent } from '@components';
 import type { PaymentMethod, Transaction, TransactionType } from '@shared/types';
 import {
   addMonths,
@@ -49,7 +44,7 @@ import {
   parseISO,
   setDate,
   startOfMonth,
-  subMonths,
+  subMonths
 } from 'date-fns';
 import type { Cell, Row } from '@cj-tech-master/excelts';
 import { Workbook, Worksheet } from '@cj-tech-master/excelts';
@@ -234,7 +229,9 @@ export class TransactionsComponent {
   protected showBankBalanceManagement = false;
   protected actionsMenuOpen = signal<boolean>(false);
   protected showSkippedTransactionsModal = signal<boolean>(false);
-  protected skippedTransactions = signal<Array<{ rowNumber: number; reason: string; transaction?: Transaction }>>([]);
+  protected skippedTransactions = signal<
+    Array<{ rowNumber: number; reason: string; transaction?: Transaction }>
+  >([]);
   // Recurring/installment form state
   protected isRecurringTransaction = signal<boolean>(false);
   protected recurringType = signal<'installment' | 'subscription' | 'custom'>('subscription');
@@ -901,7 +898,10 @@ export class TransactionsComponent {
         // Show modal with skipped transactions
         this.showSkippedTransactionsModal.set(true);
       } else {
-        this.notificationService.success('Import completed', `${importedCount} transactions imported.`);
+        this.notificationService.success(
+          'Import completed',
+          `${importedCount} transactions imported.`,
+        );
         this.skippedTransactions.set([]);
       }
     } catch (error) {
@@ -1367,6 +1367,7 @@ export class TransactionsComponent {
       type: transaction.type,
       amount: transaction.amount,
       date: transaction.date,
+      postingDate: transaction.postingDate,
       categoryId: transaction.categoryId,
       description: transaction.description,
       notes: transaction.notes,
@@ -1776,6 +1777,7 @@ export class TransactionsComponent {
           type: (this.formData.type || 'expense') as TransactionType,
           amount: transactionAmount,
           date: this.formData.date || new Date().toISOString().split('T')[0],
+          postingDate: this.formData.postingDate || undefined,
           categoryId: this.formData.categoryId || 'uncategorized',
           description: this.formData.description || '',
           notes: this.formData.notes,
@@ -1805,6 +1807,7 @@ export class TransactionsComponent {
           type: (this.formData.type || 'expense') as TransactionType,
           amount: transactionAmount,
           date: this.formData.date || new Date().toISOString().split('T')[0],
+          postingDate: this.formData.postingDate || undefined,
           categoryId: this.formData.categoryId || 'uncategorized',
           description: this.formData.description || '',
           notes: this.formData.notes,
@@ -2036,6 +2039,7 @@ export class TransactionsComponent {
       type: 'expense',
       amount: undefined,
       date: new Date().toISOString().split('T')[0],
+      postingDate: undefined,
       description: '',
       paymentMethod: 'cash',
       categoryId: 'uncategorized',
