@@ -1,6 +1,6 @@
 import { Injectable } from '@angular/core';
-import { differenceInCalendarMonths, format, parseISO, startOfMonth } from 'date-fns';
-import type { Installment, InstallmentStatus } from '@shared/types';
+import { addMonths, differenceInCalendarMonths, format, parseISO, startOfMonth } from 'date-fns';
+import type { Installment, InstallmentStatus, Transaction } from '@shared/types';
 
 @Injectable({
   providedIn: 'root'
@@ -105,5 +105,54 @@ export class UtilsService {
     } catch {
       return null;
     }
+  }
+
+  /**
+   * Get the statement month date for a transaction based on cutoff-aware logic
+   * Uses postingDate if available, otherwise falls back to transaction date
+   * 
+   * @param transaction Transaction with date and optional postingDate
+   * @param cutoffDay The card's cutoff day (1-31)
+   * @returns Date representing the start of the statement month
+   */
+  getStatementMonthForTransaction(transaction: { date: string; postingDate?: string }, cutoffDay: number): Date {
+    // Use postingDate for cutoff calculation if available, otherwise use transaction date
+    const dateForCutoff = transaction.postingDate ? parseISO(transaction.postingDate) : parseISO(transaction.date);
+    return this.getStatementMonth(dateForCutoff, cutoffDay);
+  }
+
+  /**
+   * Get the statement month date based on cutoff-aware logic
+   * 
+   * Logic:
+   * - If transaction day >= cutoffDay: belongs to NEXT month's statement
+   * - If transaction day < cutoffDay: belongs to THIS month's statement
+   * 
+   * @param dateForCutoff The date to use for cutoff calculation (transaction date or posting date)
+   * @param cutoffDay The card's cutoff day (1-31)
+   * @returns Date representing the start of the statement month
+   */
+  getStatementMonth(dateForCutoff: Date, cutoffDay: number): Date {
+    const dayOfMonth = dateForCutoff.getDate();
+
+    if (dayOfMonth >= cutoffDay) {
+      // Transaction is at or after cutoff → belongs to NEXT month's statement
+      return addMonths(startOfMonth(dateForCutoff), 1);
+    } else {
+      // Transaction is before cutoff → belongs to THIS month's statement
+      return startOfMonth(dateForCutoff);
+    }
+  }
+
+  /**
+   * Get the statement month string (yyyy-MM format) for a transaction
+   * 
+   * @param transaction Transaction with date and optional postingDate
+   * @param cutoffDay The card's cutoff day (1-31)
+   * @returns Statement month string in 'yyyy-MM' format
+   */
+  getStatementMonthStrForTransaction(transaction: { date: string; postingDate?: string }, cutoffDay: number): string {
+    const statementMonth = this.getStatementMonthForTransaction(transaction, cutoffDay);
+    return format(statementMonth, 'yyyy-MM');
   }
 }

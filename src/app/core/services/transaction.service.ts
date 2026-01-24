@@ -16,6 +16,7 @@ import { IndexedDBService, STORES } from './indexeddb.service';
 import { ProfileService } from './profile.service';
 import { CardService } from './card.service';
 import { StatementService } from './statement.service';
+import { UtilsService } from './utils.service';
 import type { Transaction, TransactionFilter } from '@shared/types';
 
 /**
@@ -44,6 +45,7 @@ export class TransactionService {
     private profileService: ProfileService,
     private cardService: CardService,
     private statementService: StatementService,
+    private utils: UtilsService,
   ) {
     void this.initializeTransactions();
     this.setupAutoSave();
@@ -278,6 +280,7 @@ export class TransactionService {
   /**
    * Get transactions that belong to a specific statement (card + month)
    * Uses cutoff-aware logic to determine which transactions belong to the statement
+   * ⭐ IMPORTANT: Uses postingDate for cutoff calculation if available (same logic as autoCreateOrUpdateBill)
    */
   getTransactionsForStatement(cardId: string, monthStr: string): Transaction[] {
     const card = this.cardService.getCardSync(cardId);
@@ -290,20 +293,8 @@ export class TransactionService {
 
     // Filter transactions that belong to this statement month based on cutoff logic
     return allCardTransactions.filter((t) => {
-      const transactionDate = parseISO(t.date);
-      const dayOfMonth = transactionDate.getDate();
-
-      // Determine which statement month this transaction belongs to
-      let statementDate: Date;
-      if (dayOfMonth >= card.cutoffDay) {
-        // Transaction is at or after cutoff → belongs to NEXT month's statement
-        statementDate = addMonths(startOfMonth(transactionDate), 1);
-      } else {
-        // Transaction is before cutoff → belongs to THIS month's statement
-        statementDate = startOfMonth(transactionDate);
-      }
-
-      const transactionMonthStr = format(statementDate, 'yyyy-MM');
+      // ⭐ CUTOFF-AWARE: Use shared utility function (matches autoCreateOrUpdateBill logic)
+      const transactionMonthStr = this.utils.getStatementMonthStrForTransaction(t, card.cutoffDay);
       return transactionMonthStr === monthStr;
     });
   }
@@ -809,48 +800,40 @@ export class TransactionService {
     }
 
     // ⭐ CUTOFF-AWARE: Determine which statement month this transaction belongs to
-    // Use postingDate for cutoff calculation if available, otherwise use transaction date
-    const dateForCutoff = transaction.postingDate
-      ? parseISO(transaction.postingDate)
-      : parseISO(transaction.date);
-    const dayOfMonth = dateForCutoff.getDate();
-
-    // Determine statement month based on cutoff day
-    let statementDate: Date;
-    if (dayOfMonth >= card.cutoffDay) {
-      // Transaction is at or after cutoff → belongs to NEXT month's statement
-      statementDate = addMonths(startOfMonth(dateForCutoff), 1);
-    } else {
-      // Transaction is before cutoff → belongs to THIS month's statement
-      statementDate = startOfMonth(dateForCutoff);
-    }
-
+    // Use shared utility function for consistent cutoff-aware logic
+    const statementDate = this.utils.getStatementMonthForTransaction(transaction, card.cutoffDay);
     const monthStr = format(statementDate, 'yyyy-MM');
 
     // Get existing statement or prepare to create new one
     const existingStatement = this.statementService.getStatementForMonth(cardId, monthStr);
 
+    // For income transactions on cards (refunds), subtract from bill amount
+    // For expense transactions on cards, add to bill amount
+    const amountToApply = transaction.type === 'income' ? -transaction.amount : transaction.amount;
+
     if (!existingStatement) {
       // AUTO-CREATE: New monthly bill
+      // For refunds (income), start with negative amount; for charges, positive
       const dueDate = new Date(statementDate.getFullYear(), statementDate.getMonth(), card.dueDay);
 
       this.statementService.updateStatement(cardId, monthStr, {
-        amount: transaction.amount,
+        amount: amountToApply,
         isPaid: false,
         customDueDate: format(dueDate, 'yyyy-MM-dd'),
       });
 
       console.log(
-        `✅ Bill auto-created: ${card.cardName} - ${monthStr} (cutoff: ${card.cutoffDay}) - $${transaction.amount}`,
+        `✅ Bill auto-created: ${card.cardName} - ${monthStr} (cutoff: ${card.cutoffDay}) - $${amountToApply} ${transaction.type === 'income' ? '(refund)' : ''}`,
       );
     } else {
-      // UPDATE: Add to existing bill
+      // UPDATE: Add/subtract from existing bill
+      const newAmount = (existingStatement.amount || 0) + amountToApply;
       this.statementService.updateStatement(cardId, monthStr, {
-        amount: (existingStatement.amount || 0) + transaction.amount,
+        amount: newAmount,
       });
 
       console.log(
-        `✅ Bill updated: ${card.cardName} - ${monthStr} - New total: $${(existingStatement.amount || 0) + transaction.amount}`,
+        `✅ Bill updated: ${card.cardName} - ${monthStr} - New total: $${newAmount} ${transaction.type === 'income' ? '(refund applied)' : ''}`,
       );
     }
   }
@@ -867,24 +850,16 @@ export class TransactionService {
     if (!card) return;
 
     // Calculate which statement month this belongs to
-    // Use postingDate for cutoff calculation if available, otherwise use transaction date
-    const dateForCutoff = transaction.postingDate
-      ? parseISO(transaction.postingDate)
-      : parseISO(transaction.date);
-    const dayOfMonth = dateForCutoff.getDate();
-
-    let statementDate: Date;
-    if (dayOfMonth >= card.cutoffDay) {
-      statementDate = addMonths(startOfMonth(dateForCutoff), 1);
-    } else {
-      statementDate = startOfMonth(dateForCutoff);
-    }
-
+    // Use shared utility function for consistent cutoff-aware logic
+    const statementDate = this.utils.getStatementMonthForTransaction(transaction, card.cutoffDay);
     const monthStr = format(statementDate, 'yyyy-MM');
     const statement = this.statementService.getStatementForMonth(transaction.cardId, monthStr);
 
     if (statement) {
-      const newAmount = Math.max(0, (statement.amount || 0) - transaction.amount);
+      // When removing, reverse the effect: income transactions added negative, so subtract negative (add)
+      // Expense transactions added positive, so subtract positive
+      const amountToReverse = transaction.type === 'income' ? -transaction.amount : transaction.amount;
+      const newAmount = Math.max(0, (statement.amount || 0) - amountToReverse);
       this.statementService.updateStatement(transaction.cardId, monthStr, {
         amount: newAmount,
       });

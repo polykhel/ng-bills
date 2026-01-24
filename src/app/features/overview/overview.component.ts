@@ -246,18 +246,9 @@ export class OverviewComponent {
           const card = allCards.find((c) => c.id === t.cardId);
           if (card) {
             // Determine which statement month this transaction belongs to (cutoff-aware)
+            // Use shared utility function for consistent logic
             const transactionDate = parseISO(t.date);
-            const dayOfMonth = transactionDate.getDate();
-
-            let statementDate: Date;
-            if (dayOfMonth >= card.cutoffDay) {
-              // Transaction is at or after cutoff → belongs to NEXT month's statement
-              statementDate = addMonths(startOfMonth(transactionDate), 1);
-            } else {
-              // Transaction is before cutoff → belongs to THIS month's statement
-              statementDate = startOfMonth(transactionDate);
-            }
-
+            const statementDate = this.utils.getStatementMonth(transactionDate, card.cutoffDay);
             const monthStr = format(statementDate, 'yyyy-MM');
             const statement = statements.find(
               (s) => s.cardId === t.cardId && s.monthStr === monthStr,

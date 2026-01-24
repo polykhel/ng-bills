@@ -32,6 +32,7 @@ import {
   StatementService,
   TransactionBucketService,
   TransactionService,
+  UtilsService,
 } from '@services';
 import {
   EmptyStateComponent,
@@ -60,6 +61,7 @@ type ExpenseTemplateLists = {
   bankAccounts: string[];
   profiles: string[];
   paidByOtherOptions: string[];
+  types: string[];
 };
 
 type ImportLookups = {
@@ -231,6 +233,8 @@ export class TransactionsComponent {
   protected formData: Partial<Transaction> = this.getEmptyForm();
   protected showBankBalanceManagement = false;
   protected actionsMenuOpen = signal<boolean>(false);
+  protected showSkippedTransactionsModal = signal<boolean>(false);
+  protected skippedTransactions = signal<Array<{ rowNumber: number; reason: string; transaction?: Transaction }>>([]);
   // Recurring/installment form state
   protected isRecurringTransaction = signal<boolean>(false);
   protected recurringType = signal<'installment' | 'subscription' | 'custom'>('subscription');
@@ -287,14 +291,9 @@ export class TransactionsComponent {
       const card = this.cardService.getCardById(this.formData.cardId);
       if (!card) return null;
 
+      // Use shared utility function for cutoff-aware statement month calculation
       const transactionDate = parseISO(this.formData.date);
-      const dayOfMonth = transactionDate.getDate();
-
-      // Determine statement month from transaction date (cutoff-aware)
-      const statementDate =
-        dayOfMonth >= card.cutoffDay
-          ? addMonths(startOfMonth(transactionDate), 1)
-          : startOfMonth(transactionDate);
+      const statementDate = this.utils.getStatementMonth(transactionDate, card.cutoffDay);
       const monthStr = format(statementDate, 'yyyy-MM');
 
       const period = this.transactionBucketService.getStatementPeriod(
@@ -359,18 +358,9 @@ export class TransactionsComponent {
           if (!card) return true; // Card not found, default to counting it
 
           // Determine which statement month this transaction belongs to (cutoff-aware)
+          // Use shared utility function for consistent logic
           const transactionDate = parseISO(t.date);
-          const dayOfMonth = transactionDate.getDate();
-
-          let statementDate: Date;
-          if (dayOfMonth >= card.cutoffDay) {
-            // Transaction is at or after cutoff → belongs to NEXT month's statement
-            statementDate = addMonths(startOfMonth(transactionDate), 1);
-          } else {
-            // Transaction is before cutoff → belongs to THIS month's statement
-            statementDate = startOfMonth(transactionDate);
-          }
-
+          const statementDate = this.utils.getStatementMonth(transactionDate, card.cutoffDay);
           const monthStr = format(statementDate, 'yyyy-MM');
           const statement = statements.find(
             (s) => s.cardId === t.cardId && s.monthStr === monthStr,
@@ -396,6 +386,7 @@ export class TransactionsComponent {
   private transactionService = inject(TransactionService);
   private statementService = inject(StatementService);
   private transactionBucketService = inject(TransactionBucketService);
+  private utils = inject(UtilsService);
 
   // View mode: 'spending' or 'reconcile'
   protected viewMode = signal<'spending' | 'reconcile'>('spending');
@@ -692,6 +683,7 @@ export class TransactionsComponent {
     'postingDate',
     'description',
     'amount',
+    'type',
     'categoryName',
     'paymentMethod',
     'cardName',
@@ -733,6 +725,7 @@ export class TransactionsComponent {
     const bankAccounts = this.bankAccounts().map((account) => account.bankName);
     const profiles = this.profileService.profiles().map((profile) => profile.name);
     const paidByOtherOptions = ['TRUE', 'FALSE'];
+    const typeOptions = ['expense', 'income'];
 
     return {
       categories: this.ensureList(categories),
@@ -741,6 +734,7 @@ export class TransactionsComponent {
       bankAccounts: this.ensureList(bankAccounts),
       profiles: this.ensureList(profiles),
       paidByOtherOptions: this.ensureList(paidByOtherOptions),
+      types: this.ensureList(typeOptions),
     };
   }
 
@@ -749,6 +743,7 @@ export class TransactionsComponent {
     lists: ExpenseTemplateLists,
   ): Record<string, string> {
     const listConfig = [
+      { key: 'type', values: lists.types },
       { key: 'categoryName', values: lists.categories },
       { key: 'paymentMethod', values: lists.paymentMethods },
       { key: 'cardName', values: lists.cards },
@@ -828,18 +823,29 @@ export class TransactionsComponent {
       const existingTransactions = this.transactionService.transactions();
       const duplicateKeySet = new Set<string>();
       existingTransactions.forEach((t) => {
-        if (t.type === 'expense' && t.paymentMethod === 'card' && t.cardId) {
-          const key = this.getDuplicateKey(t.date, t.description, t.cardId);
+        if (t.paymentMethod === 'card' && t.cardId) {
+          const dateForDuplicate = t.postingDate || t.date;
+          const key = this.getDuplicateKey(
+            dateForDuplicate,
+            t.description,
+            t.cardId,
+            t.type,
+            t.amount,
+            t.notes,
+          );
           duplicateKeySet.add(key);
         }
       });
 
       let importedCount = 0;
       let duplicateCount = 0;
+      const skipped: Array<{ rowNumber: number; reason: string; transaction?: Transaction }> = [];
+
       for (const { row, rowNumber } of toImport) {
         const result = this.parseExpenseRow(row, headerMap, lookups, rowNumber, profile.id);
         if ('error' in result) {
           errors.push(result.error);
+          skipped.push({ rowNumber, reason: result.error });
           continue;
         }
 
@@ -849,6 +855,9 @@ export class TransactionsComponent {
           dateForDuplicate,
           transaction.description,
           transaction.cardId,
+          transaction.type,
+          transaction.amount,
+          transaction.notes,
         );
 
         if (
@@ -857,6 +866,11 @@ export class TransactionsComponent {
           duplicateKeySet.has(duplicateKey)
         ) {
           duplicateCount += 1;
+          skipped.push({
+            rowNumber,
+            reason: 'Duplicate transaction (same date, description, card, type, amount, and notes)',
+            transaction,
+          });
           continue;
         }
 
@@ -867,8 +881,11 @@ export class TransactionsComponent {
         importedCount += 1;
       }
 
+      // Store skipped transactions for display
+      this.skippedTransactions.set(skipped);
+
       if (importedCount === 0 && errors.length === 0 && duplicateCount === 0) {
-        this.notificationService.warning('Import completed', 'No expense rows found.');
+        this.notificationService.warning('Import completed', 'No transaction rows found.');
         return;
       }
 
@@ -877,14 +894,15 @@ export class TransactionsComponent {
         const parts: string[] = [];
         if (errors.length > 0) parts.push(`${errors.length} errors`);
         if (duplicateCount > 0) parts.push(`${duplicateCount} duplicates`);
-        const preview = errors.slice(0, 3).join(' | ');
-        const suffix = errors.length > 3 ? ' ...' : '';
         this.notificationService.warning(
           'Import completed with issues',
-          `${importedCount} imported, ${skippedCount} skipped (${parts.join(', ')}). ${preview}${suffix}`,
+          `${importedCount} imported, ${skippedCount} skipped (${parts.join(', ')}). Click to view details.`,
         );
+        // Show modal with skipped transactions
+        this.showSkippedTransactionsModal.set(true);
       } else {
-        this.notificationService.success('Import completed', `${importedCount} expenses imported.`);
+        this.notificationService.success('Import completed', `${importedCount} transactions imported.`);
+        this.skippedTransactions.set([]);
       }
     } catch (error) {
       console.error('Import failed:', error);
@@ -950,6 +968,7 @@ export class TransactionsComponent {
       postingDate: 14,
       description: 34,
       amount: 14,
+      type: 12,
       categoryName: 22,
       paymentMethod: 18,
       cardName: 24,
@@ -971,6 +990,7 @@ export class TransactionsComponent {
     });
 
     const listColumns = [
+      'type',
       'categoryName',
       'paymentMethod',
       'cardName',
@@ -1004,11 +1024,10 @@ export class TransactionsComponent {
 
   private buildImportLookups(): ImportLookups {
     const categoryMap = new Map<string, string>();
-    this.categories()
-      .filter((category) => category.type === 'expense' || category.type === 'both')
-      .forEach((category) => {
-        categoryMap.set(this.normalizeLookup(category.name), category.id);
-      });
+    // Include all categories (expense, income, and both) for import flexibility
+    this.categories().forEach((category) => {
+      categoryMap.set(this.normalizeLookup(category.name), category.id);
+    });
 
     const cardMap = new Map<string, string>();
     this.cards().forEach((card) => {
@@ -1040,6 +1059,7 @@ export class TransactionsComponent {
     const postingDateValue = this.getCellValue(row, headers.get('postingdate'));
     const descriptionValue = this.getCellValue(row, headers.get('description'));
     const amountValue = this.getCellValue(row, headers.get('amount'));
+    const typeValue = this.getCellValue(row, headers.get('type'));
     const paymentMethodValue = this.getCellValue(row, headers.get('paymentmethod'));
     const categoryValue = this.getCellValue(row, headers.get('categoryname'));
     const cardValue = this.getCellValue(row, headers.get('cardname'));
@@ -1072,14 +1092,27 @@ export class TransactionsComponent {
       return { error: `Row ${rowNumber}: invalid amount.` };
     }
 
+    // Parse transaction type (default to 'expense' for backward compatibility)
+    const typeString = this.cellToString(typeValue)?.toLowerCase().trim();
+    const transactionType: TransactionType = typeString === 'income' ? 'income' : 'expense';
+
     const paymentMethod = this.normalizePaymentMethod(this.cellToString(paymentMethodValue));
     if (!paymentMethod) {
       return { error: `Row ${rowNumber}: invalid payment method.` };
     }
 
+    // For refunds (income with card), validate card is provided
+    if (transactionType === 'income' && paymentMethod === 'card') {
+      const cardName = this.cellToString(this.getCellValue(row, headers.get('cardname')));
+      if (!cardName) {
+        return { error: `Row ${rowNumber}: cardName required for refunds (income with card).` };
+      }
+    }
+
     let categoryId = 'uncategorized';
     const categoryName = this.cellToString(categoryValue);
     if (categoryName) {
+      // Look up category - check both expense and income categories
       const categoryLookup = lookups.categoryMap.get(this.normalizeLookup(categoryName));
       if (!categoryLookup) {
         return { error: `Row ${rowNumber}: unknown category "${categoryName}".` };
@@ -1157,7 +1190,7 @@ export class TransactionsComponent {
     const transaction: Transaction = {
       id: crypto.randomUUID(),
       profileId,
-      type: 'expense',
+      type: transactionType,
       amount,
       date,
       categoryId,
@@ -1295,9 +1328,17 @@ export class TransactionsComponent {
     return '';
   }
 
-  private getDuplicateKey(date: string, description: string, cardId?: string): string {
+  private getDuplicateKey(
+    date: string,
+    description: string,
+    cardId?: string,
+    type?: TransactionType,
+    amount?: number,
+    notes?: string,
+  ): string {
     const normalizedDesc = description.trim().toLowerCase();
-    return `${date}|${normalizedDesc}|${cardId || ''}`;
+    const normalizedNotes = (notes || '').trim().toLowerCase();
+    return `${date}|${normalizedDesc}|${cardId || ''}|${type || 'expense'}|${amount || 0}|${normalizedNotes}`;
   }
 
   protected onAddTransaction(): void {
@@ -2178,14 +2219,10 @@ export class TransactionsComponent {
 
   /**
    * Format currency for display
+   * Uses shared UtilsService for consistent formatting
    */
   protected formatCurrency(amount: number): string {
-    return amount.toLocaleString('en-PH', {
-      style: 'currency',
-      currency: 'PHP',
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    });
+    return this.utils.formatCurrency(amount);
   }
 
   /**
@@ -2203,18 +2240,9 @@ export class TransactionsComponent {
     }
 
     // Determine which statement month this transaction belongs to (cutoff-aware)
+    // Use shared utility function for consistent logic
     const transactionDate = parseISO(transaction.date);
-    const dayOfMonth = transactionDate.getDate();
-
-    let statementDate: Date;
-    if (dayOfMonth >= card.cutoffDay) {
-      // Transaction is at or after cutoff → belongs to NEXT month's statement
-      statementDate = addMonths(startOfMonth(transactionDate), 1);
-    } else {
-      // Transaction is before cutoff → belongs to THIS month's statement
-      statementDate = startOfMonth(transactionDate);
-    }
-
+    const statementDate = this.utils.getStatementMonth(transactionDate, card.cutoffDay);
     const monthStr = format(statementDate, 'yyyy-MM');
     const statement = this.statementService.getStatementForMonth(transaction.cardId, monthStr);
 

@@ -214,9 +214,15 @@ export class BillsComponent {
         const statement = this.statementService.getStatementForMonth(card.id, monthStr) || null;
 
         // Get transactions linked to this statement (cutoff-aware, not calendar month)
+        // Sort by date (oldest first)
         const transactions = this.transactionService
           .getTransactionsForStatement(card.id, monthStr)
-          .filter((t) => t.profileId === profile.id);
+          .filter((t) => t.profileId === profile.id)
+          .sort((a, b) => {
+            const dateA = a.postingDate ? parseISO(a.postingDate) : parseISO(a.date);
+            const dateB = b.postingDate ? parseISO(b.postingDate) : parseISO(b.date);
+            return dateA.getTime() - dateB.getTime();
+          });
 
         const dueDate = new Date(`${monthStr}-${String(card.dueDay).padStart(2, '0')}`);
         const amount = statement?.amount || transactions.reduce((sum, t) => sum + t.amount, 0);
