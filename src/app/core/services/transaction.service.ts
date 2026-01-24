@@ -111,6 +111,242 @@ export class TransactionService {
   }
 
   /**
+   * Update an installment plan
+   * Updates the parent transaction and synchronizes all virtual transactions
+   * Preserves paid status and notes of existing terms where possible
+   */
+  async updateInstallmentPlan(
+    transactionId: string,
+    updates: Partial<Transaction>,
+  ): Promise<void> {
+    const allTransactions = this.transactionsSignal();
+    const original = allTransactions.find((t) => t.id === transactionId);
+    if (!original) {
+      throw new Error(`Transaction not found: ${transactionId}`);
+    }
+
+    // 1. Identify Parent Transaction
+    let parentTransaction: Transaction | undefined;
+    
+    // Check if original is a parent transaction (logic from TransactionBucketService to avoid circular dep)
+    const isParent = 
+      original.isRecurring === true &&
+      original.recurringRule?.type === 'installment' &&
+      !original.isVirtual &&
+      !original.parentTransactionId &&
+      original.isBudgetImpacting === false;
+
+    if (isParent) {
+      parentTransaction = original;
+    } else if (original.parentTransactionId) {
+      parentTransaction = allTransactions.find((t) => t.id === original.parentTransactionId);
+    }
+
+    // If no parent found (legacy installment or not an installment), treat as single update
+    // But if it's an installment type update, we should probably try to migrate/fix it.
+    // For now, if no parent, just update the single transaction or throw error if it's supposed to be a plan.
+    if (!parentTransaction) {
+      // If the user is trying to convert a single transaction into an installment plan,
+      // we need to handle that (create parent + virtuals).
+      if (
+        updates.isRecurring &&
+        updates.recurringRule?.type === 'installment' &&
+        !original.parentTransactionId &&
+        !original.isVirtual
+      ) {
+        // This is a conversion from single -> installment
+        // Delete original (it will be replaced by parent + virtuals)
+        await this.deleteTransaction(original.id);
+        // Add as new transaction (addTransaction handles parent/virtual creation)
+        await this.addTransaction({ ...original, ...updates, id: original.id });
+        return;
+      }
+
+      // Otherwise just standard update
+      await this.updateTransaction(transactionId, updates);
+      return;
+    }
+
+    // 2. Update Parent Transaction
+    // Merge updates into parent, ensuring recurringRule is fully updated
+    const updatedParent = {
+      ...parentTransaction,
+      ...updates,
+      // Ensure we keep the parent flags
+      isVirtual: false,
+      isBudgetImpacting: false,
+      parentTransactionId: undefined,
+      updatedAt: new Date().toISOString(),
+    };
+
+    // Recalculate monthly amortization if needed
+    // Only recalculate if monthlyAmortization is NOT explicitly provided in the update
+    // This allows manual overrides (e.g. for rounding)
+    const manualAmortization = updates.recurringRule?.monthlyAmortization;
+    
+    if (
+      !manualAmortization &&
+      updatedParent.recurringRule?.type === 'installment' &&
+      updatedParent.recurringRule.totalPrincipal &&
+      updatedParent.recurringRule.totalTerms
+    ) {
+      updatedParent.recurringRule.monthlyAmortization =
+        updatedParent.recurringRule.totalPrincipal / updatedParent.recurringRule.totalTerms;
+    }
+
+    // Save updated parent
+    this.transactionsSignal.update((prev) =>
+      prev.map((t) => (t.id === updatedParent.id ? updatedParent : t)),
+    );
+
+    // 3. Sync Virtual Transactions
+    if (updatedParent.recurringRule?.type !== 'installment') {
+        return; // Should not happen given check above
+    }
+
+    const { totalTerms, startDate, monthlyAmortization } = updatedParent.recurringRule;
+    if (!totalTerms || !startDate) return;
+
+    const start = parseISO(startDate);
+    const existingVirtuals = allTransactions.filter(
+      (t) => t.parentTransactionId === updatedParent.id,
+    );
+
+    // Process each term
+    for (let term = 1; term <= totalTerms; term++) {
+      const termDate = addMonths(start, term - 1);
+      const dateStr = format(termDate, 'yyyy-MM-dd');
+      
+      const existingTerm = existingVirtuals.find(
+        (t) => t.recurringRule?.currentTerm === term
+      );
+
+      // Determine posting date for this term
+      // If parent has a postingDate, apply it ONLY to the first term (Term 1)
+      // Otherwise, leave undefined (virtual transactions usually use date as posting date implicitly)
+      let termPostingDate: string | undefined;
+      if (term === 1 && updatedParent.postingDate) {
+        termPostingDate = updatedParent.postingDate;
+      }
+
+      if (existingTerm) {
+        // Update existing term
+        const updatedTerm: Transaction = {
+          ...existingTerm,
+          // Update common fields from parent/form
+          type: updatedParent.type,
+          categoryId: updatedParent.categoryId,
+          subcategoryId: updatedParent.subcategoryId,
+          description: `${updatedParent.description} (${term}/${totalTerms})`,
+          // Notes: if user edited notes in the form, apply to all. 
+          // If updates.notes is present, use it. Otherwise keep existing (or parent's).
+          // Strategy: Use parent's notes (which came from form) as the base.
+          notes: updatedParent.notes, 
+          paymentMethod: updatedParent.paymentMethod,
+          cardId: updatedParent.cardId,
+          bankId: updatedParent.bankId,
+          fromBankId: updatedParent.fromBankId,
+          toBankId: updatedParent.toBankId,
+          transferFee: updatedParent.transferFee,
+          tags: updatedParent.tags,
+          isEstimate: updatedParent.isEstimate,
+          paidByOther: updatedParent.paidByOther,
+          paidByOtherProfileId: updatedParent.paidByOtherProfileId,
+          paidByOtherName: updatedParent.paidByOtherName,
+          
+          // Update schedule fields
+          date: dateStr,
+          postingDate: termPostingDate, // Apply posting date logic
+          amount: monthlyAmortization || 0,
+          recurringRule: {
+            ...updatedParent.recurringRule,
+            currentTerm: term,
+          },
+          updatedAt: new Date().toISOString(),
+        };
+
+        // If card/date changed, we need to handle bill linking (remove from old, add to new)
+        const dateChanged = existingTerm.date !== updatedTerm.date;
+        const cardChanged = existingTerm.cardId !== updatedTerm.cardId;
+        const amountChanged = existingTerm.amount !== updatedTerm.amount;
+        // Also check if postingDate changed, as it affects bill cycle
+        const postingDateChanged = existingTerm.postingDate !== updatedTerm.postingDate;
+
+        if (existingTerm.paymentMethod === 'card' && existingTerm.cardId && (cardChanged || dateChanged || amountChanged || postingDateChanged)) {
+             await this.removeFromBill(existingTerm);
+        }
+
+        // Update in signal
+        this.transactionsSignal.update((prev) =>
+          prev.map((t) => (t.id === existingTerm.id ? updatedTerm : t)),
+        );
+
+        // Add to new bill if needed
+        if (updatedTerm.paymentMethod === 'card' && updatedTerm.cardId && (cardChanged || dateChanged || amountChanged || postingDateChanged)) {
+            await this.autoCreateOrUpdateBill(updatedTerm);
+        }
+
+      } else {
+        // Create new term (extended plan)
+        const newTerm: Transaction = {
+          id: crypto.randomUUID(),
+          profileId: updatedParent.profileId,
+          type: updatedParent.type,
+          amount: monthlyAmortization || 0,
+          date: dateStr,
+          postingDate: termPostingDate, // Apply posting date logic
+          categoryId: updatedParent.categoryId,
+          subcategoryId: updatedParent.subcategoryId,
+          description: `${updatedParent.description} (${term}/${totalTerms})`,
+          notes: updatedParent.notes,
+          paymentMethod: updatedParent.paymentMethod,
+          cardId: updatedParent.cardId,
+          bankId: updatedParent.bankId,
+          fromBankId: updatedParent.fromBankId,
+          toBankId: updatedParent.toBankId,
+          transferFee: updatedParent.transferFee,
+          tags: updatedParent.tags,
+          paidByOther: updatedParent.paidByOther,
+          paidByOtherProfileId: updatedParent.paidByOtherProfileId,
+          paidByOtherName: updatedParent.paidByOtherName,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          isRecurring: true,
+          recurringRule: {
+            ...updatedParent.recurringRule,
+            currentTerm: term,
+          },
+          isEstimate: updatedParent.isEstimate,
+          isPaid: false,
+          parentTransactionId: updatedParent.id,
+          isVirtual: true,
+          isBudgetImpacting: true,
+        };
+
+        this.transactionsSignal.update((prev) => [...prev, newTerm]);
+        
+        if (newTerm.paymentMethod === 'card' && newTerm.cardId) {
+            await this.autoCreateOrUpdateBill(newTerm);
+        }
+      }
+    }
+
+    // 4. Cleanup Extra Terms (if plan shortened)
+    const extraTerms = existingVirtuals.filter(
+        (t) => (t.recurringRule?.currentTerm || 0) > totalTerms
+    );
+    
+    for (const extra of extraTerms) {
+        // Remove from bill first
+        if (extra.paymentMethod === 'card' && extra.cardId) {
+            await this.removeFromBill(extra);
+        }
+        // Remove from signal
+        this.transactionsSignal.update((prev) => prev.filter(t => t.id !== extra.id));
+    }
+  }
+
+  /**
    * Preview orphaned transactions: transactions with cardId that no longer exists
    */
   previewOrphanedTransactions(): {
@@ -282,9 +518,12 @@ export class TransactionService {
    * Uses cutoff-aware logic to determine which transactions belong to the statement
    * ⭐ IMPORTANT: Uses postingDate for cutoff calculation if available (same logic as autoCreateOrUpdateBill)
    */
-  getTransactionsForStatement(cardId: string, monthStr: string): Transaction[] {
+  getTransactionsForStatement(cardId: string, monthStr: string, cutoffDayOverride?: number): Transaction[] {
     const card = this.cardService.getCardSync(cardId);
     if (!card) return [];
+
+    // Use override if provided, otherwise card default
+    const cutoffDay = cutoffDayOverride ?? card.cutoffDay;
 
     // Get all card transactions
     const allCardTransactions = this.transactionsSignal().filter(
@@ -294,7 +533,7 @@ export class TransactionService {
     // Filter transactions that belong to this statement month based on cutoff logic
     return allCardTransactions.filter((t) => {
       // ⭐ CUTOFF-AWARE: Use shared utility function (matches autoCreateOrUpdateBill logic)
-      const transactionMonthStr = this.utils.getStatementMonthStrForTransaction(t, card.cutoffDay);
+      const transactionMonthStr = this.utils.getStatementMonthStrForTransaction(t, cutoffDay);
       return transactionMonthStr === monthStr;
     });
   }
@@ -369,6 +608,20 @@ export class TransactionService {
       paidAmount: undefined,
       updatedAt: new Date().toISOString(),
     });
+  }
+
+  /**
+   * Delete an installment plan (parent and all related virtual transactions)
+   */
+  async deleteInstallmentPlan(installmentGroupId: string): Promise<void> {
+    const allTransactions = this.transactionsSignal();
+    const toDelete = allTransactions.filter(
+      (t) => t.recurringRule?.installmentGroupId === installmentGroupId,
+    );
+
+    for (const t of toDelete) {
+      await this.deleteTransaction(t.id);
+    }
   }
 
   /**
@@ -915,12 +1168,21 @@ export class TransactionService {
 
     for (let term = 1; term <= totalTerms; term++) {
       const termDate = addMonths(start, term - 1);
+      // Determine posting date for this term
+      // If parent has a postingDate, apply it ONLY to the first term (Term 1)
+      // Otherwise, leave undefined (virtual transactions usually use date as posting date implicitly)
+      let termPostingDate: string | undefined;
+      if (term === 1 && parent.postingDate) {
+        termPostingDate = parent.postingDate;
+      }
+
       const virtualTx: Transaction = {
         id: crypto.randomUUID(),
         profileId: parent.profileId,
         type: parent.type,
         amount: monthlyAmount,
         date: format(termDate, 'yyyy-MM-dd'),
+        postingDate: termPostingDate, // Apply posting date logic
         categoryId: parent.categoryId,
         subcategoryId: parent.subcategoryId,
         description: `${parent.description} (${term}/${totalTerms})`,
@@ -932,6 +1194,9 @@ export class TransactionService {
         toBankId: parent.toBankId,
         transferFee: parent.transferFee,
         tags: parent.tags,
+        paidByOther: parent.paidByOther,
+        paidByOtherProfileId: parent.paidByOtherProfileId,
+        paidByOtherName: parent.paidByOtherName,
         createdAt: parent.createdAt,
         updatedAt: parent.updatedAt,
         isRecurring: true,

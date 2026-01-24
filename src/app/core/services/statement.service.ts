@@ -148,19 +148,27 @@ export class StatementService {
     });
   }
 
-  updatePaymentDate(cardId: string, monthStr: string, paymentIndex: number, date: string): void {
+  updatePayment(cardId: string, monthStr: string, paymentIndex: number, updates: { amount?: number; date?: string }): void {
     this.statementsSignal.update((prev) => {
       const existing = prev.find((s) => s.cardId === cardId && s.monthStr === monthStr);
 
       if (existing && existing.payments && existing.payments[paymentIndex]) {
         const newPayments = existing.payments.map((p, i) =>
-          i === paymentIndex ? { ...p, date } : p,
+          i === paymentIndex ? { ...p, ...updates } : p,
         );
 
-        const updates = {
+        const totalPaid = newPayments.reduce((sum, p) => sum + p.amount, 0);
+        const effectiveAmount =
+          existing.adjustedAmount !== undefined ? existing.adjustedAmount : existing.amount;
+        const isPaid = totalPaid >= effectiveAmount;
+
+        const statementUpdates = {
           payments: newPayments,
+          paidAmount: totalPaid,
+          isPaid,
+          isUnbilled: isPaid ? false : existing.isUnbilled,
         };
-        return prev.map((s) => (s.id === existing.id ? { ...s, ...updates } : s));
+        return prev.map((s) => (s.id === existing.id ? { ...s, ...statementUpdates } : s));
       }
 
       return prev;

@@ -227,7 +227,7 @@
       [maxWidthClass]="'max-w-5xl'"
       (onClose)="closeTransactionModal()"
     >
-      <div class="transaction-form">
+      <div class="transaction-form" style="max-height: 70vh; overflow-y: auto;">
 
         <div class="form-row">
           <div class="form-group">
@@ -245,9 +245,9 @@
               placeholder="0.00" 
               step="0.01" 
               min="0"
-              [disabled]="isInstallmentPurchase()"
+              [disabled]="isRecurringTransaction() && recurringType() === 'installment'"
             />
-            @if (isInstallmentPurchase()) {
+            @if (isRecurringTransaction() && recurringType() === 'installment') {
               <small style="color: rgb(100, 116, 139); font-size: 11px; margin-top: 4px; display: block;">
                 Amount will be set to total principal
               </small>
@@ -286,6 +286,9 @@
                   style="flex: 1;"
                 />
               </div>
+              <small style="color: rgb(100, 116, 139); font-size: 11px; margin-top: 4px; display: block;">
+                Use if different from Date (affects bill cycle)
+              </small>
             </div>
           }
         </div>
@@ -346,84 +349,8 @@
                 </small>
               }
             </div>
-            <!-- Smart Installment Toggle -->
-            <div class="form-group" style="display: flex; align-items: flex-end;">
-              <label style="display: flex; align-items: center; gap: 8px; margin-bottom: 0; cursor: pointer;">
-                <input 
-                  type="checkbox" 
-                  [checked]="isInstallmentPurchase()"
-                  (change)="onInstallmentToggleChange($any($event.target).checked)"
-                />
-                <span style="font-weight: 600;">Is this an installment?</span>
-              </label>
-            </div>
           }
           
-          <!-- Simplified Installment Form (when toggle is ON) -->
-          @if (isInstallmentPurchase()) {
-            <div 
-              class="mt-4 p-4 rounded-lg border-2"
-              [ngClass]="{
-                'border-orange-300 bg-orange-50': isInstallmentPurchase()
-              }"
-            >
-              <h4 class="font-semibold text-slate-900 mb-3" style="color: rgb(194, 65, 12);">Installment Details</h4>
-              <div class="form-row">
-                <div class="form-group">
-                  <label>Total Amount *</label>
-                  <input 
-                    type="number" 
-                    [(ngModel)]="recurringFormData.totalPrincipal" 
-                    placeholder="0.00" 
-                    step="0.01" 
-                    min="0.01"
-                  />
-                  <small style="color: rgb(100, 116, 139); font-size: 11px; margin-top: 4px; display: block;">
-                    Total purchase amount
-                  </small>
-                </div>
-                <div class="form-group">
-                  <label>Term (Months) *</label>
-                  <input 
-                    type="number" 
-                    [(ngModel)]="recurringFormData.totalTerms" 
-                    placeholder="12" 
-                    min="1"
-                  />
-                  <small style="color: rgb(100, 116, 139); font-size: 11px; margin-top: 4px; display: block;">
-                    Number of monthly payments
-                  </small>
-                </div>
-                <div class="form-group">
-                  <label>Start Date *</label>
-                  <input 
-                    type="date" 
-                    [(ngModel)]="recurringFormData.startDate"
-                    (ngModelChange)="onCardChangeForInstallment()"
-                  />
-                  <small style="color: rgb(100, 116, 139); font-size: 11px; margin-top: 4px; display: block;">
-                    First payment date
-                  </small>
-                </div>
-              </div>
-              @if (calculatedMonthlyAmort()) {
-                <div class="mt-3 p-2 bg-white rounded border border-slate-200">
-                  <div class="text-sm text-slate-600">
-                    <strong>Monthly Payment:</strong> 
-                    <span class="text-slate-900 font-semibold">{{ formatCurrency(calculatedMonthlyAmort()!) }}</span>
-                    <span class="text-slate-500 ml-2">(Auto-calculated)</span>
-                  </div>
-                  @if (calculatedCurrentTerm()) {
-                    <div class="text-sm text-slate-600 mt-1">
-                      <strong>Current Term:</strong> 
-                      <span class="text-slate-900 font-semibold">{{ calculatedCurrentTerm() }}/{{ recurringFormData.totalTerms }}</span>
-                      <span class="text-slate-500 ml-2">(Auto-calculated from start date)</span>
-                    </div>
-                  }
-                </div>
-              }
-            </div>
-          }
           @if (formData.paymentMethod === 'bank_transfer' && formData.type === 'expense') {
             <div class="form-group">
               <label>Bank Account</label>
@@ -626,77 +553,80 @@
           </div>
         }
 
-        <!-- Recurring Transaction Section (only show if NOT installment purchase) -->
-        @if (!isInstallmentPurchase()) {
-          <div class="border-t border-slate-200 pt-4 mt-4">
-            <div class="form-group" style="display: flex; align-items: center; gap: 8px; margin-bottom: 16px;">
-              <input 
-                type="checkbox" 
-                id="isRecurring"
-                [checked]="isRecurringTransaction()"
-                (change)="isRecurringTransaction.set($any($event.target).checked)"
-              />
-              <label for="isRecurring" style="margin-bottom: 0; font-weight: 600; cursor: pointer;">
-                This is a recurring transaction
-              </label>
+        <!-- Recurring Transaction Section -->
+        <div class="border-t border-slate-200 pt-4 mt-4">
+          <div class="form-group" style="display: flex; align-items: center; gap: 8px; margin-bottom: 16px;">
+            <input 
+              type="checkbox" 
+              id="isRecurring"
+              [checked]="isRecurringTransaction()"
+              (change)="isRecurringTransaction.set($any($event.target).checked)"
+            />
+            <label for="isRecurring" style="margin-bottom: 0; font-weight: 600; cursor: pointer;">
+              This is a recurring transaction / installment
+            </label>
+          </div>
+
+          @if (isRecurringTransaction()) {
+          <div class="space-y-4" style="background: rgb(249, 250, 251); padding: 16px; border-radius: 8px;">
+            <!-- Recurring Type Selector -->
+            <div class="form-group">
+              <label>Recurring Type *</label>
+              <select 
+                [ngModel]="recurringType()" 
+                (ngModelChange)="onRecurringTypeChange($event)"
+                [ngModelOptions]="{standalone: true}"
+              >
+                <option value="subscription">Subscription/Bill (e.g., Electricity, Water, Internet)</option>
+                <option value="installment">Installment (Fixed terms with total amount)</option>
+                <option value="custom">Custom Recurring</option>
+              </select>
+              <small style="color: rgb(100, 116, 139); font-size: 11px; margin-top: 4px; display: block;">
+                @if (recurringType() === 'subscription') {
+                  For ongoing monthly bills that repeat indefinitely
+                } @else if (recurringType() === 'installment') {
+                  For purchases with fixed number of payments (e.g., 12-month installment plan)
+                } @else {
+                  For custom recurring transactions
+                }
+              </small>
             </div>
 
-            @if (isRecurringTransaction()) {
-            <div class="space-y-4" style="background: rgb(249, 250, 251); padding: 16px; border-radius: 8px;">
-              <!-- Recurring Type Selector -->
-              <div class="form-group">
-                <label>Recurring Type *</label>
-                <select 
-                  [ngModel]="recurringType()" 
-                  (ngModelChange)="onRecurringTypeChange($event)"
-                  [ngModelOptions]="{standalone: true}"
-                >
-                  <option value="subscription">Subscription/Bill (e.g., Electricity, Water, Internet)</option>
-                  <option value="installment">Installment (Fixed terms with total amount)</option>
-                  <option value="custom">Custom Recurring</option>
-                </select>
-                <small style="color: rgb(100, 116, 139); font-size: 11px; margin-top: 4px; display: block;">
-                  @if (recurringType() === 'subscription') {
-                    For ongoing monthly bills that repeat indefinitely
-                  } @else if (recurringType() === 'installment') {
-                    For purchases with fixed number of payments (e.g., 12-month installment plan)
-                  } @else {
-                    For custom recurring transactions
-                  }
-                </small>
-              </div>
-
-              <!-- Subscription/Custom Fields -->
-              @if (recurringType() === 'subscription' || recurringType() === 'custom') {
-                <div class="form-row">
-                  <div class="form-group">
-                    <label>Frequency *</label>
-                    <select [(ngModel)]="recurringFormData.frequency">
-                      <option value="monthly">Monthly</option>
-                      <option value="weekly">Weekly</option>
-                      <option value="biweekly">Bi-weekly</option>
-                      <option value="quarterly">Quarterly</option>
-                      <option value="yearly">Yearly</option>
-                    </select>
-                  </div>
-                  <div class="form-group">
-                    <label>Next Payment Date *</label>
-                    <input 
-                      type="date" 
-                      [(ngModel)]="recurringFormData.nextDate"
-                    />
-                    <small style="color: rgb(100, 116, 139); font-size: 11px; margin-top: 4px; display: block;">
-                      When is the next occurrence of this transaction?
-                    </small>
-                  </div>
+            <!-- Subscription/Custom Fields -->
+            @if (recurringType() === 'subscription' || recurringType() === 'custom') {
+              <div class="form-row">
+                <div class="form-group">
+                  <label>Frequency *</label>
+                  <select [(ngModel)]="recurringFormData.frequency">
+                    <option value="monthly">Monthly</option>
+                    <option value="weekly">Weekly</option>
+                    <option value="biweekly">Bi-weekly</option>
+                    <option value="quarterly">Quarterly</option>
+                    <option value="yearly">Yearly</option>
+                  </select>
                 </div>
-              }
+                <div class="form-group">
+                  <label>Next Payment Date *</label>
+                  <input 
+                    type="date" 
+                    [(ngModel)]="recurringFormData.nextDate"
+                  />
+                  <small style="color: rgb(100, 116, 139); font-size: 11px; margin-top: 4px; display: block;">
+                    When is the next occurrence of this transaction?
+                  </small>
+                </div>
+              </div>
+            }
 
-              <!-- Installment Fields -->
-              @if (recurringType() === 'installment') {
+            <!-- Installment Fields -->
+            @if (recurringType() === 'installment') {
+              <div 
+                class="mt-4 p-4 rounded-lg border-2 border-orange-300 bg-orange-50"
+              >
+                <h4 class="font-semibold text-slate-900 mb-3" style="color: rgb(194, 65, 12);">Installment Details</h4>
                 <div class="form-row">
                   <div class="form-group">
-                    <label>Total Principal Amount *</label>
+                    <label>Total Amount *</label>
                     <input 
                       type="number" 
                       [(ngModel)]="recurringFormData.totalPrincipal" 
@@ -704,16 +634,35 @@
                       step="0.01" 
                       min="0.01"
                     />
+                    <small style="color: rgb(100, 116, 139); font-size: 11px; margin-top: 4px; display: block;">
+                      Total purchase amount
+                    </small>
                   </div>
                   <div class="form-group">
-                    <label>Total Terms (Months) *</label>
+                    <label>Term (Months) *</label>
                     <input 
                       type="number" 
                       [(ngModel)]="recurringFormData.totalTerms" 
                       placeholder="12, 24, 36" 
                       min="1"
                     />
+                    <small style="color: rgb(100, 116, 139); font-size: 11px; margin-top: 4px; display: block;">
+                      Number of monthly payments
+                    </small>
                   </div>
+                  <div class="form-group">
+                    <label>Start Date *</label>
+                    <input 
+                      type="date" 
+                      [(ngModel)]="recurringFormData.startDate"
+                      (ngModelChange)="onCardChangeForInstallment()"
+                    />
+                    <small style="color: rgb(100, 116, 139); font-size: 11px; margin-top: 4px; display: block;">
+                      First payment date
+                    </small>
+                  </div>
+                </div>
+                <div class="form-row">
                   <div class="form-group">
                     <label>Monthly Amortization (Optional)</label>
                     <input 
@@ -727,9 +676,6 @@
                       Leave blank to auto-calculate (Principal ÷ Terms)
                     </small>
                   </div>
-                </div>
-
-                <div class="form-row">
                   <div class="form-group">
                     <label>Interest Rate (Optional)</label>
                     <input 
@@ -744,6 +690,23 @@
                     </small>
                   </div>
                 </div>
+
+                @if (calculatedMonthlyAmort()) {
+                  <div class="mt-3 p-2 bg-white rounded border border-slate-200">
+                    <div class="text-sm text-slate-600">
+                      <strong>Monthly Payment:</strong> 
+                      <span class="text-slate-900 font-semibold">{{ formatCurrency(calculatedMonthlyAmort()!) }}</span>
+                      <span class="text-slate-500 ml-2">(Auto-calculated)</span>
+                    </div>
+                    @if (calculatedCurrentTerm()) {
+                      <div class="text-sm text-slate-600 mt-1">
+                        <strong>Current Term:</strong> 
+                        <span class="text-slate-900 font-semibold">{{ calculatedCurrentTerm() }}/{{ recurringFormData.totalTerms }}</span>
+                        <span class="text-slate-500 ml-2">(Auto-calculated from start date)</span>
+                      </div>
+                    }
+                  </div>
+                }
 
                 <div style="border-top: 1px solid rgb(226, 232, 240); padding-top: 16px; margin-top: 16px;">
                   <h4 style="font-size: 14px; font-weight: 600; margin-bottom: 12px; color: rgb(15, 23, 42);">
@@ -810,11 +773,11 @@
                     </div>
                   }
                 </div>
-              }
-            </div>
-          }
+              </div>
+            }
           </div>
-        }
+          }
+        </div>
 
         <div class="form-actions">
           <button class="btn btn-primary" (click)="onSubmitTransaction()">Save Transaction</button>

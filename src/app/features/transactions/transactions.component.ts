@@ -236,8 +236,6 @@ export class TransactionsComponent {
   protected isRecurringTransaction = signal<boolean>(false);
   protected recurringType = signal<'installment' | 'subscription' | 'custom'>('subscription');
   protected installmentMode = signal<'date' | 'term'>('date');
-  // Smart installment toggle (only shown when payment method is 'card')
-  protected isInstallmentPurchase = signal<boolean>(false);
   // Cash advance feature: when income is added, also create expense on card
   protected isCashAdvance = signal<boolean>(false);
   protected cashAdvanceCardId = signal<string | undefined>(undefined);
@@ -257,7 +255,8 @@ export class TransactionsComponent {
   // Computed: Auto-calculate monthly amortization from total and terms
   protected calculatedMonthlyAmort = computed(() => {
     if (
-      this.isInstallmentPurchase() &&
+      this.isRecurringTransaction() &&
+      this.recurringType() === 'installment' &&
       this.recurringFormData.totalPrincipal &&
       this.recurringFormData.totalTerms
     ) {
@@ -268,7 +267,11 @@ export class TransactionsComponent {
 
   // Computed: Auto-calculate current term from start date
   protected calculatedCurrentTerm = computed(() => {
-    if (this.isInstallmentPurchase() && this.recurringFormData.startDate) {
+    if (
+      this.isRecurringTransaction() &&
+      this.recurringType() === 'installment' &&
+      this.recurringFormData.startDate
+    ) {
       return this.transactionBucketService.calculateCurrentTerm(
         this.recurringFormData.startDate,
         this.viewDate(),
@@ -343,34 +346,7 @@ export class TransactionsComponent {
       .filter((t) => t.type === 'income')
       .reduce((sum, t) => sum + t.amount, 0);
 
-    // For expenses: only count credit card transactions if their statement is paid
-    // Other payment methods (cash, bank_transfer, etc.) count immediately
     const totalExpenses = transactions
-      .filter((t) => {
-        if (t.type !== 'expense') return false;
-
-        // For credit card transactions, only count if statement is paid
-        if (t.paymentMethod === 'card' && t.cardId) {
-          const card = cards.find((c) => c.id === t.cardId);
-          if (!card) return true; // Card not found, default to counting it
-
-          // Determine which statement month this transaction belongs to (cutoff-aware)
-          // Use shared utility function for consistent logic
-          const transactionDate = parseISO(t.date);
-          const statementDate = this.utils.getStatementMonth(transactionDate, card.cutoffDay);
-          const monthStr = format(statementDate, 'yyyy-MM');
-          const statement = statements.find(
-            (s) => s.cardId === t.cardId && s.monthStr === monthStr,
-          );
-
-          // If no statement exists yet, it's not paid (don't count it)
-          // If statement exists, check if it's paid
-          return statement ? statement.isPaid : false;
-        }
-
-        // For all other payment methods, count immediately
-        return true;
-      })
       .reduce((sum, t) => sum + t.amount, 0);
 
     return {
@@ -434,8 +410,7 @@ export class TransactionsComponent {
         // Include if transaction belongs to one of the selected profiles
         if (selectedIds.includes(t.profileId)) return true;
         // Include if one of the selected profiles paid for it (shared expense)
-        if (t.paidByOtherProfileId && selectedIds.includes(t.paidByOtherProfileId)) return true;
-        return false;
+        return !!(t.paidByOtherProfileId && selectedIds.includes(t.paidByOtherProfileId));
       });
     } else {
       // Single profile mode: show transactions for active profile
@@ -482,7 +457,6 @@ export class TransactionsComponent {
     const currentDate = this.viewDate();
     const monthStart = format(startOfMonth(currentDate), 'yyyy-MM-dd');
     const monthEnd = format(endOfMonth(currentDate), 'yyyy-MM-dd');
-
     if (fromDate || toDate) {
       // Show transactions within the selected date range, but limited to current month
       const filterStart = fromDate ? (fromDate >= monthStart ? fromDate : monthStart) : monthStart;
@@ -494,7 +468,7 @@ export class TransactionsComponent {
     } else if (!showAll) {
       // Filter by current month if not showing all transactions
       relevantTransactions = relevantTransactions.filter((t) => {
-        return t.date >= monthStart && t.date <= monthEnd;
+          return t.date >= monthStart && t.date <= monthEnd;
       });
     }
 
@@ -520,14 +494,22 @@ export class TransactionsComponent {
         // Include if it's budget impacting (default true if not set)
         if (t.isBudgetImpacting === false) return false;
         // Exclude parent transactions (they're for net worth tracking only)
-        if (this.transactionBucketService.isParentTransaction(t)) return false;
-        return true;
+        return !this.transactionBucketService.isParentTransaction(t);
       });
     } else {
       // Reconcile Mode: Show transactions grouped by statement cycle
       // Include all transactions, grouping will be done in template
       // Filter by statement period using TransactionBucketService
     }
+    relevantTransactions
+      .filter((a) => {
+        return (
+          a.cardId === '915caa53-553d-4dad-af17-69b6f1f6bfbc' &&
+          a.recurringRule?.type === 'installment' &&
+          a.description.toLowerCase().includes('recliner')
+        );
+      })
+      .forEach((a) => console.log(a));
 
     // Apply search filter
     const searchQuery = this.searchQuery().trim().toLowerCase();
@@ -583,7 +565,8 @@ export class TransactionsComponent {
    */
   protected onCardChangeForInstallment(): void {
     if (
-      this.isInstallmentPurchase() &&
+      this.isRecurringTransaction() &&
+      this.recurringType() === 'installment' &&
       this.formData.paymentMethod === 'card' &&
       this.formData.cardId
     ) {
@@ -595,38 +578,17 @@ export class TransactionsComponent {
   }
 
   /**
-   * Handle payment method change - reset installment toggle if not card
+   * Handle payment method change - reset recurring if not card? No, keep it.
    */
   protected onPaymentMethodChange(): void {
-    if (this.formData.paymentMethod !== 'card') {
-      this.isInstallmentPurchase.set(false);
-      this.isRecurringTransaction.set(false);
-    }
+    // If user switches away from card, ensure they are aware of recurring settings?
+    // We don't need to force reset anymore as we unified the UI.
   }
 
   /**
-   * Handle installment toggle change
+   * Handle installment toggle change - REMOVED (Logic moved to recurring checkbox)
    */
-  protected onInstallmentToggleChange(checked: boolean): void {
-    this.isInstallmentPurchase.set(checked);
-    if (checked) {
-      this.isRecurringTransaction.set(true);
-      this.recurringType.set('installment');
-      // Auto-set start date to today if not set
-      if (!this.recurringFormData.startDate) {
-        this.recurringFormData.startDate = new Date().toISOString().split('T')[0];
-      }
-      // Auto-set card due date if card is selected
-      if (this.formData.cardId) {
-        this.onCardChangeForInstallment();
-      }
-    } else {
-      // Reset installment fields
-      this.recurringFormData.totalPrincipal = undefined;
-      this.recurringFormData.totalTerms = undefined;
-      this.recurringFormData.startDate = undefined;
-    }
-  }
+
   // Computed cards: show cards for selected profiles in multi-profile mode, otherwise active profile
   protected cards = computed(() => {
     const multiMode = this.multiProfileMode();
@@ -1362,14 +1324,21 @@ export class TransactionsComponent {
     if (event) {
       event.stopPropagation();
     }
+    
+    // If this is a virtual installment transaction, we are essentially editing the plan.
+    // However, we keep the ID of the transaction clicked so we know which one triggered the edit.
+    // The submit logic will handle resolving parent/plan.
     this.editingTransactionId.set(transaction.id);
+    
     this.formData = {
       type: transaction.type,
-      amount: transaction.amount,
+      // Note: For virtual installment transactions, 'amount' is the monthly payment.
+      // Ideally for the form, we want to show the total principal if we are in "Installment" mode.
+      amount: transaction.amount, 
       date: transaction.date,
       postingDate: transaction.postingDate,
       categoryId: transaction.categoryId,
-      description: transaction.description,
+      description: transaction.description.replace(/\s\(\d+\/\d+\)$/, ''), // Remove (1/12) suffix for clean editing
       notes: transaction.notes,
       paymentMethod: transaction.paymentMethod,
       cardId: transaction.cardId,
@@ -1393,9 +1362,12 @@ export class TransactionsComponent {
       this.isRecurringTransaction.set(true);
       this.recurringType.set(transaction.recurringRule.type || 'subscription');
 
-      // Set installment toggle if it's an installment
+      // Set installment fields if it's an installment
       if (transaction.recurringRule.type === 'installment') {
-        this.isInstallmentPurchase.set(true);
+        // Pre-fill amount field with total principal for clarity when editing plan
+        if (transaction.recurringRule.totalPrincipal) {
+            this.formData.amount = transaction.recurringRule.totalPrincipal;
+        }
       }
 
       if (transaction.recurringRule.type === 'installment') {
@@ -1409,26 +1381,13 @@ export class TransactionsComponent {
           calculatedCurrentTerm = Math.max(1, diff + 1);
         }
 
-        // If charged to a card, use card's current due date for the start date
+        // If charged to a card, use card's current due date for the start date logic fallback
         let startDate = transaction.recurringRule.startDate;
-        if (transaction.paymentMethod === 'card' && transaction.cardId) {
-          const cardDueDate = this.getCardDueDate(transaction.cardId);
-          if (cardDueDate) {
-            // Preserve the original month but use card's due day
-            const originalDate = transaction.recurringRule.startDate
-              ? parseISO(transaction.recurringRule.startDate)
-              : new Date();
-            const card = this.cardService.getCardById(transaction.cardId);
-            if (card) {
-              startDate = format(setDate(originalDate, card.dueDay), 'yyyy-MM-dd');
-            }
-          }
-        }
-
+        
         this.recurringFormData = {
           totalPrincipal: transaction.recurringRule.totalPrincipal,
           totalTerms: transaction.recurringRule.totalTerms,
-          monthlyAmortization: transaction.amount, // Use transaction amount as monthly amort
+          monthlyAmortization: transaction.recurringRule.monthlyAmortization || transaction.amount, 
           startDate: startDate,
           currentTerm: calculatedCurrentTerm,
           interestRate: transaction.recurringRule.interestRate,
@@ -1673,7 +1632,7 @@ export class TransactionsComponent {
 
     // Validate recurring transaction fields if enabled
     if (this.isRecurringTransaction()) {
-      if (this.recurringType() === 'installment' || this.isInstallmentPurchase()) {
+      if (this.recurringType() === 'installment') {
         if (!this.recurringFormData.totalPrincipal || this.recurringFormData.totalPrincipal <= 0) {
           alert('Please enter a valid total amount for the installment');
           return;
@@ -1714,12 +1673,13 @@ export class TransactionsComponent {
       let transactionAmount = this.formData.amount || 0;
 
       if (this.isRecurringTransaction()) {
-        if (this.recurringType() === 'installment' || this.isInstallmentPurchase()) {
+        if (this.recurringType() === 'installment') {
           // Installment type - use smart form values
           const calculatedStartDate = this.recurringFormData.startDate!;
 
-          // Auto-calculate monthly amortization
+          // Auto-calculate monthly amortization, but prefer manual entry if present
           const monthlyAmort =
+            this.recurringFormData.monthlyAmortization ||
             this.calculatedMonthlyAmort() ||
             this.recurringFormData.totalPrincipal! / this.recurringFormData.totalTerms!;
 
@@ -1772,33 +1732,71 @@ export class TransactionsComponent {
       }
 
       if (editingId) {
-        // Update existing transaction
-        await this.transactionService.updateTransaction(editingId, {
-          type: (this.formData.type || 'expense') as TransactionType,
-          amount: transactionAmount,
-          date: this.formData.date || new Date().toISOString().split('T')[0],
-          postingDate: this.formData.postingDate || undefined,
-          categoryId: this.formData.categoryId || 'uncategorized',
-          description: this.formData.description || '',
-          notes: this.formData.notes,
-          paymentMethod: (this.formData.paymentMethod || 'cash') as PaymentMethod,
-          cardId: this.formData.cardId,
-          bankId: this.formData.bankId,
-          fromBankId: this.formData.fromBankId,
-          toBankId: this.formData.toBankId,
-          transferFee: this.formData.transferFee,
-          paidByOther: this.formData.paidByOther || false,
-          paidByOtherProfileId: this.formData.paidByOtherProfileId,
-          paidByOtherName: this.formData.paidByOtherName,
-          isRecurring: this.isRecurringTransaction(),
-          recurringRule,
-          hasDebtObligation: this.formData.hasDebtObligation || false,
-          debtAmount: this.formData.debtAmount,
-          debtDueDate: this.formData.debtDueDate,
-          debtPaid: this.formData.debtPaid || false,
-          debtPaidDate: this.formData.debtPaidDate,
-          linkedDebtTransactionId: this.formData.linkedDebtTransactionId,
-        });
+        if (this.isRecurringTransaction() && this.recurringType() === 'installment') {
+          // UPDATE INSTALLMENT PLAN
+          // This handles updating the parent and all virtual transactions
+          await this.transactionService.updateInstallmentPlan(editingId, {
+            type: (this.formData.type || 'expense') as TransactionType,
+            // For installment plans, the amount in formData (if editing child) might be monthly amort,
+            // but we want the TOTAL PRINCIPAL for the plan update.
+            // However, recurringFormData.totalPrincipal has the correct total.
+            // We pass 0 or the principal as the 'amount' field on the parent (it's non-budget impacting anyway)
+            amount: this.recurringFormData.totalPrincipal || 0,
+            
+            // Use start date for the plan
+            date: this.recurringFormData.startDate || this.formData.date || new Date().toISOString().split('T')[0],
+            
+            postingDate: this.formData.postingDate || undefined,
+            categoryId: this.formData.categoryId || 'uncategorized',
+            description: this.formData.description || '',
+            notes: this.formData.notes,
+            paymentMethod: (this.formData.paymentMethod || 'cash') as PaymentMethod,
+            cardId: this.formData.cardId,
+            bankId: this.formData.bankId,
+            fromBankId: this.formData.fromBankId,
+            toBankId: this.formData.toBankId,
+            transferFee: this.formData.transferFee,
+            paidByOther: this.formData.paidByOther || false,
+            paidByOtherProfileId: this.formData.paidByOtherProfileId,
+            paidByOtherName: this.formData.paidByOtherName,
+            isRecurring: true,
+            recurringRule, // This contains the full installment rule (terms, principal, start date)
+            hasDebtObligation: this.formData.hasDebtObligation || false,
+            debtAmount: this.formData.debtAmount,
+            debtDueDate: this.formData.debtDueDate,
+            debtPaid: this.formData.debtPaid || false,
+            debtPaidDate: this.formData.debtPaidDate,
+            linkedDebtTransactionId: this.formData.linkedDebtTransactionId,
+          });
+        } else {
+          // Standard Update (Non-installment)
+          await this.transactionService.updateTransaction(editingId, {
+            type: (this.formData.type || 'expense') as TransactionType,
+            amount: transactionAmount,
+            date: this.formData.date || new Date().toISOString().split('T')[0],
+            postingDate: this.formData.postingDate || undefined,
+            categoryId: this.formData.categoryId || 'uncategorized',
+            description: this.formData.description || '',
+            notes: this.formData.notes,
+            paymentMethod: (this.formData.paymentMethod || 'cash') as PaymentMethod,
+            cardId: this.formData.cardId,
+            bankId: this.formData.bankId,
+            fromBankId: this.formData.fromBankId,
+            toBankId: this.formData.toBankId,
+            transferFee: this.formData.transferFee,
+            paidByOther: this.formData.paidByOther || false,
+            paidByOtherProfileId: this.formData.paidByOtherProfileId,
+            paidByOtherName: this.formData.paidByOtherName,
+            isRecurring: this.isRecurringTransaction(),
+            recurringRule,
+            hasDebtObligation: this.formData.hasDebtObligation || false,
+            debtAmount: this.formData.debtAmount,
+            debtDueDate: this.formData.debtDueDate,
+            debtPaid: this.formData.debtPaid || false,
+            debtPaidDate: this.formData.debtPaidDate,
+            linkedDebtTransactionId: this.formData.linkedDebtTransactionId,
+          });
+        }
       } else {
         // Create new transaction
         const transaction: Transaction = {
@@ -1864,6 +1862,35 @@ export class TransactionsComponent {
     if (event) {
       event.stopPropagation();
     }
+
+    const transaction = this.transactionService.getTransaction(id);
+    if (!transaction) return;
+
+    // Check if this is part of an installment plan
+    if (
+      transaction.isRecurring &&
+      transaction.recurringRule?.type === 'installment' &&
+      transaction.recurringRule.installmentGroupId
+    ) {
+      // Ask user if they want to delete the whole plan
+      if (
+        confirm(
+          'This transaction is part of an installment plan. Deleting it will delete the ENTIRE plan and all associated transactions. Are you sure?',
+        )
+      ) {
+        try {
+          await this.transactionService.deleteInstallmentPlan(
+            transaction.recurringRule.installmentGroupId,
+          );
+        } catch (error) {
+          console.error('Error deleting installment plan:', error);
+          alert('Failed to delete installment plan');
+        }
+      }
+      return;
+    }
+
+    // Standard delete for non-installment transactions
     if (!confirm('Delete this transaction?')) return;
 
     try {
@@ -2063,7 +2090,7 @@ export class TransactionsComponent {
     this.isRecurringTransaction.set(false);
     this.recurringType.set('subscription');
     this.installmentMode.set('date');
-    this.isInstallmentPurchase.set(false);
+    // this.isInstallmentPurchase.set(false); // REMOVED
     this.recurringFormData = {
       totalPrincipal: undefined,
       totalTerms: undefined,

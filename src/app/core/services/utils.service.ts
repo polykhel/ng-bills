@@ -115,11 +115,19 @@ export class UtilsService {
    * @param cutoffDay The card's cutoff day (1-31)
    * @returns Date representing the start of the statement month
    */
-  getStatementMonthForTransaction(transaction: { date: string; postingDate?: string }, cutoffDay: number): Date {
-    // Use postingDate for cutoff calculation if available, otherwise use transaction date
+  getStatementMonthForTransaction(transaction: { description: string, date: string; postingDate?: string; recurringRule?: { type: string } }, cutoffDay: number): Date {
+    // Use postingDate for cutoff calculation if available
     if (transaction.postingDate) {
       return this.getStatementMonth(parseISO(transaction.postingDate), cutoffDay, true);
     }
+
+    // For installments, if no posting date is present, treat the transaction date as the posting date.
+    // This ensures that if the date equals the cutoff day, it is included in the current billing cycle
+    // (similar to how posting dates behave) rather than being pushed to the next cycle.
+    if (transaction.recurringRule?.type === 'installment') {
+      return startOfMonth(parseISO(transaction.date));
+    }
+
     return this.getStatementMonth(parseISO(transaction.date), cutoffDay, false);
   }
 
@@ -173,7 +181,7 @@ export class UtilsService {
    * @param cutoffDay The card's cutoff day (1-31)
    * @returns Statement month string in 'yyyy-MM' format
    */
-  getStatementMonthStrForTransaction(transaction: { date: string; postingDate?: string }, cutoffDay: number): string {
+  getStatementMonthStrForTransaction(transaction: { description: string, date: string; postingDate?: string; recurringRule?: { type: string } }, cutoffDay: number): string {
     const statementMonth = this.getStatementMonthForTransaction(transaction, cutoffDay);
     return format(statementMonth, 'yyyy-MM');
   }

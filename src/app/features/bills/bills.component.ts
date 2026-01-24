@@ -9,6 +9,8 @@ import {
   ChevronDown,
   ChevronUp,
   Copy,
+  Edit,
+  Trash2,
   CreditCard,
   DollarSign,
   FileText,
@@ -27,7 +29,7 @@ import {
 } from '@services';
 import { EmptyStateComponent, MetricCardComponent } from '@components';
 import type { Statement, Transaction } from '@shared/types';
-import { format, parseISO } from 'date-fns';
+import { format, parseISO, subMonths } from 'date-fns';
 
 interface BillWithDetails {
   statement: Statement | null;
@@ -123,6 +125,8 @@ export class BillsComponent {
   readonly X = X;
   readonly Plus = Plus;
   readonly Copy = Copy;
+  readonly Edit = Edit;
+  readonly Trash2 = Trash2;
 
   private appState = inject(AppStateService);
   private profileService = inject(ProfileService);
@@ -135,12 +139,14 @@ export class BillsComponent {
     cardName: string;
     amount: string;
     date: string;
+    editingIndex: number | null;
   }>({
     isOpen: false,
     statement: null,
     cardName: '',
     amount: '',
     date: new Date().toISOString().split('T')[0],
+    editingIndex: null,
   });
   protected paymentModal = this.paymentModalState.asReadonly();
 
@@ -168,8 +174,16 @@ export class BillsComponent {
   });
   // Calculate bills summary
   protected summary = computed(() => {
-    const profile = this.activeProfile();
-    if (!profile) {
+    const multiMode = this.appState.multiProfileMode();
+    const selectedIds = this.appState.selectedProfileIds();
+    const activeProfile = this.activeProfile();
+
+    let profileIds: string[] = [];
+    if (multiMode && selectedIds.length > 0) {
+      profileIds = selectedIds;
+    } else if (activeProfile) {
+      profileIds = [activeProfile.id];
+    } else {
       return {
         totalDue: 0,
         unpaidCount: 0,
@@ -178,7 +192,7 @@ export class BillsComponent {
       };
     }
 
-    const cards = this.cardService.getCardsForProfiles([profile.id]);
+    const cards = this.cardService.getCardsForProfiles(profileIds);
     const monthStr = format(this.viewDate(), 'yyyy-MM');
 
     let totalDue = 0;
@@ -205,12 +219,22 @@ export class BillsComponent {
   private categoryService = inject(CategoryService);
   // Get all bills with details for current month
   protected billsWithDetails = computed(() => {
-    const profile = this.activeProfile();
-    if (!profile) return [];
+    const multiMode = this.appState.multiProfileMode();
+    const selectedIds = this.appState.selectedProfileIds();
+    const activeProfile = this.activeProfile();
 
-    const cards = this.cardService.getCardsForProfiles([profile.id]);
+    let profileIds: string[] = [];
+    if (multiMode && selectedIds.length > 0) {
+      profileIds = selectedIds;
+    } else if (activeProfile) {
+      profileIds = [activeProfile.id];
+    } else {
+      return [];
+    }
+
+    const cards = this.cardService.getCardsForProfiles(profileIds);
     const monthStr = format(this.viewDate(), 'yyyy-MM');
-
+    
     return cards
       .map((card) => {
         const statement = this.statementService.getStatementForMonth(card.id, monthStr) || null;
@@ -218,8 +242,8 @@ export class BillsComponent {
         // Get transactions linked to this statement (cutoff-aware, not calendar month)
         // Sort by date (oldest first)
         const transactions = this.transactionService
-          .getTransactionsForStatement(card.id, monthStr)
-          .filter((t) => t.profileId === profile.id)
+          .getTransactionsForStatement(card.id, monthStr, statement?.customCutoffDay)
+          .filter((t) => profileIds.includes(t.profileId))
           .sort((a, b) => {
             return parseISO(a.date).getTime() - parseISO(b.date).getTime();
           });
@@ -231,7 +255,19 @@ export class BillsComponent {
             dueDate = new Date(`${monthStr}-${String(card.dueDay).padStart(2, '0')}`);
         }
 
-        const amount = statement?.amount || transactions.reduce((sum, t) => sum + t.amount, 0);
+        let amount = statement?.amount || transactions.reduce((sum, t) => sum + t.amount, 0);
+
+        // Check for overpayment in the previous month
+        if (!statement) {
+            const prevViewDate = subMonths(this.viewDate(), 1);
+            const prevMonthStr = format(prevViewDate, 'yyyy-MM');
+            const prevStatement = this.statementService.getStatementForMonth(card.id, prevMonthStr);
+            const excessPayment = Math.max(0, (prevStatement?.paidAmount || 0) - (prevStatement?.amount || 0));
+            
+            if (excessPayment > 0) {
+                amount = Math.max(0, amount - excessPayment);
+            }
+        }
 
         const bill: BillWithDetails = {
           statement,
@@ -260,30 +296,60 @@ export class BillsComponent {
   protected copiedBillId = signal<string | null>(null);
 
   protected get availableCards() {
-    const profile = this.activeProfile();
-    return profile ? this.cardService.getCardsForProfiles([profile.id]) : [];
+    const multiMode = this.appState.multiProfileMode();
+    const selectedIds = this.appState.selectedProfileIds();
+    const activeProfile = this.activeProfile();
+
+    let profileIds: string[] = [];
+    if (multiMode && selectedIds.length > 0) {
+      profileIds = selectedIds;
+    } else if (activeProfile) {
+      profileIds = [activeProfile.id];
+    } else {
+      return [];
+    }
+    
+    return this.cardService.getCardsForProfiles(profileIds);
   }
 
   protected toggleExpand(bill: BillWithDetails): void {
     bill.isExpanded = !bill.isExpanded;
   }
 
-  protected openPaymentModal(bill: BillWithDetails): void {
+  protected openPaymentModal(bill: BillWithDetails, payment?: { amount: number; date: string }, index?: number): void {
     if (!bill.statement) return;
 
-    this.paymentModalState.set({
-      isOpen: true,
-      statement: bill.statement,
-      cardName: `${bill.bankName} ${bill.cardName}`,
-      amount: bill.amount.toString(),
-      date: new Date().toISOString().split('T')[0],
-    });
+    if (payment && typeof index === 'number') {
+      // Editing existing payment
+      this.paymentModalState.set({
+        isOpen: true,
+        statement: bill.statement,
+        cardName: `${bill.bankName} ${bill.cardName}`,
+        amount: payment.amount.toString(),
+        date: payment.date.split('T')[0],
+        editingIndex: index,
+      });
+    } else {
+      // New payment
+      // Calculate remaining amount to pay
+      const remainingAmount = Math.max(0, bill.amount - bill.paidAmount);
+      
+      this.paymentModalState.set({
+        isOpen: true,
+        statement: bill.statement,
+        cardName: `${bill.bankName} ${bill.cardName}`,
+        amount: remainingAmount > 0 ? remainingAmount.toFixed(2) : '',
+        date: new Date().toISOString().split('T')[0],
+        editingIndex: null,
+      });
+    }
   }
 
   protected closePaymentModal(): void {
     this.paymentModalState.update((state) => ({
       ...state,
       isOpen: false,
+      editingIndex: null,
     }));
   }
 
@@ -298,70 +364,94 @@ export class BillsComponent {
         return;
       }
 
-      await this.statementService.addPayment(
-        modal.statement.cardId,
-        modal.statement.monthStr,
-        paidAmount,
-        modal.date
-      );
-
-      // Determine if the statement is now fully paid
-      const updatedStatement = this.statementService.getStatementForMonth(
+      if (modal.editingIndex !== null) {
+        // Update existing payment
+        await this.statementService.updatePayment(
           modal.statement.cardId,
-          modal.statement.monthStr
-      );
-      const isFullyPaid = updatedStatement?.isPaid ?? false;
-
-      // Mark all transactions for this statement as paid if fully paid
-      if (isFullyPaid) {
-          await this.transactionService.markStatementTransactionsPaidStatus(
-            modal.statement.cardId,
-            modal.statement.monthStr,
-            true,
-            modal.date,
-          );
-      }
-
-      // Create a transaction for the payment (for record-keeping)
-      // This allows the user to see the payment in the transactions list
-      // Note: isBudgetImpacting=false to avoid double-counting against projected liquid balance
-      // (since credit card spends are already deducted from liquid balance projections)
-      const profile = this.activeProfile();
-      if (profile) {
-          // Find a suitable category
-          const categories = this.categoryService.getCategories();
-          // Look for "Credit Card Payment", "Debt Payment", "Payment", or fallback to "Utilities" or "Uncategorized"
-          let categoryId = 'uncategorized';
-          const paymentCategory = categories.find(c => 
-              c.name.toLowerCase().includes('credit card') || 
-              c.name.toLowerCase().includes('payment') ||
-              c.name.toLowerCase().includes('debt')
-          );
-          if (paymentCategory) {
-              categoryId = paymentCategory.id;
+          modal.statement.monthStr,
+          modal.editingIndex,
+          {
+            amount: paidAmount,
+            date: modal.date,
           }
+        );
+      } else {
+        // Add new payment
+        await this.statementService.addPayment(
+          modal.statement.cardId,
+          modal.statement.monthStr,
+          paidAmount,
+          modal.date
+        );
 
-          await this.transactionService.addTransaction({
-              id: crypto.randomUUID(),
-              profileId: profile.id,
-              type: 'expense',
-              amount: paidAmount,
-              date: modal.date,
-              description: `Payment for ${modal.cardName}`,
-              categoryId: categoryId,
-              paymentMethod: 'bank_transfer', // Default assumption for bill pay
-              notes: 'Auto-generated from Bills page',
-              isBudgetImpacting: false, // Critical: Don't reduce liquid balance again
-              createdAt: new Date().toISOString(),
-              updatedAt: new Date().toISOString()
-          });
+        // Only create a transaction record for new payments
+        const profile = this.activeProfile();
+        if (profile) {
+            // Find a suitable category
+            const categories = this.categoryService.getCategories();
+            // Look for "Credit Card Payment", "Debt Payment", "Payment", or fallback to "Utilities" or "Uncategorized"
+            let categoryId = 'uncategorized';
+            const paymentCategory = categories.find(c => 
+                c.name.toLowerCase().includes('credit card') || 
+                c.name.toLowerCase().includes('payment') ||
+                c.name.toLowerCase().includes('debt')
+            );
+            if (paymentCategory) {
+                categoryId = paymentCategory.id;
+            }
+
+            await this.transactionService.addTransaction({
+                id: crypto.randomUUID(),
+                profileId: profile.id,
+                type: 'expense',
+                amount: paidAmount,
+                date: modal.date,
+                description: `Payment for ${modal.cardName}`,
+                categoryId: categoryId,
+                paymentMethod: 'bank_transfer', // Default assumption for bill pay
+                notes: 'Auto-generated from Bills page',
+                isBudgetImpacting: false, // Critical: Don't reduce liquid balance again
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString()
+            });
+        }
       }
+
+      // Sync transaction status with statement payment status
+      await this.syncTransactionStatus(modal.statement.cardId, modal.statement.monthStr, modal.date);
 
       this.closePaymentModal();
     } catch (error) {
       console.error('Error recording payment:', error);
       alert('Failed to record payment');
     }
+  }
+
+  protected async deletePayment(bill: BillWithDetails, index: number): Promise<void> {
+    if (!bill.statement || !confirm('Are you sure you want to delete this payment?')) return;
+
+    try {
+      await this.statementService.removePayment(bill.statement.cardId, bill.statement.monthStr, index);
+      // Sync transaction status with statement payment status (using today's date or bill due date as fallback for status update)
+      await this.syncTransactionStatus(bill.statement.cardId, bill.statement.monthStr, new Date().toISOString());
+    } catch (error) {
+      console.error('Error deleting payment:', error);
+      alert('Failed to delete payment');
+    }
+  }
+
+  private async syncTransactionStatus(cardId: string, monthStr: string, date: string): Promise<void> {
+    // Determine if the statement is now fully paid
+    const updatedStatement = this.statementService.getStatementForMonth(cardId, monthStr);
+    const isFullyPaid = updatedStatement?.isPaid ?? false;
+
+    // Mark all transactions for this statement based on paid status
+    await this.transactionService.markStatementTransactionsPaidStatus(
+      cardId,
+      monthStr,
+      isFullyPaid,
+      isFullyPaid ? date : undefined, // Only pass date if marking as paid
+    );
   }
 
   protected async markAsUnpaid(bill: BillWithDetails): Promise<void> {
