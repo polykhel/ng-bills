@@ -195,6 +195,8 @@ export class TransactionsComponent {
   protected isRecurringTransaction = signal<boolean>(false);
   protected recurringType = signal<'installment' | 'subscription' | 'custom'>('subscription');
   protected installmentMode = signal<'date' | 'term'>('date');
+  // Smart installment toggle (only shown when payment method is 'card')
+  protected isInstallmentPurchase = signal<boolean>(false);
   protected recurringFormData = {
     // Installment fields
     totalPrincipal: undefined as number | undefined,
@@ -207,6 +209,55 @@ export class TransactionsComponent {
     frequency: 'monthly' as 'monthly' | 'weekly' | 'biweekly' | 'quarterly' | 'yearly',
     nextDate: undefined as string | undefined,
   };
+
+  // Computed: Auto-calculate monthly amortization from total and terms
+  protected calculatedMonthlyAmort = computed(() => {
+    if (this.isInstallmentPurchase() && this.recurringFormData.totalPrincipal && this.recurringFormData.totalTerms) {
+      return this.recurringFormData.totalPrincipal / this.recurringFormData.totalTerms;
+    }
+    return undefined;
+  });
+
+  // Computed: Auto-calculate current term from start date
+  protected calculatedCurrentTerm = computed(() => {
+    if (this.isInstallmentPurchase() && this.recurringFormData.startDate) {
+      return this.transactionBucketService.calculateCurrentTerm(
+        this.recurringFormData.startDate,
+        this.viewDate()
+      );
+    }
+    return undefined;
+  });
+
+  // Computed: Cutoff preview badge info (Task 3)
+  protected cutoffPreview = computed(() => {
+    if (this.formData.paymentMethod !== 'card' || !this.formData.cardId || !this.formData.date) {
+      return null;
+    }
+
+    try {
+      const transactionDate = parseISO(this.formData.date);
+      const monthStr = format(transactionDate, 'yyyy-MM');
+      const period = this.transactionBucketService.getStatementPeriod(this.formData.cardId, monthStr);
+      const card = this.cardService.getCardById(this.formData.cardId);
+      
+      if (!period || !card) return null;
+
+      // Calculate due date for the statement
+      const dueDate = new Date(period.monthStr + '-01');
+      const statementDueDate = new Date(dueDate.getFullYear(), dueDate.getMonth(), card.dueDay);
+      const isCurrentCycle = period.monthStr === format(this.viewDate(), 'yyyy-MM');
+
+      return {
+        period,
+        statementMonth: format(parseISO(period.monthStr + '-01'), 'MMM yyyy'),
+        dueDate: format(statementDueDate, 'MMM d'),
+        isCurrentCycle,
+      };
+    } catch {
+      return null;
+    }
+  });
   // Filter state - using signals so computed can react to changes
   protected filterType = signal<TransactionType | 'all'>('all');
   protected filterPaymentMethod = signal<PaymentMethod | 'all'>('all');
@@ -284,8 +335,11 @@ export class TransactionsComponent {
   private statementService = inject(StatementService);
   private transactionBucketService = inject(TransactionBucketService);
   
-  // View mode: 'cash-flow' or 'statement-prep'
-  protected viewMode = signal<'cash-flow' | 'statement-prep'>('cash-flow');
+  // View mode: 'spending' or 'reconcile'
+  protected viewMode = signal<'spending' | 'reconcile'>('spending');
+  
+  // Reconcile mode: verified transaction IDs (UI state only, not persisted)
+  protected verifiedTransactionIds = signal<Set<string>>(new Set());
   
   // Buffer calculation
   protected bufferInfo = computed(() => {
@@ -297,22 +351,31 @@ export class TransactionsComponent {
     return this.transactionBucketService.calculateBuffer(profile.id, monthStr);
   });
 
+  // Viewable transactions: filters out parent installment transactions only
+  // Shows virtual transactions (monthly payments) and legacy installments; hides explicit parents (total principal)
+  protected viewableTransactions = computed(() => {
+    const allTransactions = this.transactionService.transactions();
+    return allTransactions.filter(
+      (t) => !this.transactionBucketService.isParentTransaction(t),
+    );
+  });
+
   // Computed filtered transactions
   // Shows transactions where:
   // 1. User owns the transaction (profileId matches)
   // 2. User paid for it (paidByOtherProfileId matches current profile)
   // In multi-profile mode: shows transactions from selected profiles
   // View mode affects what transactions are shown:
-  // - Cash Flow View: Shows all budget-impacting transactions (real-time spending)
-  // - Statement Prep View: Shows transactions grouped by statement cycle
+  // - Spending Mode: Shows transactions where date <= today (immediate reality)
+  // - Reconcile Mode: Shows transactions grouped by statement cycle
   protected filteredTransactions = computed(() => {
     const viewMode = this.viewMode();
     const multiMode = this.multiProfileMode();
     const selectedIds = this.selectedProfileIds();
     const profile = this.activeProfile();
 
-    // Get all transactions from transaction service signal (required for OnPush)
-    const allTransactions = this.transactionService.transactions();
+    // Get viewable transactions (excludes parent installment transactions)
+    const allTransactions = this.viewableTransactions();
 
     // Filter to transactions relevant to selected profiles
     let relevantTransactions: Transaction[];
@@ -400,20 +463,22 @@ export class TransactionsComponent {
     }
 
     // View mode filtering
-    if (viewMode === 'cash-flow') {
-      // Cash Flow View: Only show budget-impacting transactions
-      // Exclude parent transactions (they're for net worth tracking only)
+    if (viewMode === 'spending') {
+      // Spending Mode: Only show transactions where date <= today (immediate reality)
+      const today = format(new Date(), 'yyyy-MM-dd');
       relevantTransactions = relevantTransactions.filter((t) => {
+        // Only show transactions up to today
+        if (t.date > today) return false;
         // Include if it's budget impacting (default true if not set)
         if (t.isBudgetImpacting === false) return false;
-        // Exclude parent transactions (they have isRecurring=true, type=installment, but no parentTransactionId)
+        // Exclude parent transactions (they're for net worth tracking only)
         if (this.transactionBucketService.isParentTransaction(t)) return false;
         return true;
       });
     } else {
-      // Statement Prep View: Show transactions grouped by statement cycle
-      // Include all transactions, but we'll group them by statement period in the UI
-      // For now, just show all transactions (grouping can be done in template)
+      // Reconcile Mode: Show transactions grouped by statement cycle
+      // Include all transactions, grouping will be done in template
+      // Filter by statement period using TransactionBucketService
     }
 
     // Apply search filter
@@ -467,16 +532,47 @@ export class TransactionsComponent {
    * When card is selected for an installment, auto-set start date to card's due date
    */
   protected onCardChangeForInstallment(): void {
-    if (this.isRecurringTransaction() && 
-        this.recurringType() === 'installment' && 
+    if (this.isInstallmentPurchase() && 
         this.formData.paymentMethod === 'card' && 
         this.formData.cardId) {
       const cardDueDate = this.getCardDueDate(this.formData.cardId);
       if (cardDueDate && !this.recurringFormData.startDate) {
         this.recurringFormData.startDate = cardDueDate;
-        this.installmentMode.set('date');
-        this.onStartDateChange(); // Recalculate current term
       }
+    }
+  }
+
+  /**
+   * Handle payment method change - reset installment toggle if not card
+   */
+  protected onPaymentMethodChange(): void {
+    if (this.formData.paymentMethod !== 'card') {
+      this.isInstallmentPurchase.set(false);
+      this.isRecurringTransaction.set(false);
+    }
+  }
+
+  /**
+   * Handle installment toggle change
+   */
+  protected onInstallmentToggleChange(checked: boolean): void {
+    this.isInstallmentPurchase.set(checked);
+    if (checked) {
+      this.isRecurringTransaction.set(true);
+      this.recurringType.set('installment');
+      // Auto-set start date to today if not set
+      if (!this.recurringFormData.startDate) {
+        this.recurringFormData.startDate = new Date().toISOString().split('T')[0];
+      }
+      // Auto-set card due date if card is selected
+      if (this.formData.cardId) {
+        this.onCardChangeForInstallment();
+      }
+    } else {
+      // Reset installment fields
+      this.recurringFormData.totalPrincipal = undefined;
+      this.recurringFormData.totalTerms = undefined;
+      this.recurringFormData.startDate = undefined;
     }
   }
   // Computed cards: show cards for selected profiles in multi-profile mode, otherwise active profile
@@ -581,6 +677,11 @@ export class TransactionsComponent {
     if (transaction.isRecurring && transaction.recurringRule) {
       this.isRecurringTransaction.set(true);
       this.recurringType.set(transaction.recurringRule.type || 'subscription');
+      
+      // Set installment toggle if it's an installment
+      if (transaction.recurringRule.type === 'installment') {
+        this.isInstallmentPurchase.set(true);
+      }
       
       if (transaction.recurringRule.type === 'installment') {
         // Calculate current term from startDate if available
@@ -797,6 +898,34 @@ export class TransactionsComponent {
     }
   }
 
+  /**
+   * Toggle transaction verified state (for reconcile mode)
+   */
+  protected toggleTransactionVerified(transactionId: string): void {
+    const current = this.verifiedTransactionIds();
+    const next = new Set(current);
+    if (next.has(transactionId)) {
+      next.delete(transactionId);
+    } else {
+      next.add(transactionId);
+    }
+    this.verifiedTransactionIds.set(next);
+  }
+
+  /**
+   * Check if transaction is verified
+   */
+  protected isTransactionVerified(transactionId: string): boolean {
+    return this.verifiedTransactionIds().has(transactionId);
+  }
+
+  /**
+   * Clear all verified transactions
+   */
+  protected clearVerifiedTransactions(): void {
+    this.verifiedTransactionIds.set(new Set());
+  }
+
   protected async onSubmitTransaction(): Promise<void> {
     if (!this.validateForm()) {
       // Check for specific validation errors
@@ -822,21 +951,17 @@ export class TransactionsComponent {
 
     // Validate recurring transaction fields if enabled
     if (this.isRecurringTransaction()) {
-      if (this.recurringType() === 'installment') {
+      if (this.recurringType() === 'installment' || this.isInstallmentPurchase()) {
         if (!this.recurringFormData.totalPrincipal || this.recurringFormData.totalPrincipal <= 0) {
-          alert('Please enter a valid total principal amount for the installment');
+          alert('Please enter a valid total amount for the installment');
           return;
         }
         if (!this.recurringFormData.totalTerms || this.recurringFormData.totalTerms <= 0) {
           alert('Please enter a valid number of terms (months) for the installment');
           return;
         }
-        if (this.installmentMode() === 'date' && !this.recurringFormData.startDate) {
+        if (!this.recurringFormData.startDate) {
           alert('Please enter a start date for the installment');
-          return;
-        }
-        if (this.installmentMode() === 'term' && (!this.recurringFormData.currentTerm || this.recurringFormData.currentTerm <= 0)) {
-          alert('Please enter a valid current term number');
           return;
         }
       } else {
@@ -865,27 +990,12 @@ export class TransactionsComponent {
       let transactionAmount = this.formData.amount || 0;
       
       if (this.isRecurringTransaction()) {
-        if (this.recurringType() === 'installment') {
-          // Installment type
-          // Calculate start date based on mode
-          let calculatedStartDate = this.recurringFormData.startDate;
+        if (this.recurringType() === 'installment' || this.isInstallmentPurchase()) {
+          // Installment type - use smart form values
+          const calculatedStartDate = this.recurringFormData.startDate!;
           
-          // If charged to a card, use card's due date if start date not explicitly set
-          if (this.formData.paymentMethod === 'card' && this.formData.cardId) {
-            const cardDueDate = this.getCardDueDate(this.formData.cardId);
-            if (cardDueDate && (!calculatedStartDate || this.installmentMode() === 'date' && !this.recurringFormData.startDate)) {
-              calculatedStartDate = cardDueDate;
-            }
-          }
-          
-          if (this.installmentMode() === 'term') {
-            const currentTerm = this.recurringFormData.currentTerm || 1;
-            const backDate = subMonths(this.viewDate(), currentTerm - 1);
-            calculatedStartDate = format(backDate, 'yyyy-MM-dd');
-          }
-          
-          // Calculate monthly amortization if not provided
-          const monthlyAmort = this.recurringFormData.monthlyAmortization ||
+          // Auto-calculate monthly amortization
+          const monthlyAmort = this.calculatedMonthlyAmort() || 
             (this.recurringFormData.totalPrincipal! / this.recurringFormData.totalTerms!);
           
           // For parent transaction: use totalPrincipal (for net worth/debt tracking)
@@ -893,21 +1003,11 @@ export class TransactionsComponent {
           transactionAmount = this.recurringFormData.totalPrincipal!;
           
           // Calculate end date
-          const startDateObj = parseISO(calculatedStartDate!);
+          const startDateObj = parseISO(calculatedStartDate);
           const endDate = format(addMonths(startDateObj, this.recurringFormData.totalTerms!), 'yyyy-MM-dd');
           
-          // Calculate current term from startDate
-          let calculatedCurrentTerm: number;
-          if (this.installmentMode() === 'term') {
-            // Use the manually entered current term
-            calculatedCurrentTerm = this.recurringFormData.currentTerm || 1;
-          } else {
-            // Calculate from startDate and current viewDate
-            const currentMonth = startOfMonth(this.viewDate());
-            const startMonth = startOfMonth(startDateObj);
-            const diff = differenceInCalendarMonths(currentMonth, startMonth);
-            calculatedCurrentTerm = Math.max(1, diff + 1);
-          }
+          // Auto-calculate current term from startDate
+          const calculatedCurrentTerm = this.calculatedCurrentTerm() || 1;
           
           // Generate installment group ID (preserve existing if editing, otherwise create new)
           const installmentGroupId = editingId && existingTransaction?.recurringRule?.installmentGroupId
@@ -1205,6 +1305,7 @@ export class TransactionsComponent {
     this.isRecurringTransaction.set(false);
     this.recurringType.set('subscription');
     this.installmentMode.set('date');
+    this.isInstallmentPurchase.set(false);
     this.recurringFormData = {
       totalPrincipal: undefined,
       totalTerms: undefined,

@@ -175,14 +175,17 @@ export class TransactionBucketService {
   }
 
   /**
-   * Check if a transaction is a parent transaction (for installments)
+   * Check if a transaction is a parent transaction (for installments).
+   * Only explicit parents (created via new installment flow) have isBudgetImpacting === false.
+   * Legacy installment transactions (individual monthly payments) lack this field and must not be hidden.
    */
   isParentTransaction(transaction: Transaction): boolean {
     return (
       transaction.isRecurring === true &&
       transaction.recurringRule?.type === 'installment' &&
       !transaction.isVirtual &&
-      !transaction.parentTransactionId
+      !transaction.parentTransactionId &&
+      transaction.isBudgetImpacting === false
     );
   }
 

@@ -17,25 +17,25 @@
         <div class="flex items-center gap-2 bg-slate-100 rounded-lg p-1">
           <button
             type="button"
-            (click)="viewMode.set('cash-flow')"
-            [class.bg-white]="viewMode() === 'cash-flow'"
-            [class.shadow-sm]="viewMode() === 'cash-flow'"
-            [class.text-slate-900]="viewMode() === 'cash-flow'"
-            [class.text-slate-600]="viewMode() !== 'cash-flow'"
+            (click)="viewMode.set('spending')"
+            [class.bg-white]="viewMode() === 'spending'"
+            [class.shadow-sm]="viewMode() === 'spending'"
+            [class.text-slate-900]="viewMode() === 'spending'"
+            [class.text-slate-600]="viewMode() !== 'spending'"
             class="px-4 py-2 text-sm font-medium rounded-md transition-all"
           >
-            Cash Flow
+            Spending
           </button>
           <button
             type="button"
-            (click)="viewMode.set('statement-prep')"
-            [class.bg-white]="viewMode() === 'statement-prep'"
-            [class.shadow-sm]="viewMode() === 'statement-prep'"
-            [class.text-slate-900]="viewMode() === 'statement-prep'"
-            [class.text-slate-600]="viewMode() !== 'statement-prep'"
+            (click)="viewMode.set('reconcile')"
+            [class.bg-white]="viewMode() === 'reconcile'"
+            [class.shadow-sm]="viewMode() === 'reconcile'"
+            [class.text-slate-900]="viewMode() === 'reconcile'"
+            [class.text-slate-600]="viewMode() !== 'reconcile'"
             class="px-4 py-2 text-sm font-medium rounded-md transition-all"
           >
-            Statement Prep
+            Reconcile
           </button>
         </div>
         <app-quick-action-button
@@ -53,32 +53,49 @@
       </div>
     </div>
 
-    <!-- Buffer Calculation Alert -->
-    @if (bufferInfo().isDangerZone) {
-      <div class="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
-        <div class="flex items-center justify-between">
-          <div>
-            <h3 class="text-sm font-semibold text-red-900">⚠️ Danger Zone</h3>
-            <p class="text-sm text-red-700 mt-1">
-              Your credit card debt ({{ formatCurrency(bufferInfo().totalCreditCardDebt) }}) exceeds your balance ({{ formatCurrency(bufferInfo().totalBalance) }}).
-              Buffer: <span class="font-bold">{{ formatCurrency(bufferInfo().buffer) }}</span>
-            </p>
+    <!-- View Mode Description -->
+    <div class="mb-4 text-sm text-slate-600">
+      @if (viewMode() === 'spending') {
+        <span>
+          Spending shows transactions up to today for real-time cash flow.
+          Reconcile groups by statement period so you can verify charges.
+        </span>
+      } @else {
+        <span>
+          Reconcile groups transactions by statement period so you can verify charges.
+          Spending shows only what has happened up to today.
+        </span>
+      }
+    </div>
+
+    <!-- Buffer Calculation Alert (Spending Mode only) -->
+    @if (viewMode() === 'spending') {
+      @if (bufferInfo().isDangerZone) {
+        <div class="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
+          <div class="flex items-center justify-between">
+            <div>
+              <h3 class="text-sm font-semibold text-red-900">⚠️ Danger Zone</h3>
+              <p class="text-sm text-red-700 mt-1">
+                Your credit card debt ({{ formatCurrency(bufferInfo().totalCreditCardDebt) }}) exceeds your balance ({{ formatCurrency(bufferInfo().totalBalance) }}).
+                Buffer: <span class="font-bold">{{ formatCurrency(bufferInfo().buffer) }}</span>
+              </p>
+            </div>
           </div>
         </div>
-      </div>
-    } @else if (bufferInfo().buffer >= 0) {
-      <div class="bg-green-50 border border-green-200 rounded-lg p-4 mb-6">
-        <div class="flex items-center justify-between">
-          <div>
-            <h3 class="text-sm font-semibold text-green-900">Financial Buffer</h3>
-            <p class="text-sm text-green-700 mt-1">
-              Balance: {{ formatCurrency(bufferInfo().totalBalance) }} - 
-              Credit Card Debt: {{ formatCurrency(bufferInfo().totalCreditCardDebt) }} = 
-              <span class="font-bold">{{ formatCurrency(bufferInfo().buffer) }}</span>
-            </p>
+      } @else if (bufferInfo().buffer >= 0) {
+        <div class="bg-green-50 border border-green-200 rounded-lg p-4 mb-6">
+          <div class="flex items-center justify-between">
+            <div>
+              <h3 class="text-sm font-semibold text-green-900">Financial Buffer</h3>
+              <p class="text-sm text-green-700 mt-1">
+                Balance: {{ formatCurrency(bufferInfo().totalBalance) }} - 
+                Credit Card Debt: {{ formatCurrency(bufferInfo().totalCreditCardDebt) }} = 
+                <span class="font-bold">{{ formatCurrency(bufferInfo().buffer) }}</span>
+              </p>
+            </div>
           </div>
         </div>
-      </div>
+      }
     }
 
     <!-- Bank Balance Management -->
@@ -188,17 +205,36 @@
               placeholder="0.00" 
               step="0.01" 
               min="0"
-              [disabled]="isRecurringTransaction() && recurringType() === 'installment'"
+              [disabled]="isInstallmentPurchase()"
             />
-            @if (isRecurringTransaction() && recurringType() === 'installment') {
+            @if (isInstallmentPurchase()) {
               <small style="color: rgb(100, 116, 139); font-size: 11px; margin-top: 4px; display: block;">
-                Amount will be set to monthly amortization
+                Amount will be set to total principal
               </small>
             }
           </div>
           <div class="form-group">
             <label>Date *</label>
-            <input type="date" [(ngModel)]="formData.date" />
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <input 
+                type="date" 
+                [(ngModel)]="formData.date"
+                style="flex: 1;"
+              />
+              <!-- Cutoff Preview Badge (Task 3) -->
+              @if (cutoffPreview()) {
+                <span 
+                  [ngClass]="{
+                    'bg-green-100 text-green-800 border-green-200': cutoffPreview()!.isCurrentCycle,
+                    'bg-yellow-100 text-yellow-800 border-yellow-200': !cutoffPreview()!.isCurrentCycle
+                  }"
+                  class="px-2 py-1 text-xs font-medium rounded border"
+                  style="white-space: nowrap;"
+                >
+                  Bill: {{ cutoffPreview()!.statementMonth }} (Due {{ cutoffPreview()!.dueDate }})
+                </span>
+              }
+            </div>
           </div>
         </div>
 
@@ -218,7 +254,10 @@
           </div>
           <div class="form-group">
             <label>Payment Method</label>
-            <select [(ngModel)]="formData.paymentMethod">
+            <select 
+              [(ngModel)]="formData.paymentMethod"
+              (ngModelChange)="onPaymentMethodChange()"
+            >
               @if (formData.type === 'income') {
                 <option value="cash">Cash</option>
                 <option value="bank_transfer">Bank Transfer</option>
@@ -248,10 +287,82 @@
                   <option [value]="card.id">{{ card.bankName }} {{ card.cardName }}</option>
                 }
               </select>
-              @if (isRecurringTransaction() && recurringType() === 'installment' && formData.cardId) {
-                <small style="color: rgb(100, 116, 139); font-size: 11px; margin-top: 4px; display: block;">
-                  Installment will use this card's due date ({{ getCardDueDate(formData.cardId) | date:'MMM d' }})
-                </small>
+            </div>
+            <!-- Smart Installment Toggle -->
+            <div class="form-group" style="display: flex; align-items: flex-end;">
+              <label style="display: flex; align-items: center; gap: 8px; margin-bottom: 0; cursor: pointer;">
+                <input 
+                  type="checkbox" 
+                  [checked]="isInstallmentPurchase()"
+                  (change)="onInstallmentToggleChange($any($event.target).checked)"
+                />
+                <span style="font-weight: 600;">Is this an installment?</span>
+              </label>
+            </div>
+          }
+          
+          <!-- Simplified Installment Form (when toggle is ON) -->
+          @if (isInstallmentPurchase()) {
+            <div 
+              class="mt-4 p-4 rounded-lg border-2"
+              [ngClass]="{
+                'border-orange-300 bg-orange-50': isInstallmentPurchase()
+              }"
+            >
+              <h4 class="font-semibold text-slate-900 mb-3" style="color: rgb(194, 65, 12);">Installment Details</h4>
+              <div class="form-row">
+                <div class="form-group">
+                  <label>Total Amount *</label>
+                  <input 
+                    type="number" 
+                    [(ngModel)]="recurringFormData.totalPrincipal" 
+                    placeholder="0.00" 
+                    step="0.01" 
+                    min="0.01"
+                  />
+                  <small style="color: rgb(100, 116, 139); font-size: 11px; margin-top: 4px; display: block;">
+                    Total purchase amount
+                  </small>
+                </div>
+                <div class="form-group">
+                  <label>Term (Months) *</label>
+                  <input 
+                    type="number" 
+                    [(ngModel)]="recurringFormData.totalTerms" 
+                    placeholder="12" 
+                    min="1"
+                  />
+                  <small style="color: rgb(100, 116, 139); font-size: 11px; margin-top: 4px; display: block;">
+                    Number of monthly payments
+                  </small>
+                </div>
+                <div class="form-group">
+                  <label>Start Date *</label>
+                  <input 
+                    type="date" 
+                    [(ngModel)]="recurringFormData.startDate"
+                    (ngModelChange)="onCardChangeForInstallment()"
+                  />
+                  <small style="color: rgb(100, 116, 139); font-size: 11px; margin-top: 4px; display: block;">
+                    First payment date
+                  </small>
+                </div>
+              </div>
+              @if (calculatedMonthlyAmort()) {
+                <div class="mt-3 p-2 bg-white rounded border border-slate-200">
+                  <div class="text-sm text-slate-600">
+                    <strong>Monthly Payment:</strong> 
+                    <span class="text-slate-900 font-semibold">{{ formatCurrency(calculatedMonthlyAmort()!) }}</span>
+                    <span class="text-slate-500 ml-2">(Auto-calculated)</span>
+                  </div>
+                  @if (calculatedCurrentTerm()) {
+                    <div class="text-sm text-slate-600 mt-1">
+                      <strong>Current Term:</strong> 
+                      <span class="text-slate-900 font-semibold">{{ calculatedCurrentTerm() }}/{{ recurringFormData.totalTerms }}</span>
+                      <span class="text-slate-500 ml-2">(Auto-calculated from start date)</span>
+                    </div>
+                  }
+                </div>
               }
             </div>
           }
@@ -417,21 +528,22 @@
           </div>
         }
 
-        <!-- Recurring Transaction Section -->
-        <div class="border-t border-slate-200 pt-4 mt-4">
-          <div class="form-group" style="display: flex; align-items: center; gap: 8px; margin-bottom: 16px;">
-            <input 
-              type="checkbox" 
-              id="isRecurring"
-              [checked]="isRecurringTransaction()"
-              (change)="isRecurringTransaction.set($any($event.target).checked)"
-            />
-            <label for="isRecurring" style="margin-bottom: 0; font-weight: 600; cursor: pointer;">
-              This is a recurring transaction
-            </label>
-          </div>
+        <!-- Recurring Transaction Section (only show if NOT installment purchase) -->
+        @if (!isInstallmentPurchase()) {
+          <div class="border-t border-slate-200 pt-4 mt-4">
+            <div class="form-group" style="display: flex; align-items: center; gap: 8px; margin-bottom: 16px;">
+              <input 
+                type="checkbox" 
+                id="isRecurring"
+                [checked]="isRecurringTransaction()"
+                (change)="isRecurringTransaction.set($any($event.target).checked)"
+              />
+              <label for="isRecurring" style="margin-bottom: 0; font-weight: 600; cursor: pointer;">
+                This is a recurring transaction
+              </label>
+            </div>
 
-          @if (isRecurringTransaction()) {
+            @if (isRecurringTransaction()) {
             <div class="space-y-4" style="background: rgb(249, 250, 251); padding: 16px; border-radius: 8px;">
               <!-- Recurring Type Selector -->
               <div class="form-group">
@@ -603,7 +715,8 @@
               }
             </div>
           }
-        </div>
+          </div>
+        }
 
         <div class="form-actions">
           <button class="btn btn-primary" (click)="onSubmitTransaction()">Save Transaction</button>
@@ -641,14 +754,6 @@
         [value]="summary().transactionCount.toString()"
         variant="info"
       />
-    </div>
-
-    <!-- Info about credit card expenses -->
-    <div class="mb-6 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-      <p class="text-sm text-blue-800">
-        <strong>Note:</strong> Credit card expenses are only counted when the statement is paid. 
-        This reflects your actual cash flow - you only "spend" the money when you pay the bill, not when you make the purchase.
-      </p>
     </div>
 
     <!-- Search and Sort Bar -->
@@ -779,6 +884,17 @@
             <option [value]="true">Recurring Only</option>
             <option [value]="false">One-time Only</option>
           </select>
+          <!-- Reconcile Toggle (only in Reconcile Mode) -->
+          @if (viewMode() === 'reconcile') {
+            <button
+              type="button"
+              (click)="clearVerifiedTransactions()"
+              class="px-3 py-1.5 text-sm border border-slate-300 rounded-md hover:bg-slate-100 transition-colors"
+              title="Clear all verified transactions"
+            >
+              Clear Verified
+            </button>
+          }
         </div>
         <button
           type="button"
@@ -806,9 +922,27 @@
       } @else {
         <div>
           @for (transaction of filteredTransactions(); track transaction.id) {
-            <div class="transaction-item">
-              <div class="transaction-info">
-                <div class="transaction-description">
+            <div 
+              class="transaction-item"
+              [ngClass]="{
+                'opacity-50': viewMode() === 'reconcile' && isTransactionVerified(transaction.id),
+                'cursor-pointer': viewMode() === 'reconcile'
+              }"
+              (click)="viewMode() === 'reconcile' ? toggleTransactionVerified(transaction.id) : null"
+            >
+              <div class="transaction-info" style="display: flex; align-items: center; gap: 8px;">
+                <!-- Verified Checkmark (Reconcile Mode) -->
+                @if (viewMode() === 'reconcile') {
+                  <div class="flex-shrink-0">
+                    @if (isTransactionVerified(transaction.id)) {
+                      <lucide-angular [img]="CheckCircle2" [size]="20" class="text-green-600" />
+                    } @else {
+                      <lucide-angular [img]="Circle" [size]="20" class="text-slate-300" />
+                    }
+                  </div>
+                }
+                <div style="flex: 1;">
+                  <div class="transaction-description">
                   <div class="flex items-center gap-2 flex-wrap">
                     <span>{{ transaction.description }}</span>
                     <!-- Bucket Badge -->
@@ -880,22 +1014,23 @@
                       {{ getTransactionContext(transaction) }}
                     </span>
                   }
-                </div>
-                <div class="transaction-meta">
-                  {{ formatDate(transaction.date) }}
-                  • {{ transaction.paymentMethod === 'card' ? getCardName(transaction.cardId) : 
-                      transaction.paymentMethod === 'bank_to_bank' ? 
-                        `Transfer: ${getBankAccountName(transaction.fromBankId)} → ${getBankAccountName(transaction.toBankId)}` :
-                        transaction.bankId ? getBankAccountName(transaction.bankId) :
-                        transaction.paymentMethod }}
-                  @if (transaction.transferFee && transaction.transferFee > 0) {
-                    • Fee: ₱{{ transaction.transferFee.toLocaleString() }}
-                  }
-                  @if (multiProfileMode() && transaction.profileId) {
-                    • {{ getProfileName(transaction.profileId) }}
-                  } @else if (!multiProfileMode() && transaction.profileId !== activeProfile()?.id) {
-                    • {{ getProfileName(transaction.profileId) }}'s transaction
-                  }
+                  </div>
+                  <div class="transaction-meta">
+                    {{ formatDate(transaction.date) }}
+                    • {{ transaction.paymentMethod === 'card' ? getCardName(transaction.cardId) : 
+                        transaction.paymentMethod === 'bank_to_bank' ? 
+                          `Transfer: ${getBankAccountName(transaction.fromBankId)} → ${getBankAccountName(transaction.toBankId)}` :
+                          transaction.bankId ? getBankAccountName(transaction.bankId) :
+                          transaction.paymentMethod }}
+                    @if (transaction.transferFee && transaction.transferFee > 0) {
+                      • Fee: ₱{{ transaction.transferFee.toLocaleString() }}
+                    }
+                    @if (multiProfileMode() && transaction.profileId) {
+                      • {{ getProfileName(transaction.profileId) }}
+                    } @else if (!multiProfileMode() && transaction.profileId !== activeProfile()?.id) {
+                      • {{ getProfileName(transaction.profileId) }}'s transaction
+                    }
+                  </div>
                 </div>
               </div>
               <div

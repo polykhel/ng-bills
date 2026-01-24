@@ -71,3 +71,4 @@ If any conventions here are unclear or you need deeper context (e.g., storage mi
 Don't create summary documents.
 When working on the ROADMAP, update the status of each Phase as you complete tasks.
 Always use bun instead of npm.
+Always run ng build before ending a prompt to make sure there are no build errors. No need to start.

@@ -860,7 +860,36 @@ export class TransactionService {
   private async initializeTransactions(): Promise<void> {
     const db = this.idb.getDB();
     const data = await db.getAll<Transaction>(STORES.TRANSACTIONS);
-    this.transactionsSignal.set(data);
+    const migrated = this.migrateTransactionsForParentVirtualFields(data);
+    this.transactionsSignal.set(migrated);
+    if (migrated !== data) {
+      await db.putAll(STORES.TRANSACTIONS, migrated);
+    }
+  }
+
+  /**
+   * Migration: backfill isVirtual and isBudgetImpacting for existing transactions
+   * created before the parent/virtual installment model. Ensures legacy installments
+   * are not hidden as "parents" and all transactions have explicit flags.
+   */
+  private migrateTransactionsForParentVirtualFields(
+    transactions: Transaction[],
+  ): Transaction[] {
+    let changed = false;
+    const result = transactions.map((t) => {
+      let isVirtual = t.isVirtual;
+      let isBudgetImpacting = t.isBudgetImpacting;
+      if (isVirtual === undefined) {
+        isVirtual = false;
+        changed = true;
+      }
+      if (isBudgetImpacting === undefined) {
+        isBudgetImpacting = true;
+        changed = true;
+      }
+      return { ...t, isVirtual, isBudgetImpacting };
+    });
+    return changed ? result : transactions;
   }
 
   private setupAutoSave(): void {

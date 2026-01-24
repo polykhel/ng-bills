@@ -31,9 +31,7 @@ import {
   imports: [
     CommonModule,
     LucideAngularModule,
-    MetricCardComponent,
     QuickActionButtonComponent,
-    SectionHeaderComponent,
     EmptyStateComponent
   ],
   templateUrl: './overview.component.html',
@@ -69,7 +67,74 @@ export class OverviewComponent {
   protected activeProfile = this.profileService.activeProfile;
   protected viewDate = this.appState.viewDate;
 
-  // Stubbed metrics - will be calculated from real data in Phase 1
+  // Financial Health metrics (Task 5)
+  protected financialHealth = computed(() => {
+    const profile = this.activeProfile();
+    if (!profile) {
+      return {
+        liquidCash: 0,
+        committedFunds: 0,
+        trueFreeCash: 0,
+        isPositive: true
+      };
+    }
+
+    // Get bank balance for current month (always use today's month for balances)
+    const monthStr = format(startOfMonth(new Date()), 'yyyy-MM');
+    
+    // Liquid Cash: Sum of all Bank Balances
+    const accounts = this.bankAccountService.activeBankAccounts();
+    let liquidCash = 0;
+    for (const account of accounts) {
+      const storedBalance = this.bankBalanceService.getBankAccountBalance(account.profileId, monthStr, account.id);
+      const accountBalance = storedBalance !== null ? storedBalance : (account.initialBalance || 0);
+      liquidCash += accountBalance;
+    }
+    
+    // Committed Funds: Sum of all Unpaid Bills + Unpaid Virtual Transactions due this month
+    const cards = this.cardService.getCardsForProfiles([profile.id]);
+    let committedFunds = 0;
+
+    // Add unpaid bills
+    for (const card of cards) {
+      const statement = this.statementService.getStatementForMonth(card.id, monthStr);
+      if (statement && !statement.isPaid) {
+        committedFunds += statement.amount || 0;
+      }
+    }
+
+    // Add unpaid virtual transactions due this month
+    const today = new Date();
+    const monthStart = startOfMonth(today);
+    const monthEnd = endOfMonth(today);
+    const allTransactions = this.transactionService.transactions();
+    
+    const unpaidVirtualTransactions = allTransactions.filter(t => {
+      if (t.profileId !== profile.id) return false;
+      if (!t.isVirtual) return false;
+      if (t.isPaid) return false;
+      
+      const transactionDate = parseISO(t.date);
+      return transactionDate >= monthStart && transactionDate <= monthEnd;
+    });
+
+    for (const transaction of unpaidVirtualTransactions) {
+      committedFunds += transaction.amount;
+    }
+
+    // True Free Cash: Liquid Cash - Committed Funds
+    const trueFreeCash = liquidCash - committedFunds;
+    const isPositive = trueFreeCash >= 0;
+
+    return {
+      liquidCash,
+      committedFunds,
+      trueFreeCash,
+      isPositive
+    };
+  });
+
+  // Legacy metrics (kept for backward compatibility, but simplified)
   protected metrics = computed(() => {
     const profile = this.activeProfile();
     if (!profile) {
@@ -84,7 +149,6 @@ export class OverviewComponent {
     }
 
     // Get bank balance for current month (always use today's month for balances)
-    // Balances are always current, regardless of viewDate
     const monthStr = format(startOfMonth(new Date()), 'yyyy-MM');
     
     // Sum all account balances, including initialBalance for accounts without stored balances
