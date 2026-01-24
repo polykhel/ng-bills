@@ -85,8 +85,10 @@ export class TransactionBucketService {
     if (!card) return null;
 
     // Parse the month string (yyyy-MM)
+    // monthStr is now the Payment Month (e.g. Feb)
     const [year, month] = monthStr.split('-').map(Number);
-    const monthStart = new Date(year, month - 1, 1);
+    // Shift back to get the Cutoff Month (e.g. Jan) logic uses
+    const monthStart = addMonths(new Date(year, month - 1, 1), -1);
 
     // Statement period: from cutoff day of previous month to cutoff day - 1 of current month
     // Example: If cutoff is 20, statement period for Feb is Jan 20 - Feb 19

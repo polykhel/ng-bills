@@ -219,9 +219,7 @@ export class BillsComponent {
           .getTransactionsForStatement(card.id, monthStr)
           .filter((t) => t.profileId === profile.id)
           .sort((a, b) => {
-            const dateA = a.postingDate ? parseISO(a.postingDate) : parseISO(a.date);
-            const dateB = b.postingDate ? parseISO(b.postingDate) : parseISO(b.date);
-            return dateA.getTime() - dateB.getTime();
+            return parseISO(a.date).getTime() - parseISO(b.date).getTime();
           });
 
         const dueDate = new Date(`${monthStr}-${String(card.dueDay).padStart(2, '0')}`);

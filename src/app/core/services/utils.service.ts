@@ -117,30 +117,52 @@ export class UtilsService {
    */
   getStatementMonthForTransaction(transaction: { date: string; postingDate?: string }, cutoffDay: number): Date {
     // Use postingDate for cutoff calculation if available, otherwise use transaction date
-    const dateForCutoff = transaction.postingDate ? parseISO(transaction.postingDate) : parseISO(transaction.date);
-    return this.getStatementMonth(dateForCutoff, cutoffDay);
+    if (transaction.postingDate) {
+      return this.getStatementMonth(parseISO(transaction.postingDate), cutoffDay, true);
+    }
+    return this.getStatementMonth(parseISO(transaction.date), cutoffDay, false);
   }
 
   /**
    * Get the statement month date based on cutoff-aware logic
    * 
    * Logic:
-   * - If transaction day >= cutoffDay: belongs to NEXT month's statement
-   * - If transaction day < cutoffDay: belongs to THIS month's statement
+   * - If transaction day >= cutoffDay: belongs to NEXT month's statement (Payment Month logic)
+   * - If transaction day < cutoffDay: belongs to THIS month's statement (Payment Month logic)
    * 
    * @param dateForCutoff The date to use for cutoff calculation (transaction date or posting date)
    * @param cutoffDay The card's cutoff day (1-31)
+   * @param isPostingDate Whether the date is a posting date (affects boundary condition)
    * @returns Date representing the start of the statement month
    */
-  getStatementMonth(dateForCutoff: Date, cutoffDay: number): Date {
+  getStatementMonth(dateForCutoff: Date, cutoffDay: number, isPostingDate: boolean = false): Date {
     const dayOfMonth = dateForCutoff.getDate();
-
-    if (dayOfMonth >= cutoffDay) {
-      // Transaction is at or after cutoff → belongs to NEXT month's statement
-      return addMonths(startOfMonth(dateForCutoff), 1);
+    
+    // Determine if transaction falls into the next billing cycle
+    let isNextCycle: boolean;
+    
+    if (isPostingDate) {
+      // If using Posting Date:
+      // - Posting Date == Cutoff Day -> Included in CURRENT cycle (due next month)
+      // - Posting Date > Cutoff Day -> Included in NEXT cycle (due in 2 months)
+      isNextCycle = dayOfMonth > cutoffDay;
     } else {
-      // Transaction is before cutoff → belongs to THIS month's statement
-      return startOfMonth(dateForCutoff);
+      // If using Transaction Date (default/fallback):
+      // - Transaction Date == Cutoff Day -> Assumed to post later -> NEXT cycle (due in 2 months)
+      // - Transaction Date < Cutoff Day -> Included in CURRENT cycle (due next month)
+      isNextCycle = dayOfMonth >= cutoffDay;
+    }
+
+    if (isNextCycle) {
+      // Transaction is at or after cutoff (or assumed to be) → belongs to NEXT month's statement (due in 2 months)
+      // Example: Dec 22 (cutoff 21) -> Bill Period Dec 21-Jan 20 -> Due Feb 10
+      // We want to return "Feb" (Payment Month)
+      return addMonths(startOfMonth(dateForCutoff), 2);
+    } else {
+      // Transaction is before cutoff → belongs to THIS month's statement (due next month)
+      // Example: Jan 10 (cutoff 21) -> Bill Period Dec 21-Jan 20 -> Due Feb 10
+      // We want to return "Feb" (Payment Month)
+      return addMonths(startOfMonth(dateForCutoff), 1);
     }
   }
 

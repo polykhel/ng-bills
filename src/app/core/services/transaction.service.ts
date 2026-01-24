@@ -712,10 +712,17 @@ export class TransactionService {
    */
   getCommittedExpenses(profileId: string, monthStr?: string): number {
     const today = startOfDay(new Date());
-    const monthEnd = monthStr ? endOfMonth(parseISO(`${monthStr}-01`)) : endOfMonth(today);
+    const targetDate = monthStr ? parseISO(`${monthStr}-01`) : today;
+    const monthEnd = endOfMonth(targetDate);
+    const targetMonthStr = format(targetDate, 'yyyy-MM');
 
+    // 1. Non-card expenses (Cash, Bank Transfer, etc.)
     const transactions = this.transactionsSignal().filter(
-      (t) => t.profileId === profileId && t.type === 'expense' && t.isBudgetImpacting !== false,
+      (t) =>
+        t.profileId === profileId &&
+        t.type === 'expense' &&
+        t.isBudgetImpacting !== false &&
+        t.paymentMethod !== 'card', // Exclude card transactions (handled via statements)
     );
 
     let committedExpenses = 0;
@@ -725,6 +732,24 @@ export class TransactionService {
       // Count future expenses within the month (including virtual transactions)
       if (isAfter(transactionDate, today) && !isAfter(transactionDate, monthEnd)) {
         committedExpenses += transaction.amount;
+      }
+    }
+
+    // 2. Card Statements (Bills due this month)
+    // For forecasting, we care about cash outflow (bill payments), not individual charges
+    const cards = this.cardService.getCardsForProfiles([profileId]);
+    for (const card of cards) {
+      // Get the statement that is due in this month (Payment Month)
+      const statement = this.statementService.getStatementForMonth(card.id, targetMonthStr);
+      
+      if (statement && !statement.isPaid) {
+        const amount = statement.amount || 0;
+        const paid = statement.paidAmount || 0;
+        const remaining = Math.max(0, amount - paid);
+        
+        if (remaining > 0) {
+          committedExpenses += remaining;
+        }
       }
     }
 
@@ -819,6 +844,7 @@ export class TransactionService {
       this.statementService.updateStatement(cardId, monthStr, {
         amount: amountToApply,
         isPaid: false,
+        dueDate: format(dueDate, 'yyyy-MM-dd'),
         customDueDate: format(dueDate, 'yyyy-MM-dd'),
       });
 

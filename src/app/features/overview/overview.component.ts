@@ -247,8 +247,7 @@ export class OverviewComponent {
           if (card) {
             // Determine which statement month this transaction belongs to (cutoff-aware)
             // Use shared utility function for consistent logic
-            const transactionDate = parseISO(t.date);
-            const statementDate = this.utils.getStatementMonth(transactionDate, card.cutoffDay);
+            const statementDate = this.utils.getStatementMonthForTransaction(t, card.cutoffDay);
             const monthStr = format(statementDate, 'yyyy-MM');
             const statement = statements.find(
               (s) => s.cardId === t.cardId && s.monthStr === monthStr,
