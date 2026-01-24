@@ -1,13 +1,13 @@
 import { effect, Injectable, signal } from '@angular/core';
 import {
   addMonths,
+  differenceInCalendarMonths,
   format,
   getDate,
   lastDayOfMonth,
   parseISO,
   setDate,
-  startOfMonth,
-  differenceInCalendarMonths,
+  startOfMonth
 } from 'date-fns';
 import { IndexedDBService, STORES } from './indexeddb.service';
 import { ProfileService } from './profile.service';
@@ -723,17 +723,18 @@ export class TransactionService {
     }
 
     // ⭐ CUTOFF-AWARE: Determine which statement month this transaction belongs to
-    const transactionDate = parseISO(transaction.date);
-    const dayOfMonth = transactionDate.getDate();
+    // Use postingDate for cutoff calculation if available, otherwise use transaction date
+    const dateForCutoff = transaction.postingDate ? parseISO(transaction.postingDate) : parseISO(transaction.date);
+    const dayOfMonth = dateForCutoff.getDate();
 
     // Determine statement month based on cutoff day
     let statementDate: Date;
     if (dayOfMonth >= card.cutoffDay) {
       // Transaction is at or after cutoff → belongs to NEXT month's statement
-      statementDate = addMonths(startOfMonth(transactionDate), 1);
+      statementDate = addMonths(startOfMonth(dateForCutoff), 1);
     } else {
       // Transaction is before cutoff → belongs to THIS month's statement
-      statementDate = startOfMonth(transactionDate);
+      statementDate = startOfMonth(dateForCutoff);
     }
 
     const monthStr = format(statementDate, 'yyyy-MM');
@@ -778,14 +779,15 @@ export class TransactionService {
     if (!card) return;
 
     // Calculate which statement month this belongs to
-    const transactionDate = parseISO(transaction.date);
-    const dayOfMonth = transactionDate.getDate();
+    // Use postingDate for cutoff calculation if available, otherwise use transaction date
+    const dateForCutoff = transaction.postingDate ? parseISO(transaction.postingDate) : parseISO(transaction.date);
+    const dayOfMonth = dateForCutoff.getDate();
 
     let statementDate: Date;
     if (dayOfMonth >= card.cutoffDay) {
-      statementDate = addMonths(startOfMonth(transactionDate), 1);
+      statementDate = addMonths(startOfMonth(dateForCutoff), 1);
     } else {
-      statementDate = startOfMonth(transactionDate);
+      statementDate = startOfMonth(dateForCutoff);
     }
 
     const monthStr = format(statementDate, 'yyyy-MM');

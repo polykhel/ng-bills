@@ -1,25 +1,25 @@
-import { ChangeDetectionStrategy, ChangeDetectorRef, Component, computed, effect, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import {
+  ArrowDown,
+  ArrowUp,
+  ArrowUpDown,
+  Building2,
+  CheckCircle2,
   ChevronDown,
+  Circle,
   Edit2,
   FileText,
   Filter,
   LucideAngularModule,
   Plus,
+  Search,
   Trash2,
   TrendingDown,
   TrendingUp,
   Wallet,
   X,
-  Building2,
-  Search,
-  ArrowUpDown,
-  ArrowUp,
-  ArrowDown,
-  CheckCircle2,
-  Circle,
 } from 'lucide-angular';
 import {
   AppStateService,
@@ -27,17 +27,31 @@ import {
   BankBalanceService,
   CardService,
   CategoryService,
+  NotificationService,
   ProfileService,
   StatementService,
-  TransactionService,
   TransactionBucketService,
-  NotificationService,
+  TransactionService,
 } from '@services';
-import { EmptyStateComponent, MetricCardComponent, ModalComponent, QuickActionButtonComponent } from '@components';
-import type { PaymentMethod, Transaction, TransactionFilter, TransactionType } from '@shared/types';
-import { format, parseISO, startOfMonth, endOfMonth, addMonths, subMonths, differenceInCalendarMonths, setDate } from 'date-fns';
+import {
+  EmptyStateComponent,
+  MetricCardComponent,
+  ModalComponent,
+  QuickActionButtonComponent,
+} from '@components';
+import type { PaymentMethod, Transaction, TransactionType } from '@shared/types';
+import {
+  addMonths,
+  differenceInCalendarMonths,
+  endOfMonth,
+  format,
+  parseISO,
+  setDate,
+  startOfMonth,
+  subMonths,
+} from 'date-fns';
+import type { Cell, Row } from '@cj-tech-master/excelts';
 import { Workbook, Worksheet } from '@cj-tech-master/excelts';
-import type { Row, Cell } from '@cj-tech-master/excelts';
 
 type ExpenseTemplateLists = {
   categories: string[];
@@ -174,7 +188,9 @@ type ImportLookups = {
         display: flex;
         align-items: center;
         justify-content: center;
-        transition: color 0.2s, background-color 0.2s;
+        transition:
+          color 0.2s,
+          background-color 0.2s;
       }
 
       .icon-btn:hover {
@@ -236,7 +252,11 @@ export class TransactionsComponent {
 
   // Computed: Auto-calculate monthly amortization from total and terms
   protected calculatedMonthlyAmort = computed(() => {
-    if (this.isInstallmentPurchase() && this.recurringFormData.totalPrincipal && this.recurringFormData.totalTerms) {
+    if (
+      this.isInstallmentPurchase() &&
+      this.recurringFormData.totalPrincipal &&
+      this.recurringFormData.totalTerms
+    ) {
       return this.recurringFormData.totalPrincipal / this.recurringFormData.totalTerms;
     }
     return undefined;
@@ -247,7 +267,7 @@ export class TransactionsComponent {
     if (this.isInstallmentPurchase() && this.recurringFormData.startDate) {
       return this.transactionBucketService.calculateCurrentTerm(
         this.recurringFormData.startDate,
-        this.viewDate()
+        this.viewDate(),
       );
     }
     return undefined;
@@ -274,7 +294,10 @@ export class TransactionsComponent {
           : startOfMonth(transactionDate);
       const monthStr = format(statementDate, 'yyyy-MM');
 
-      const period = this.transactionBucketService.getStatementPeriod(this.formData.cardId, monthStr);
+      const period = this.transactionBucketService.getStatementPeriod(
+        this.formData.cardId,
+        monthStr,
+      );
       if (!period) return null;
 
       // Calculate due date for the statement
@@ -326,16 +349,16 @@ export class TransactionsComponent {
     const totalExpenses = transactions
       .filter((t) => {
         if (t.type !== 'expense') return false;
-        
+
         // For credit card transactions, only count if statement is paid
         if (t.paymentMethod === 'card' && t.cardId) {
-          const card = cards.find(c => c.id === t.cardId);
+          const card = cards.find((c) => c.id === t.cardId);
           if (!card) return true; // Card not found, default to counting it
-          
+
           // Determine which statement month this transaction belongs to (cutoff-aware)
           const transactionDate = parseISO(t.date);
           const dayOfMonth = transactionDate.getDate();
-          
+
           let statementDate: Date;
           if (dayOfMonth >= card.cutoffDay) {
             // Transaction is at or after cutoff → belongs to NEXT month's statement
@@ -346,13 +369,15 @@ export class TransactionsComponent {
           }
 
           const monthStr = format(statementDate, 'yyyy-MM');
-          const statement = statements.find(s => s.cardId === t.cardId && s.monthStr === monthStr);
-          
+          const statement = statements.find(
+            (s) => s.cardId === t.cardId && s.monthStr === monthStr,
+          );
+
           // If no statement exists yet, it's not paid (don't count it)
           // If statement exists, check if it's paid
           return statement ? statement.isPaid : false;
         }
-        
+
         // For all other payment methods, count immediately
         return true;
       })
@@ -368,13 +393,13 @@ export class TransactionsComponent {
   private transactionService = inject(TransactionService);
   private statementService = inject(StatementService);
   private transactionBucketService = inject(TransactionBucketService);
-  
+
   // View mode: 'spending' or 'reconcile'
   protected viewMode = signal<'spending' | 'reconcile'>('spending');
-  
+
   // Reconcile mode: verified transaction IDs (UI state only, not persisted)
   protected verifiedTransactionIds = signal<Set<string>>(new Set());
-  
+
   // Buffer calculation
   protected bufferInfo = computed(() => {
     const profile = this.activeProfile();
@@ -389,9 +414,7 @@ export class TransactionsComponent {
   // Shows virtual transactions (monthly payments) and legacy installments; hides explicit parents (total principal)
   protected viewableTransactions = computed(() => {
     const allTransactions = this.transactionService.transactions();
-    return allTransactions.filter(
-      (t) => !this.transactionBucketService.isParentTransaction(t),
-    );
+    return allTransactions.filter((t) => !this.transactionBucketService.isParentTransaction(t));
   });
 
   // Computed filtered transactions
@@ -413,7 +436,7 @@ export class TransactionsComponent {
 
     // Filter to transactions relevant to selected profiles
     let relevantTransactions: Transaction[];
-    
+
     if (multiMode && selectedIds.length > 0) {
       // Multi-profile mode: show transactions from selected profiles
       relevantTransactions = allTransactions.filter((t) => {
@@ -426,7 +449,7 @@ export class TransactionsComponent {
     } else {
       // Single profile mode: show transactions for active profile
       if (!profile) return [];
-      
+
       relevantTransactions = allTransactions.filter((t) => {
         // Include if this profile owns the transaction
         if (t.profileId === profile.id) return true;
@@ -468,12 +491,12 @@ export class TransactionsComponent {
     const currentDate = this.viewDate();
     const monthStart = format(startOfMonth(currentDate), 'yyyy-MM-dd');
     const monthEnd = format(endOfMonth(currentDate), 'yyyy-MM-dd');
-    
+
     if (fromDate || toDate) {
       // Show transactions within the selected date range, but limited to current month
       const filterStart = fromDate ? (fromDate >= monthStart ? fromDate : monthStart) : monthStart;
       const filterEnd = toDate ? (toDate <= monthEnd ? toDate : monthEnd) : monthEnd;
-      
+
       relevantTransactions = relevantTransactions.filter((t) => {
         return t.date >= filterStart && t.date <= filterEnd;
       });
@@ -522,9 +545,11 @@ export class TransactionsComponent {
         const description = t.description.toLowerCase();
         const notes = t.notes?.toLowerCase() || '';
         const amount = t.amount.toString();
-        return description.includes(searchQuery) || 
-               notes.includes(searchQuery) || 
-               amount.includes(searchQuery);
+        return (
+          description.includes(searchQuery) ||
+          notes.includes(searchQuery) ||
+          amount.includes(searchQuery)
+        );
       });
     }
 
@@ -536,7 +561,7 @@ export class TransactionsComponent {
     relevantTransactions = [...relevantTransactions].sort((a, b) => {
       switch (sortField) {
         case 'date':
-          return (a.date.localeCompare(b.date)) * sortMultiplier;
+          return a.date.localeCompare(b.date) * sortMultiplier;
         case 'amount':
           return (a.amount - b.amount) * sortMultiplier;
         case 'description':
@@ -549,7 +574,7 @@ export class TransactionsComponent {
     return relevantTransactions;
   });
   private cardService = inject(CardService);
-  
+
   /**
    * Get card's due date for the current month
    */
@@ -561,14 +586,16 @@ export class TransactionsComponent {
     const dueDate = setDate(currentMonth, card.dueDay);
     return format(dueDate, 'yyyy-MM-dd');
   }
-  
+
   /**
    * When card is selected for an installment, auto-set start date to card's due date
    */
   protected onCardChangeForInstallment(): void {
-    if (this.isInstallmentPurchase() && 
-        this.formData.paymentMethod === 'card' && 
-        this.formData.cardId) {
+    if (
+      this.isInstallmentPurchase() &&
+      this.formData.paymentMethod === 'card' &&
+      this.formData.cardId
+    ) {
       const cardDueDate = this.getCardDueDate(this.formData.cardId);
       if (cardDueDate && !this.recurringFormData.startDate) {
         this.recurringFormData.startDate = cardDueDate;
@@ -613,7 +640,7 @@ export class TransactionsComponent {
   protected cards = computed(() => {
     const multiMode = this.multiProfileMode();
     const selectedIds = this.selectedProfileIds();
-    
+
     if (multiMode && selectedIds.length > 0) {
       return this.cardService.getCardsForProfiles(selectedIds);
     }
@@ -625,7 +652,7 @@ export class TransactionsComponent {
   protected bankAccounts = computed(() => {
     const multiMode = this.multiProfileMode();
     const selectedIds = this.selectedProfileIds();
-    
+
     if (multiMode && selectedIds.length > 0) {
       return this.bankAccountService.getBankAccountsForProfiles(selectedIds);
     }
@@ -635,7 +662,7 @@ export class TransactionsComponent {
   // Memoized lookups for performance
   private cardNameCache = computed(() => {
     const cardsMap = new Map<string, string>();
-    this.cards().forEach(card => {
+    this.cards().forEach((card) => {
       cardsMap.set(card.id, `${card.bankName} ${card.cardName}`);
     });
     return cardsMap;
@@ -643,7 +670,7 @@ export class TransactionsComponent {
 
   private bankAccountNameCache = computed(() => {
     const accountsMap = new Map<string, string>();
-    this.bankAccounts().forEach(account => {
+    this.bankAccounts().forEach((account) => {
       accountsMap.set(account.id, account.bankName);
     });
     return accountsMap;
@@ -651,7 +678,7 @@ export class TransactionsComponent {
 
   private profileNameCache = computed(() => {
     const profilesMap = new Map<string, string>();
-    this.profileService.profiles().forEach(profile => {
+    this.profileService.profiles().forEach((profile) => {
       profilesMap.set(profile.id, profile.name);
     });
     return profilesMap;
@@ -659,6 +686,7 @@ export class TransactionsComponent {
 
   private readonly expenseTemplateHeaders = [
     'date',
+    'postingDate',
     'description',
     'amount',
     'categoryName',
@@ -713,7 +741,10 @@ export class TransactionsComponent {
     };
   }
 
-  private populateListsSheet(sheet: Worksheet, lists: ExpenseTemplateLists): Record<string, string> {
+  private populateListsSheet(
+    sheet: Worksheet,
+    lists: ExpenseTemplateLists,
+  ): Record<string, string> {
     const listConfig = [
       { key: 'categoryName', values: lists.categories },
       { key: 'paymentMethod', values: lists.paymentMethods },
@@ -738,113 +769,6 @@ export class TransactionsComponent {
     });
 
     return ranges;
-  }
-
-  private populateTemplateSheet(sheet: Worksheet, listRanges: Record<string, string>): void {
-    sheet.addRow(this.expenseTemplateHeaders);
-    sheet.views = [{ state: 'frozen', ySplit: 1 }];
-    const headerRow = sheet.getRow(1);
-    headerRow.eachCell((cell: Cell) => {
-      cell.font = { ...cell.font, bold: true };
-    });
-
-    const headerMap = new Map<string, number>();
-    this.expenseTemplateHeaders.forEach((header, index) => {
-      headerMap.set(header, index + 1);
-    });
-
-    const maxRows = 500;
-    const dateColumn = headerMap.get('date') ?? 1;
-    const amountColumn = headerMap.get('amount');
-    const transferFeeColumn = headerMap.get('transferFee');
-
-    const columnWidths: Record<string, number> = {
-      date: 14,
-      description: 34,
-      amount: 14,
-      categoryName: 22,
-      paymentMethod: 18,
-      cardName: 24,
-      bankAccountName: 22,
-      fromBankAccountName: 22,
-      toBankAccountName: 22,
-      transferFee: 14,
-      paidByOther: 12,
-      paidByOtherProfileName: 22,
-      paidByOtherName: 20,
-      notes: 28,
-    };
-
-    Object.entries(columnWidths).forEach(([key, width]) => {
-      const columnIndex = headerMap.get(key);
-      if (columnIndex) {
-        sheet.getColumn(columnIndex).width = width;
-      }
-    });
-
-    const listColumns = [
-      'categoryName',
-      'paymentMethod',
-      'cardName',
-      'bankAccountName',
-      'fromBankAccountName',
-      'toBankAccountName',
-      'paidByOtherProfileName',
-      'paidByOther',
-    ];
-
-    listColumns.forEach((key) => {
-      const columnIndex = headerMap.get(key);
-      const range = listRanges[key];
-      if (!columnIndex || !range) return;
-      for (let rowIndex = 2; rowIndex <= maxRows; rowIndex += 1) {
-        sheet.getCell(rowIndex, columnIndex).dataValidation = {
-          type: 'list',
-          allowBlank: true,
-          formulae: [range],
-        };
-      }
-    });
-
-    for (let rowIndex = 2; rowIndex <= maxRows; rowIndex += 1) {
-      sheet.getCell(rowIndex, dateColumn).numFmt = 'yyyy-mm-dd';
-      if (amountColumn) sheet.getCell(rowIndex, amountColumn).numFmt = '#,##0.00';
-      if (transferFeeColumn) sheet.getCell(rowIndex, transferFeeColumn).numFmt = '#,##0.00';
-    }
-  }
-
-  private ensureList(values: string[]): string[] {
-    const unique = [...new Set(values.map((value) => value.trim()).filter(Boolean))];
-    return unique.length > 0 ? unique : [''];
-  }
-
-  private getColumnLetter(columnIndex: number): string {
-    let index = columnIndex;
-    let letter = '';
-    while (index > 0) {
-      const remainder = (index - 1) % 26;
-      letter = String.fromCharCode(65 + remainder) + letter;
-      index = Math.floor((index - 1) / 26);
-    }
-    return letter;
-  }
-
-  private downloadExcelFile(buffer: ArrayBuffer | Uint8Array, filename: string): void {
-    const uint8Array = buffer instanceof Uint8Array 
-      ? buffer.slice()
-      : new Uint8Array(buffer);
-    const blob = new Blob([uint8Array as unknown as BlobPart], {
-      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-    });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = filename;
-    link.style.display = 'none';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
   }
 
   protected async onImportExpensesFile(event: Event): Promise<void> {
@@ -898,28 +822,63 @@ export class TransactionsComponent {
         toImport.push({ row, rowNumber });
       });
 
+      const existingTransactions = this.transactionService.transactions();
+      const duplicateKeySet = new Set<string>();
+      existingTransactions.forEach((t) => {
+        if (t.type === 'expense' && t.paymentMethod === 'card' && t.cardId) {
+          const key = this.getDuplicateKey(t.date, t.description, t.cardId);
+          duplicateKeySet.add(key);
+        }
+      });
+
       let importedCount = 0;
+      let duplicateCount = 0;
       for (const { row, rowNumber } of toImport) {
         const result = this.parseExpenseRow(row, headerMap, lookups, rowNumber, profile.id);
         if ('error' in result) {
           errors.push(result.error);
           continue;
         }
-        await this.transactionService.addTransaction(result.transaction);
+
+        const transaction = result.transaction;
+        const dateForDuplicate = transaction.postingDate || transaction.date;
+        const duplicateKey = this.getDuplicateKey(
+          dateForDuplicate,
+          transaction.description,
+          transaction.cardId,
+        );
+
+        if (
+          transaction.paymentMethod === 'card' &&
+          transaction.cardId &&
+          duplicateKeySet.has(duplicateKey)
+        ) {
+          duplicateCount += 1;
+          continue;
+        }
+
+        await this.transactionService.addTransaction(transaction);
+        if (transaction.paymentMethod === 'card' && transaction.cardId) {
+          duplicateKeySet.add(duplicateKey);
+        }
         importedCount += 1;
       }
 
-      if (importedCount === 0 && errors.length === 0) {
+      if (importedCount === 0 && errors.length === 0 && duplicateCount === 0) {
         this.notificationService.warning('Import completed', 'No expense rows found.');
         return;
       }
 
-      if (errors.length > 0) {
+      const skippedCount = errors.length + duplicateCount;
+      if (skippedCount > 0) {
+        const parts: string[] = [];
+        if (errors.length > 0) parts.push(`${errors.length} errors`);
+        if (duplicateCount > 0) parts.push(`${duplicateCount} duplicates`);
         const preview = errors.slice(0, 3).join(' | ');
         const suffix = errors.length > 3 ? ' ...' : '';
         this.notificationService.warning(
           'Import completed with issues',
-          `${importedCount} imported, ${errors.length} skipped. ${preview}${suffix}`,
+          `${importedCount} imported, ${skippedCount} skipped (${parts.join(', ')}). ${preview}${suffix}`,
         );
       } else {
         this.notificationService.success('Import completed', `${importedCount} expenses imported.`);
@@ -929,6 +888,114 @@ export class TransactionsComponent {
       this.notificationService.error('Import failed', 'Unable to read the Excel file.');
     } finally {
       input.value = '';
+    }
+  }
+
+  private ensureList(values: string[]): string[] {
+    const unique = [...new Set(values.map((value) => value.trim()).filter(Boolean))];
+    return unique.length > 0 ? unique : [''];
+  }
+
+  private getColumnLetter(columnIndex: number): string {
+    let index = columnIndex;
+    let letter = '';
+    while (index > 0) {
+      const remainder = (index - 1) % 26;
+      letter = String.fromCharCode(65 + remainder) + letter;
+      index = Math.floor((index - 1) / 26);
+    }
+    return letter;
+  }
+
+  private downloadExcelFile(buffer: ArrayBuffer | Uint8Array, filename: string): void {
+    const uint8Array = buffer instanceof Uint8Array ? buffer.slice() : new Uint8Array(buffer);
+    const blob = new Blob([uint8Array as unknown as BlobPart], {
+      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    link.style.display = 'none';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  }
+
+  private populateTemplateSheet(sheet: Worksheet, listRanges: Record<string, string>): void {
+    sheet.addRow(this.expenseTemplateHeaders);
+    sheet.views = [{ state: 'frozen', ySplit: 1 }];
+    const headerRow = sheet.getRow(1);
+    headerRow.eachCell((cell: Cell) => {
+      cell.font = { ...cell.font, bold: true };
+    });
+
+    const headerMap = new Map<string, number>();
+    this.expenseTemplateHeaders.forEach((header, index) => {
+      headerMap.set(header, index + 1);
+    });
+
+    const maxRows = 500;
+    const dateColumn = headerMap.get('date') ?? 1;
+    const postingDateColumn = headerMap.get('postingDate');
+    const amountColumn = headerMap.get('amount');
+    const transferFeeColumn = headerMap.get('transferFee');
+
+    const columnWidths: Record<string, number> = {
+      date: 14,
+      postingDate: 14,
+      description: 34,
+      amount: 14,
+      categoryName: 22,
+      paymentMethod: 18,
+      cardName: 24,
+      bankAccountName: 22,
+      fromBankAccountName: 22,
+      toBankAccountName: 22,
+      transferFee: 14,
+      paidByOther: 12,
+      paidByOtherProfileName: 22,
+      paidByOtherName: 20,
+      notes: 28,
+    };
+
+    Object.entries(columnWidths).forEach(([key, width]) => {
+      const columnIndex = headerMap.get(key);
+      if (columnIndex) {
+        sheet.getColumn(columnIndex).width = width;
+      }
+    });
+
+    const listColumns = [
+      'categoryName',
+      'paymentMethod',
+      'cardName',
+      'bankAccountName',
+      'fromBankAccountName',
+      'toBankAccountName',
+      'paidByOtherProfileName',
+      'paidByOther',
+    ];
+
+    listColumns.forEach((key) => {
+      const columnIndex = headerMap.get(key);
+      const range = listRanges[key];
+      if (!columnIndex || !range) return;
+      for (let rowIndex = 2; rowIndex <= maxRows; rowIndex += 1) {
+        sheet.getCell(rowIndex, columnIndex).dataValidation = {
+          type: 'list',
+          allowBlank: true,
+          formulae: [range],
+        };
+      }
+    });
+
+    for (let rowIndex = 2; rowIndex <= maxRows; rowIndex += 1) {
+      sheet.getCell(rowIndex, dateColumn).numFmt = 'yyyy-mm-dd';
+      if (postingDateColumn) sheet.getCell(rowIndex, postingDateColumn).numFmt = 'yyyy-mm-dd';
+      if (amountColumn) sheet.getCell(rowIndex, amountColumn).numFmt = '#,##0.00';
+      if (transferFeeColumn) sheet.getCell(rowIndex, transferFeeColumn).numFmt = '#,##0.00';
     }
   }
 
@@ -967,6 +1034,7 @@ export class TransactionsComponent {
     profileId: string,
   ): { transaction: Transaction } | { error: string } {
     const dateValue = this.getCellValue(row, headers.get('date'));
+    const postingDateValue = this.getCellValue(row, headers.get('postingdate'));
     const descriptionValue = this.getCellValue(row, headers.get('description'));
     const amountValue = this.getCellValue(row, headers.get('amount'));
     const paymentMethodValue = this.getCellValue(row, headers.get('paymentmethod'));
@@ -984,6 +1052,11 @@ export class TransactionsComponent {
     const date = this.parseDateValue(dateValue);
     if (!date) {
       return { error: `Row ${rowNumber}: invalid date.` };
+    }
+
+    const postingDate = postingDateValue ? this.parseDateValue(postingDateValue) : null;
+    if (postingDateValue && !postingDate) {
+      return { error: `Row ${rowNumber}: invalid postingDate.` };
     }
 
     const description = this.cellToString(descriptionValue);
@@ -1099,6 +1172,7 @@ export class TransactionsComponent {
       isRecurring: false,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
+      postingDate: postingDate || undefined,
     };
 
     return { transaction };
@@ -1124,7 +1198,10 @@ export class TransactionsComponent {
   }
 
   private normalizeHeader(value: string): string {
-    return value.trim().toLowerCase().replace(/[\s_-]+/g, '');
+    return value
+      .trim()
+      .toLowerCase()
+      .replace(/[\s_-]+/g, '');
   }
 
   private normalizeLookup(value: string): string {
@@ -1132,12 +1209,20 @@ export class TransactionsComponent {
   }
 
   private normalizePaymentMethod(value: string): PaymentMethod | null {
-    const normalized = value.trim().toLowerCase().replace(/[\s-]+/g, '_');
+    const normalized = value
+      .trim()
+      .toLowerCase()
+      .replace(/[\s-]+/g, '_');
     if (!normalized) return null;
     if (normalized === 'cash') return 'cash';
-    if (normalized === 'card' || normalized === 'credit_card' || normalized === 'creditcard') return 'card';
+    if (normalized === 'card' || normalized === 'credit_card' || normalized === 'creditcard')
+      return 'card';
     if (normalized === 'bank_transfer' || normalized === 'banktransfer') return 'bank_transfer';
-    if (normalized === 'bank_to_bank' || normalized === 'bank_to_bank_transfer' || normalized === 'banktobank') {
+    if (
+      normalized === 'bank_to_bank' ||
+      normalized === 'bank_to_bank_transfer' ||
+      normalized === 'banktobank'
+    ) {
       return 'bank_to_bank';
     }
     if (normalized === 'other') return 'other';
@@ -1194,7 +1279,10 @@ export class TransactionsComponent {
         const resultValue = (value as { result?: unknown }).result;
         return resultValue ? String(resultValue).trim() : '';
       }
-      if ('richText' in value && Array.isArray((value as { richText?: Array<{ text?: string }> }).richText)) {
+      if (
+        'richText' in value &&
+        Array.isArray((value as { richText?: Array<{ text?: string }> }).richText)
+      ) {
         return (value as { richText: Array<{ text?: string }> }).richText
           .map((part) => part.text ?? '')
           .join('')
@@ -1202,6 +1290,11 @@ export class TransactionsComponent {
       }
     }
     return '';
+  }
+
+  private getDuplicateKey(date: string, description: string, cardId?: string): string {
+    const normalizedDesc = description.trim().toLowerCase();
+    return `${date}|${normalizedDesc}|${cardId || ''}`;
   }
 
   protected onAddTransaction(): void {
@@ -1246,17 +1339,17 @@ export class TransactionsComponent {
       debtPaidDate: transaction.debtPaidDate,
       linkedDebtTransactionId: transaction.linkedDebtTransactionId,
     };
-    
+
     // Load recurring/installment data if present
     if (transaction.isRecurring && transaction.recurringRule) {
       this.isRecurringTransaction.set(true);
       this.recurringType.set(transaction.recurringRule.type || 'subscription');
-      
+
       // Set installment toggle if it's an installment
       if (transaction.recurringRule.type === 'installment') {
         this.isInstallmentPurchase.set(true);
       }
-      
+
       if (transaction.recurringRule.type === 'installment') {
         // Calculate current term from startDate if available
         let calculatedCurrentTerm = transaction.recurringRule.currentTerm;
@@ -1267,21 +1360,23 @@ export class TransactionsComponent {
           const diff = differenceInCalendarMonths(currentMonth, startMonth);
           calculatedCurrentTerm = Math.max(1, diff + 1);
         }
-        
+
         // If charged to a card, use card's current due date for the start date
         let startDate = transaction.recurringRule.startDate;
         if (transaction.paymentMethod === 'card' && transaction.cardId) {
           const cardDueDate = this.getCardDueDate(transaction.cardId);
           if (cardDueDate) {
             // Preserve the original month but use card's due day
-            const originalDate = transaction.recurringRule.startDate ? parseISO(transaction.recurringRule.startDate) : new Date();
+            const originalDate = transaction.recurringRule.startDate
+              ? parseISO(transaction.recurringRule.startDate)
+              : new Date();
             const card = this.cardService.getCardById(transaction.cardId);
             if (card) {
               startDate = format(setDate(originalDate, card.dueDay), 'yyyy-MM-dd');
             }
           }
         }
-        
+
         this.recurringFormData = {
           totalPrincipal: transaction.recurringRule.totalPrincipal,
           totalTerms: transaction.recurringRule.totalTerms,
@@ -1314,7 +1409,7 @@ export class TransactionsComponent {
     } else {
       this.resetRecurringForm();
     }
-    
+
     this.showForm.set(true);
   }
 
@@ -1356,7 +1451,7 @@ export class TransactionsComponent {
     if (event) {
       event.stopPropagation();
     }
-    
+
     try {
       if (transaction.isPaid) {
         await this.transactionService.markTransactionUnpaid(transaction.id);
@@ -1379,7 +1474,6 @@ export class TransactionsComponent {
       this.sortDirection.set(field === 'date' ? 'desc' : 'asc');
     }
   }
-
 
   /**
    * Check if transaction is an installment
@@ -1550,42 +1644,49 @@ export class TransactionsComponent {
 
     try {
       const editingId = this.editingTransactionId();
-      
+
       // Get existing transaction if editing
       let existingTransaction: Transaction | undefined;
       if (editingId) {
-        existingTransaction = this.transactionService.transactions().find(t => t.id === editingId);
+        existingTransaction = this.transactionService
+          .transactions()
+          .find((t) => t.id === editingId);
       }
-      
+
       // Calculate recurring rule if this is a recurring transaction
       let recurringRule = undefined;
       let transactionAmount = this.formData.amount || 0;
-      
+
       if (this.isRecurringTransaction()) {
         if (this.recurringType() === 'installment' || this.isInstallmentPurchase()) {
           // Installment type - use smart form values
           const calculatedStartDate = this.recurringFormData.startDate!;
-          
+
           // Auto-calculate monthly amortization
-          const monthlyAmort = this.calculatedMonthlyAmort() || 
-            (this.recurringFormData.totalPrincipal! / this.recurringFormData.totalTerms!);
-          
+          const monthlyAmort =
+            this.calculatedMonthlyAmort() ||
+            this.recurringFormData.totalPrincipal! / this.recurringFormData.totalTerms!;
+
           // For parent transaction: use totalPrincipal (for net worth/debt tracking)
           // Virtual transactions will use monthlyAmort
           transactionAmount = this.recurringFormData.totalPrincipal!;
-          
+
           // Calculate end date
           const startDateObj = parseISO(calculatedStartDate);
-          const endDate = format(addMonths(startDateObj, this.recurringFormData.totalTerms!), 'yyyy-MM-dd');
-          
+          const endDate = format(
+            addMonths(startDateObj, this.recurringFormData.totalTerms!),
+            'yyyy-MM-dd',
+          );
+
           // Auto-calculate current term from startDate
           const calculatedCurrentTerm = this.calculatedCurrentTerm() || 1;
-          
+
           // Generate installment group ID (preserve existing if editing, otherwise create new)
-          const installmentGroupId = editingId && existingTransaction?.recurringRule?.installmentGroupId
-            ? existingTransaction.recurringRule.installmentGroupId
-            : `installment_${crypto.randomUUID()}`;
-          
+          const installmentGroupId =
+            editingId && existingTransaction?.recurringRule?.installmentGroupId
+              ? existingTransaction.recurringRule.installmentGroupId
+              : `installment_${crypto.randomUUID()}`;
+
           recurringRule = {
             type: 'installment' as const,
             frequency: 'monthly' as const,
@@ -1613,7 +1714,7 @@ export class TransactionsComponent {
           }
         }
       }
-      
+
       if (editingId) {
         // Update existing transaction
         await this.transactionService.updateTransaction(editingId, {
@@ -1674,7 +1775,7 @@ export class TransactionsComponent {
         };
         await this.transactionService.addTransaction(transaction);
       }
-      
+
       this.closeTransactionModal();
     } catch (error) {
       console.error('Error saving transaction:', error);
@@ -1721,7 +1822,9 @@ export class TransactionsComponent {
     if (!transaction.paidByOther) return '';
 
     if (transaction.paidByOtherProfileId) {
-      const profile = this.profileService.profiles().find((p) => p.id === transaction.paidByOtherProfileId);
+      const profile = this.profileService
+        .profiles()
+        .find((p) => p.id === transaction.paidByOtherProfileId);
       return profile ? profile.name : 'Unknown Profile';
     }
 
@@ -1732,7 +1835,6 @@ export class TransactionsComponent {
     if (!bankId) return '-';
     return this.bankAccountNameCache().get(bankId) ?? 'Unknown Account';
   }
-
 
   protected onAddBankAccount(): void {
     this.appState.openModal('bank-account-form', {});
@@ -1748,26 +1850,38 @@ export class TransactionsComponent {
     return format(new Date(), 'yyyy-MM');
   }
 
-  protected getBankBalanceForAccount(account: { id: string; profileId: string; initialBalance?: number }): number {
+  protected getBankBalanceForAccount(account: {
+    id: string;
+    profileId: string;
+    initialBalance?: number;
+  }): number {
     const profile = this.activeProfile();
     if (!profile) return account.initialBalance || 0;
     const monthStr = this.getCurrentMonthStr();
-    return this.bankBalanceService.getBankAccountBalance(account.profileId, monthStr, account.id) || account.initialBalance || 0;
+    return (
+      this.bankBalanceService.getBankAccountBalance(account.profileId, monthStr, account.id) ||
+      account.initialBalance ||
+      0
+    );
   }
 
   protected getTotalBankBalance(): number {
     const profile = this.activeProfile();
     if (!profile) return 0;
     const monthStr = this.getCurrentMonthStr();
-    
+
     // Sum all account balances, including initialBalance for accounts without stored balances
     let total = 0;
     for (const account of this.bankAccounts()) {
-      const storedBalance = this.bankBalanceService.getBankAccountBalance(account.profileId, monthStr, account.id);
-      const accountBalance = storedBalance !== null ? storedBalance : (account.initialBalance || 0);
+      const storedBalance = this.bankBalanceService.getBankAccountBalance(
+        account.profileId,
+        monthStr,
+        account.id,
+      );
+      const accountBalance = storedBalance !== null ? storedBalance : account.initialBalance || 0;
       total += accountBalance;
     }
-    
+
     return total;
   }
 
@@ -1831,10 +1945,7 @@ export class TransactionsComponent {
     }
 
     // For income with debt obligation, debt amount and due date are required
-    if (
-      this.formData.type === 'income' &&
-      this.formData.hasDebtObligation
-    ) {
+    if (this.formData.type === 'income' && this.formData.hasDebtObligation) {
       if (!this.formData.debtAmount || this.formData.debtAmount <= 0) {
         return false;
       }
@@ -1908,7 +2019,8 @@ export class TransactionsComponent {
       this.recurringFormData.interestRate = undefined;
       // Set default nextDate to transaction date if not set
       if (!this.recurringFormData.nextDate) {
-        this.recurringFormData.nextDate = this.formData.date || new Date().toISOString().split('T')[0];
+        this.recurringFormData.nextDate =
+          this.formData.date || new Date().toISOString().split('T')[0];
       }
     } else {
       // Clear subscription-specific fields
@@ -2048,7 +2160,7 @@ export class TransactionsComponent {
     // Determine which statement month this transaction belongs to (cutoff-aware)
     const transactionDate = parseISO(transaction.date);
     const dayOfMonth = transactionDate.getDate();
-    
+
     let statementDate: Date;
     if (dayOfMonth >= card.cutoffDay) {
       // Transaction is at or after cutoff → belongs to NEXT month's statement
@@ -2060,7 +2172,7 @@ export class TransactionsComponent {
 
     const monthStr = format(statementDate, 'yyyy-MM');
     const statement = this.statementService.getStatementForMonth(transaction.cardId, monthStr);
-    
+
     // If no statement exists yet, it's not paid (don't count it)
     // If statement exists, check if it's paid
     return statement ? statement.isPaid : false;

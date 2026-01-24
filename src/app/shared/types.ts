@@ -113,7 +113,8 @@ export interface Transaction {
   profileId: string;
   type: TransactionType;
   amount: number;
-  date: string; // ISO string
+  date: string; // ISO string - transaction/purchase date
+  postingDate?: string; // ISO string - when charge posts to card (for cutoff-aware billing)
   categoryId: string;
   subcategoryId?: string;
   description: string;
@@ -130,29 +131,29 @@ export interface Transaction {
   isRecurring?: boolean;
   recurringRule?: RecurringRule;
   isEstimate?: boolean;
-  
+
   // Payment tracking (for installments and recurring transactions)
-  isPaid?: boolean;                // True if this installment payment has been made
-  paidDate?: string;               // Date when payment was made
-  paidAmount?: number;             // Amount paid (may be partial)
-  
+  isPaid?: boolean; // True if this installment payment has been made
+  paidDate?: string; // Date when payment was made
+  paidAmount?: number; // Amount paid (may be partial)
+
   // Track when another person uses the card but reimburses
-  paidByOther?: boolean;           // True if someone else paid this charge
-  paidByOtherProfileId?: string;   // Profile ID of who paid (link to other profile)
-  paidByOtherName?: string;        // Name of the person who paid (e.g., "John", "Mom") - fallback for non-profile users
-  
+  paidByOther?: boolean; // True if someone else paid this charge
+  paidByOtherProfileId?: string; // Profile ID of who paid (link to other profile)
+  paidByOtherName?: string; // Name of the person who paid (e.g., "John", "Mom") - fallback for non-profile users
+
   // Debt obligation for income (e.g., loan, advance payment that must be repaid)
-  hasDebtObligation?: boolean;     // True if this income has a debt that must be paid back
-  debtAmount?: number;             // Amount that needs to be paid back
-  debtDueDate?: string;            // Date when the debt must be paid (ISO string)
-  debtPaid?: boolean;              // True if the debt has been paid
-  debtPaidDate?: string;           // Date when the debt was paid (ISO string)
+  hasDebtObligation?: boolean; // True if this income has a debt that must be paid back
+  debtAmount?: number; // Amount that needs to be paid back
+  debtDueDate?: string; // Date when the debt must be paid (ISO string)
+  debtPaid?: boolean; // True if the debt has been paid
+  debtPaidDate?: string; // Date when the debt was paid (ISO string)
   linkedDebtTransactionId?: string; // ID of the expense transaction created when debt is paid
-  
+
   // Parent/Virtual Transaction System (for installments)
-  parentTransactionId?: string;    // If this is a virtual transaction, link to parent
-  isVirtual?: boolean;             // True if this is an auto-generated virtual transaction
-  isBudgetImpacting?: boolean;     // False for parent transactions (don't count in budget), true for virtual transactions
+  parentTransactionId?: string; // If this is a virtual transaction, link to parent
+  isVirtual?: boolean; // True if this is an auto-generated virtual transaction
+  isBudgetImpacting?: boolean; // False for parent transactions (don't count in budget), true for virtual transactions
 }
 
 export interface TransactionFilter {
