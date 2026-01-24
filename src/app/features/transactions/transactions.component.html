@@ -38,11 +38,47 @@
             Reconcile
           </button>
         </div>
-        <app-quick-action-button
-          [icon]="Building2"
-          [label]="showBankBalanceManagement ? 'Hide Bank Balance' : 'Manage Bank Balance'"
-          variant="secondary"
-          (clicked)="showBankBalanceManagement = !showBankBalanceManagement"
+        <div class="relative" (keydown.escape)="actionsMenuOpen.set(false)">
+          <app-quick-action-button
+            [icon]="ChevronDown"
+            label="Actions"
+            variant="secondary"
+            (clicked)="actionsMenuOpen.set(!actionsMenuOpen())"
+          />
+          @if (actionsMenuOpen()) {
+            <div class="absolute right-0 mt-2 w-60 rounded-lg border border-slate-200 bg-white shadow-lg z-30">
+              <div class="py-2">
+                <button
+                  type="button"
+                  (click)="onDownloadExpenseTemplate(); actionsMenuOpen.set(false)"
+                  class="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50"
+                >
+                  Download Expense Template
+                </button>
+                <button
+                  type="button"
+                  (click)="expenseImportInput.click(); actionsMenuOpen.set(false)"
+                  class="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50"
+                >
+                  Import Expenses
+                </button>
+                <button
+                  type="button"
+                  (click)="showBankBalanceManagement = !showBankBalanceManagement; actionsMenuOpen.set(false)"
+                  class="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50"
+                >
+                  {{ showBankBalanceManagement ? 'Hide Bank Balance' : 'Manage Bank Balance' }}
+                </button>
+              </div>
+            </div>
+          }
+        </div>
+        <input
+          #expenseImportInput
+          type="file"
+          accept=".xlsx"
+          class="hidden"
+          (change)="onImportExpensesFile($event)"
         />
         <app-quick-action-button
           [icon]="Plus"
@@ -185,9 +221,13 @@
     }
 
     <!-- Add Transaction Form -->
-    @if (showForm()) {
+    <app-modal
+      [isOpen]="showForm()"
+      [title]="editingTransactionId() ? 'Edit Transaction' : 'New Transaction'"
+      [maxWidthClass]="'max-w-5xl'"
+      (onClose)="closeTransactionModal()"
+    >
       <div class="transaction-form">
-        <h3 class="font-semibold text-slate-900 mb-4">{{ editingTransactionId() ? 'Edit Transaction' : 'New Transaction' }}</h3>
 
         <div class="form-row">
           <div class="form-group">
@@ -720,10 +760,10 @@
 
         <div class="form-actions">
           <button class="btn btn-primary" (click)="onSubmitTransaction()">Save Transaction</button>
-          <button class="btn btn-secondary" (click)="onAddTransaction()">Cancel</button>
+          <button class="btn btn-secondary" (click)="closeTransactionModal()">Cancel</button>
         </div>
       </div>
-    }
+    </app-modal>
 
     <!-- Summary Metrics -->
     <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">

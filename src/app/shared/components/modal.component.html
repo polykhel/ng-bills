@@ -4,7 +4,7 @@
     class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
     <div
       (click)="$event.stopPropagation()"
-      class="bg-white rounded-lg border border-slate-200 shadow-xl w-full max-w-md overflow-hidden max-h-[90vh] overflow-y-auto">
+      [class]="modalClass">
       <div class="flex justify-between items-center p-4 border-b border-slate-200 bg-white sticky top-0 z-10">
         <h3 class="text-lg font-semibold text-slate-900">{{ title }}</h3>
         <button

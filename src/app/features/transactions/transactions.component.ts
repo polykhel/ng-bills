@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, ChangeDetectorRef, Component, computed, effect
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import {
+  ChevronDown,
   Edit2,
   FileText,
   Filter,
@@ -30,10 +31,29 @@ import {
   StatementService,
   TransactionService,
   TransactionBucketService,
+  NotificationService,
 } from '@services';
-import { EmptyStateComponent, MetricCardComponent, QuickActionButtonComponent } from '@components';
+import { EmptyStateComponent, MetricCardComponent, ModalComponent, QuickActionButtonComponent } from '@components';
 import type { PaymentMethod, Transaction, TransactionFilter, TransactionType } from '@shared/types';
 import { format, parseISO, startOfMonth, endOfMonth, addMonths, subMonths, differenceInCalendarMonths, setDate } from 'date-fns';
+import { Workbook, Worksheet } from '@cj-tech-master/excelts';
+import type { Row, Cell } from '@cj-tech-master/excelts';
+
+type ExpenseTemplateLists = {
+  categories: string[];
+  paymentMethods: string[];
+  cards: string[];
+  bankAccounts: string[];
+  profiles: string[];
+  paidByOtherOptions: string[];
+};
+
+type ImportLookups = {
+  categoryMap: Map<string, string>;
+  cardMap: Map<string, string>;
+  bankMap: Map<string, string>;
+  profileMap: Map<string, string>;
+};
 
 /**
  * Transactions Page Component
@@ -48,6 +68,7 @@ import { format, parseISO, startOfMonth, endOfMonth, addMonths, subMonths, diffe
     CommonModule,
     FormsModule,
     LucideAngularModule,
+    ModalComponent,
     MetricCardComponent,
     QuickActionButtonComponent,
     EmptyStateComponent,
@@ -166,6 +187,7 @@ import { format, parseISO, startOfMonth, endOfMonth, addMonths, subMonths, diffe
 })
 export class TransactionsComponent {
   readonly Plus = Plus;
+  readonly ChevronDown = ChevronDown;
   readonly Filter = Filter;
   readonly TrendingUp = TrendingUp;
   readonly TrendingDown = TrendingDown;
@@ -185,12 +207,14 @@ export class TransactionsComponent {
   private appState = inject(AppStateService);
   protected profileService = inject(ProfileService);
   protected bankAccountService = inject(BankAccountService);
+  private notificationService = inject(NotificationService);
   protected bankBalanceService = inject(BankBalanceService);
   // Form state - using signals for better change detection
   protected showForm = signal<boolean>(false);
   protected editingTransactionId = signal<string | null>(null);
   protected formData: Partial<Transaction> = this.getEmptyForm();
   protected showBankBalanceManagement = false;
+  protected actionsMenuOpen = signal<boolean>(false);
   // Recurring/installment form state
   protected isRecurringTransaction = signal<boolean>(false);
   protected recurringType = signal<'installment' | 'subscription' | 'custom'>('subscription');
@@ -623,25 +647,565 @@ export class TransactionsComponent {
     return profilesMap;
   });
 
+  private readonly expenseTemplateHeaders = [
+    'date',
+    'description',
+    'amount',
+    'categoryName',
+    'paymentMethod',
+    'cardName',
+    'bankAccountName',
+    'fromBankAccountName',
+    'toBankAccountName',
+    'transferFee',
+    'paidByOther',
+    'paidByOtherProfileName',
+    'paidByOtherName',
+    'notes',
+  ];
+
+  protected async onDownloadExpenseTemplate(): Promise<void> {
+    try {
+      const workbook = new Workbook();
+      const templateSheet = workbook.addWorksheet('Template');
+      const listsSheet = workbook.addWorksheet('Lists', { state: 'hidden' });
+
+      const lists = this.buildExpenseTemplateLists();
+      const listRanges = this.populateListsSheet(listsSheet, lists);
+      this.populateTemplateSheet(templateSheet, listRanges);
+
+      const buffer = await workbook.xlsx.writeBuffer();
+      this.downloadExcelFile(buffer, 'expense-template.xlsx');
+    } catch (error) {
+      console.error('Failed to generate template:', error);
+      this.notificationService.error('Template failed', 'Unable to generate expense template.');
+    }
+  }
+
+  private buildExpenseTemplateLists(): ExpenseTemplateLists {
+    const categories = this.categories()
+      .filter((category) => category.type === 'expense' || category.type === 'both')
+      .map((category) => category.name);
+
+    const paymentMethods = ['cash', 'card', 'bank_transfer', 'bank_to_bank', 'other'];
+    const cards = this.cards().map((card) => `${card.bankName} ${card.cardName}`);
+    const bankAccounts = this.bankAccounts().map((account) => account.bankName);
+    const profiles = this.profileService.profiles().map((profile) => profile.name);
+    const paidByOtherOptions = ['TRUE', 'FALSE'];
+
+    return {
+      categories: this.ensureList(categories),
+      paymentMethods: this.ensureList(paymentMethods),
+      cards: this.ensureList(cards),
+      bankAccounts: this.ensureList(bankAccounts),
+      profiles: this.ensureList(profiles),
+      paidByOtherOptions: this.ensureList(paidByOtherOptions),
+    };
+  }
+
+  private populateListsSheet(sheet: Worksheet, lists: ExpenseTemplateLists): Record<string, string> {
+    const listConfig = [
+      { key: 'categoryName', values: lists.categories },
+      { key: 'paymentMethod', values: lists.paymentMethods },
+      { key: 'cardName', values: lists.cards },
+      { key: 'bankAccountName', values: lists.bankAccounts },
+      { key: 'fromBankAccountName', values: lists.bankAccounts },
+      { key: 'toBankAccountName', values: lists.bankAccounts },
+      { key: 'paidByOtherProfileName', values: lists.profiles },
+      { key: 'paidByOther', values: lists.paidByOtherOptions },
+    ];
+
+    const ranges: Record<string, string> = {};
+
+    listConfig.forEach((config, index) => {
+      const columnIndex = index + 1;
+      const columnLetter = this.getColumnLetter(columnIndex);
+      config.values.forEach((value, rowIndex) => {
+        sheet.getCell(rowIndex + 1, columnIndex).value = value;
+      });
+      const lastRow = Math.max(config.values.length, 1);
+      ranges[config.key] = `'Lists'!$${columnLetter}$1:$${columnLetter}$${lastRow}`;
+    });
+
+    return ranges;
+  }
+
+  private populateTemplateSheet(sheet: Worksheet, listRanges: Record<string, string>): void {
+    sheet.addRow(this.expenseTemplateHeaders);
+    sheet.views = [{ state: 'frozen', ySplit: 1 }];
+    const headerRow = sheet.getRow(1);
+    headerRow.eachCell((cell: Cell) => {
+      cell.font = { ...cell.font, bold: true };
+    });
+
+    const headerMap = new Map<string, number>();
+    this.expenseTemplateHeaders.forEach((header, index) => {
+      headerMap.set(header, index + 1);
+    });
+
+    const maxRows = 500;
+    const dateColumn = headerMap.get('date') ?? 1;
+    const amountColumn = headerMap.get('amount');
+    const transferFeeColumn = headerMap.get('transferFee');
+
+    const columnWidths: Record<string, number> = {
+      date: 14,
+      description: 34,
+      amount: 14,
+      categoryName: 22,
+      paymentMethod: 18,
+      cardName: 24,
+      bankAccountName: 22,
+      fromBankAccountName: 22,
+      toBankAccountName: 22,
+      transferFee: 14,
+      paidByOther: 12,
+      paidByOtherProfileName: 22,
+      paidByOtherName: 20,
+      notes: 28,
+    };
+
+    Object.entries(columnWidths).forEach(([key, width]) => {
+      const columnIndex = headerMap.get(key);
+      if (columnIndex) {
+        sheet.getColumn(columnIndex).width = width;
+      }
+    });
+
+    const listColumns = [
+      'categoryName',
+      'paymentMethod',
+      'cardName',
+      'bankAccountName',
+      'fromBankAccountName',
+      'toBankAccountName',
+      'paidByOtherProfileName',
+      'paidByOther',
+    ];
+
+    listColumns.forEach((key) => {
+      const columnIndex = headerMap.get(key);
+      const range = listRanges[key];
+      if (!columnIndex || !range) return;
+      for (let rowIndex = 2; rowIndex <= maxRows; rowIndex += 1) {
+        sheet.getCell(rowIndex, columnIndex).dataValidation = {
+          type: 'list',
+          allowBlank: true,
+          formulae: [range],
+        };
+      }
+    });
+
+    for (let rowIndex = 2; rowIndex <= maxRows; rowIndex += 1) {
+      sheet.getCell(rowIndex, dateColumn).numFmt = 'yyyy-mm-dd';
+      if (amountColumn) sheet.getCell(rowIndex, amountColumn).numFmt = '#,##0.00';
+      if (transferFeeColumn) sheet.getCell(rowIndex, transferFeeColumn).numFmt = '#,##0.00';
+    }
+  }
+
+  private ensureList(values: string[]): string[] {
+    const unique = [...new Set(values.map((value) => value.trim()).filter(Boolean))];
+    return unique.length > 0 ? unique : [''];
+  }
+
+  private getColumnLetter(columnIndex: number): string {
+    let index = columnIndex;
+    let letter = '';
+    while (index > 0) {
+      const remainder = (index - 1) % 26;
+      letter = String.fromCharCode(65 + remainder) + letter;
+      index = Math.floor((index - 1) / 26);
+    }
+    return letter;
+  }
+
+  private downloadExcelFile(buffer: ArrayBuffer | Uint8Array, filename: string): void {
+    const uint8Array = buffer instanceof Uint8Array 
+      ? buffer.slice()
+      : new Uint8Array(buffer);
+    const blob = new Blob([uint8Array as unknown as BlobPart], {
+      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    link.style.display = 'none';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  }
+
+  protected async onImportExpensesFile(event: Event): Promise<void> {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0];
+    if (!file) return;
+
+    try {
+      const profile = this.activeProfile();
+      if (!profile) {
+        this.notificationService.warning('Import blocked', 'Select a profile before importing.');
+        return;
+      }
+
+      const arrayBuffer = await file.arrayBuffer();
+      const workbook = new Workbook();
+      await workbook.xlsx.load(arrayBuffer);
+      const worksheet = workbook.worksheets[0];
+      if (!worksheet) {
+        this.notificationService.error('Import failed', 'No worksheet found in the file.');
+        return;
+      }
+
+      const headerRow = worksheet.getRow(1);
+      const headerMap = new Map<string, number>();
+      headerRow.eachCell((cell: Cell, colNumber: number) => {
+        const header = this.normalizeHeader(this.cellToString(cell.value));
+        if (header) {
+          headerMap.set(header, colNumber);
+        }
+      });
+
+      const requiredHeaders = ['date', 'description', 'amount', 'paymentmethod'];
+      const missingHeaders = requiredHeaders.filter((header) => !headerMap.has(header));
+      if (missingHeaders.length > 0) {
+        this.notificationService.error(
+          'Import failed',
+          `Missing columns: ${missingHeaders.join(', ')}.`,
+        );
+        return;
+      }
+
+      const lookups = this.buildImportLookups();
+      const errors: string[] = [];
+      const toImport: { row: Row; rowNumber: number }[] = [];
+      const columnIndexes = Array.from(headerMap.values());
+
+      worksheet.eachRow({ includeEmpty: true }, (row, rowNumber) => {
+        if (rowNumber < 2) return;
+        if (!this.rowHasContent(row, columnIndexes)) return;
+        toImport.push({ row, rowNumber });
+      });
+
+      let importedCount = 0;
+      for (const { row, rowNumber } of toImport) {
+        const result = this.parseExpenseRow(row, headerMap, lookups, rowNumber, profile.id);
+        if ('error' in result) {
+          errors.push(result.error);
+          continue;
+        }
+        await this.transactionService.addTransaction(result.transaction);
+        importedCount += 1;
+      }
+
+      if (importedCount === 0 && errors.length === 0) {
+        this.notificationService.warning('Import completed', 'No expense rows found.');
+        return;
+      }
+
+      if (errors.length > 0) {
+        const preview = errors.slice(0, 3).join(' | ');
+        const suffix = errors.length > 3 ? ' ...' : '';
+        this.notificationService.warning(
+          'Import completed with issues',
+          `${importedCount} imported, ${errors.length} skipped. ${preview}${suffix}`,
+        );
+      } else {
+        this.notificationService.success('Import completed', `${importedCount} expenses imported.`);
+      }
+    } catch (error) {
+      console.error('Import failed:', error);
+      this.notificationService.error('Import failed', 'Unable to read the Excel file.');
+    } finally {
+      input.value = '';
+    }
+  }
+
+  private buildImportLookups(): ImportLookups {
+    const categoryMap = new Map<string, string>();
+    this.categories()
+      .filter((category) => category.type === 'expense' || category.type === 'both')
+      .forEach((category) => {
+        categoryMap.set(this.normalizeLookup(category.name), category.id);
+      });
+
+    const cardMap = new Map<string, string>();
+    this.cards().forEach((card) => {
+      const name = `${card.bankName} ${card.cardName}`;
+      cardMap.set(this.normalizeLookup(name), card.id);
+    });
+
+    const bankMap = new Map<string, string>();
+    this.bankAccounts().forEach((account) => {
+      bankMap.set(this.normalizeLookup(account.bankName), account.id);
+    });
+
+    const profileMap = new Map<string, string>();
+    this.profileService.profiles().forEach((profile) => {
+      profileMap.set(this.normalizeLookup(profile.name), profile.id);
+    });
+
+    return { categoryMap, cardMap, bankMap, profileMap };
+  }
+
+  private parseExpenseRow(
+    row: Row,
+    headers: Map<string, number>,
+    lookups: ImportLookups,
+    rowNumber: number,
+    profileId: string,
+  ): { transaction: Transaction } | { error: string } {
+    const dateValue = this.getCellValue(row, headers.get('date'));
+    const descriptionValue = this.getCellValue(row, headers.get('description'));
+    const amountValue = this.getCellValue(row, headers.get('amount'));
+    const paymentMethodValue = this.getCellValue(row, headers.get('paymentmethod'));
+    const categoryValue = this.getCellValue(row, headers.get('categoryname'));
+    const cardValue = this.getCellValue(row, headers.get('cardname'));
+    const bankAccountValue = this.getCellValue(row, headers.get('bankaccountname'));
+    const fromBankValue = this.getCellValue(row, headers.get('frombankaccountname'));
+    const toBankValue = this.getCellValue(row, headers.get('tobankaccountname'));
+    const transferFeeValue = this.getCellValue(row, headers.get('transferfee'));
+    const paidByOtherValue = this.getCellValue(row, headers.get('paidbyother'));
+    const paidByOtherProfileValue = this.getCellValue(row, headers.get('paidbyotherprofilename'));
+    const paidByOtherNameValue = this.getCellValue(row, headers.get('paidbyothername'));
+    const notesValue = this.getCellValue(row, headers.get('notes'));
+
+    const date = this.parseDateValue(dateValue);
+    if (!date) {
+      return { error: `Row ${rowNumber}: invalid date.` };
+    }
+
+    const description = this.cellToString(descriptionValue);
+    if (!description) {
+      return { error: `Row ${rowNumber}: missing description.` };
+    }
+
+    const amount = this.parseNumberValue(amountValue);
+    if (amount === null || amount <= 0) {
+      return { error: `Row ${rowNumber}: invalid amount.` };
+    }
+
+    const paymentMethod = this.normalizePaymentMethod(this.cellToString(paymentMethodValue));
+    if (!paymentMethod) {
+      return { error: `Row ${rowNumber}: invalid payment method.` };
+    }
+
+    let categoryId = 'uncategorized';
+    const categoryName = this.cellToString(categoryValue);
+    if (categoryName) {
+      const categoryLookup = lookups.categoryMap.get(this.normalizeLookup(categoryName));
+      if (!categoryLookup) {
+        return { error: `Row ${rowNumber}: unknown category "${categoryName}".` };
+      }
+      categoryId = categoryLookup;
+    }
+
+    let cardId: string | undefined;
+    const cardName = this.cellToString(cardValue);
+    if (paymentMethod === 'card') {
+      if (!cardName) {
+        return { error: `Row ${rowNumber}: cardName required for card payments.` };
+      }
+      const cardLookup = lookups.cardMap.get(this.normalizeLookup(cardName));
+      if (!cardLookup) {
+        return { error: `Row ${rowNumber}: unknown card "${cardName}".` };
+      }
+      cardId = cardLookup;
+    } else if (cardName) {
+      const cardLookup = lookups.cardMap.get(this.normalizeLookup(cardName));
+      if (!cardLookup) {
+        return { error: `Row ${rowNumber}: unknown card "${cardName}".` };
+      }
+      cardId = cardLookup;
+    }
+
+    let bankId: string | undefined;
+    const bankAccountName = this.cellToString(bankAccountValue);
+    if (bankAccountName) {
+      const bankLookup = lookups.bankMap.get(this.normalizeLookup(bankAccountName));
+      if (!bankLookup) {
+        return { error: `Row ${rowNumber}: unknown bank account "${bankAccountName}".` };
+      }
+      bankId = bankLookup;
+    }
+
+    let fromBankId: string | undefined;
+    let toBankId: string | undefined;
+    const fromBankName = this.cellToString(fromBankValue);
+    const toBankName = this.cellToString(toBankValue);
+    if (paymentMethod === 'bank_to_bank') {
+      if (!fromBankName || !toBankName) {
+        return { error: `Row ${rowNumber}: from/to bank accounts required for bank_to_bank.` };
+      }
+      const fromLookup = lookups.bankMap.get(this.normalizeLookup(fromBankName));
+      const toLookup = lookups.bankMap.get(this.normalizeLookup(toBankName));
+      if (!fromLookup || !toLookup) {
+        return { error: `Row ${rowNumber}: unknown bank account in transfer.` };
+      }
+      fromBankId = fromLookup;
+      toBankId = toLookup;
+    }
+
+    const transferFee = this.parseNumberValue(transferFeeValue);
+    if (transferFee !== null && transferFee < 0) {
+      return { error: `Row ${rowNumber}: transfer fee must be positive.` };
+    }
+
+    const paidByOtherName = this.cellToString(paidByOtherNameValue);
+    const paidByOtherProfileName = this.cellToString(paidByOtherProfileValue);
+    let paidByOtherProfileId: string | undefined;
+    if (paidByOtherProfileName) {
+      const profileLookup = lookups.profileMap.get(this.normalizeLookup(paidByOtherProfileName));
+      if (!profileLookup) {
+        return { error: `Row ${rowNumber}: unknown profile "${paidByOtherProfileName}".` };
+      }
+      paidByOtherProfileId = profileLookup;
+    }
+
+    const paidByOtherFlag = this.parseBooleanValue(this.cellToString(paidByOtherValue));
+    const paidByOther = Boolean(paidByOtherFlag || paidByOtherProfileId || paidByOtherName);
+
+    const notes = this.cellToString(notesValue);
+
+    const transaction: Transaction = {
+      id: crypto.randomUUID(),
+      profileId,
+      type: 'expense',
+      amount,
+      date,
+      categoryId,
+      description,
+      notes: notes || undefined,
+      paymentMethod,
+      cardId,
+      bankId: paymentMethod === 'bank_transfer' ? bankId : undefined,
+      fromBankId,
+      toBankId,
+      transferFee: transferFee ?? undefined,
+      paidByOther,
+      paidByOtherProfileId,
+      paidByOtherName: paidByOtherName || undefined,
+      isRecurring: false,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+
+    return { transaction };
+  }
+
+  private getCellValue(row: Row, columnIndex?: number): unknown {
+    if (!columnIndex) return null;
+    return row.getCell(columnIndex).value;
+  }
+
+  private rowHasContent(row: Row, columnIndexes: number[]): boolean {
+    return columnIndexes.some((columnIndex) => {
+      const value = this.getCellValue(row, columnIndex);
+      if (value === null || value === undefined) return false;
+      if (typeof value === 'string') return value.trim().length > 0;
+      if (typeof value === 'number') return !Number.isNaN(value);
+      if (value instanceof Date) return true;
+      if (typeof value === 'object' && 'text' in value && typeof value.text === 'string') {
+        return value.text.trim().length > 0;
+      }
+      return true;
+    });
+  }
+
+  private normalizeHeader(value: string): string {
+    return value.trim().toLowerCase().replace(/[\s_-]+/g, '');
+  }
+
+  private normalizeLookup(value: string): string {
+    return value.trim().toLowerCase();
+  }
+
+  private normalizePaymentMethod(value: string): PaymentMethod | null {
+    const normalized = value.trim().toLowerCase().replace(/[\s-]+/g, '_');
+    if (!normalized) return null;
+    if (normalized === 'cash') return 'cash';
+    if (normalized === 'card' || normalized === 'credit_card' || normalized === 'creditcard') return 'card';
+    if (normalized === 'bank_transfer' || normalized === 'banktransfer') return 'bank_transfer';
+    if (normalized === 'bank_to_bank' || normalized === 'bank_to_bank_transfer' || normalized === 'banktobank') {
+      return 'bank_to_bank';
+    }
+    if (normalized === 'other') return 'other';
+    return null;
+  }
+
+  private parseBooleanValue(value: string): boolean | undefined {
+    const normalized = value.trim().toLowerCase();
+    if (!normalized) return undefined;
+    if (['true', 'yes', 'y', '1'].includes(normalized)) return true;
+    if (['false', 'no', 'n', '0'].includes(normalized)) return false;
+    return undefined;
+  }
+
+  private parseNumberValue(value: unknown): number | null {
+    if (value === null || value === undefined) return null;
+    if (typeof value === 'number') return value;
+    const asString = this.cellToString(value);
+    if (!asString) return null;
+    const normalized = asString.replace(/,/g, '');
+    const parsed = Number.parseFloat(normalized);
+    return Number.isNaN(parsed) ? null : parsed;
+  }
+
+  private parseDateValue(value: unknown): string | null {
+    if (!value) return null;
+    if (value instanceof Date) {
+      return format(value, 'yyyy-MM-dd');
+    }
+    if (typeof value === 'number' && Number.isFinite(value)) {
+      const excelEpoch = new Date(Math.round((value - 25569) * 86400 * 1000));
+      return format(excelEpoch, 'yyyy-MM-dd');
+    }
+    const asString = this.cellToString(value);
+    if (!asString) return null;
+    try {
+      return format(parseISO(asString), 'yyyy-MM-dd');
+    } catch {
+      const fallback = new Date(asString);
+      return Number.isNaN(fallback.getTime()) ? null : format(fallback, 'yyyy-MM-dd');
+    }
+  }
+
+  private cellToString(value: unknown): string {
+    if (value === null || value === undefined) return '';
+    if (typeof value === 'string') return value.trim();
+    if (typeof value === 'number' || typeof value === 'boolean') return String(value);
+    if (value instanceof Date) return format(value, 'yyyy-MM-dd');
+    if (typeof value === 'object') {
+      if ('text' in value && typeof value.text === 'string') {
+        return value.text.trim();
+      }
+      if ('result' in value) {
+        const resultValue = (value as { result?: unknown }).result;
+        return resultValue ? String(resultValue).trim() : '';
+      }
+      if ('richText' in value && Array.isArray((value as { richText?: Array<{ text?: string }> }).richText)) {
+        return (value as { richText: Array<{ text?: string }> }).richText
+          .map((part) => part.text ?? '')
+          .join('')
+          .trim();
+      }
+    }
+    return '';
+  }
+
   protected onAddTransaction(): void {
-    // If currently editing, clear the form and close it
-    if (this.editingTransactionId()) {
-      this.editingTransactionId.set(null);
-      this.formData = this.getEmptyForm();
-      this.resetRecurringForm();
-      this.showForm.set(false);
-      return;
-    }
-    // Otherwise toggle the form
-    const currentValue = this.showForm();
-    this.showForm.set(!currentValue);
-    if (!currentValue) {
-      this.formData = this.getEmptyForm();
-      this.resetRecurringForm();
-    } else {
-      this.formData = this.getEmptyForm();
-      this.resetRecurringForm();
-    }
+    this.editingTransactionId.set(null);
+    this.formData = this.getEmptyForm();
+    this.resetRecurringForm();
+    this.showForm.set(true);
+  }
+
+  protected closeTransactionModal(): void {
+    this.showForm.set(false);
+    this.editingTransactionId.set(null);
+    this.formData = this.getEmptyForm();
+    this.resetRecurringForm();
   }
 
   protected onEditTransaction(transaction: Transaction, event?: Event): void {
@@ -742,8 +1306,6 @@ export class TransactionsComponent {
     }
     
     this.showForm.set(true);
-    // Scroll to top to show the form
-    window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
   protected onFilter(): void {
@@ -1103,10 +1665,7 @@ export class TransactionsComponent {
         await this.transactionService.addTransaction(transaction);
       }
       
-      this.showForm.set(false);
-      this.editingTransactionId.set(null);
-      this.formData = this.getEmptyForm();
-      this.resetRecurringForm();
+      this.closeTransactionModal();
     } catch (error) {
       console.error('Error saving transaction:', error);
       alert('Failed to save transaction');
