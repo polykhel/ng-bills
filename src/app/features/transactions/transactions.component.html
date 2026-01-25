@@ -13,31 +13,6 @@
         <p class="text-slate-600 mt-1">Track your income and expenses</p>
       </div>
       <div class="flex items-center gap-3">
-        <!-- View Mode Toggle -->
-        <div class="flex items-center gap-2 bg-slate-100 rounded-lg p-1">
-          <button
-            type="button"
-            (click)="viewMode.set('spending')"
-            [class.bg-white]="viewMode() === 'spending'"
-            [class.shadow-sm]="viewMode() === 'spending'"
-            [class.text-slate-900]="viewMode() === 'spending'"
-            [class.text-slate-600]="viewMode() !== 'spending'"
-            class="px-4 py-2 text-sm font-medium rounded-md transition-all"
-          >
-            Spending
-          </button>
-          <button
-            type="button"
-            (click)="viewMode.set('reconcile')"
-            [class.bg-white]="viewMode() === 'reconcile'"
-            [class.shadow-sm]="viewMode() === 'reconcile'"
-            [class.text-slate-900]="viewMode() === 'reconcile'"
-            [class.text-slate-600]="viewMode() !== 'reconcile'"
-            class="px-4 py-2 text-sm font-medium rounded-md transition-all"
-          >
-            Reconcile
-          </button>
-        </div>
         <div class="relative" (keydown.escape)="actionsMenuOpen.set(false)">
           <app-quick-action-button
             [icon]="ChevronDown"
@@ -89,23 +64,8 @@
       </div>
     </div>
 
-    <!-- View Mode Description -->
-    <div class="mb-4 text-sm text-slate-600">
-      @if (viewMode() === 'spending') {
-        <span>
-          Spending shows transactions up to today for real-time cash flow.
-          Reconcile groups by statement period so you can verify charges.
-        </span>
-      } @else {
-        <span>
-          Reconcile groups transactions by statement period so you can verify charges.
-          Spending shows only what has happened up to today.
-        </span>
-      }
-    </div>
-
-    <!-- Buffer Calculation Alert (Spending Mode only) -->
-    @if (viewMode() === 'spending') {
+    <!-- Buffer Calculation Alert -->
+    @if (true) {
       @if (bufferInfo().isDangerZone) {
         <div class="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
           <div class="flex items-center justify-between">
@@ -914,14 +874,6 @@
               </button>
             }
           </div>
-          <button
-            type="button"
-            (click)="hidePaidTransactions.set(!hidePaidTransactions())"
-            [ngClass]="hidePaidTransactions() ? 'bg-blue-100 text-blue-700 border-blue-300' : 'bg-slate-50 text-slate-700 border-slate-300'"
-            class="px-3 py-1.5 text-sm border rounded-md transition-colors hover:bg-slate-100"
-          >
-            {{ hidePaidTransactions() ? 'Hide Paid' : 'Show All' }}
-          </button>
           <select [ngModel]="filterType()" (ngModelChange)="filterType.set($event)" class="px-3 py-1.5 text-sm border border-slate-300 rounded-md">
             <option value="all">All Types</option>
             <option value="income">Income</option>
@@ -945,17 +897,6 @@
             <option [value]="true">Recurring Only</option>
             <option [value]="false">One-time Only</option>
           </select>
-          <!-- Reconcile Toggle (only in Reconcile Mode) -->
-          @if (viewMode() === 'reconcile') {
-            <button
-              type="button"
-              (click)="clearVerifiedTransactions()"
-              class="px-3 py-1.5 text-sm border border-slate-300 rounded-md hover:bg-slate-100 transition-colors"
-              title="Clear all verified transactions"
-            >
-              Clear Verified
-            </button>
-          }
         </div>
         <button
           type="button"
@@ -983,35 +924,20 @@
       } @else {
         <div>
           @for (transaction of filteredTransactions(); track transaction.id) {
-            <div 
-              class="transaction-item"
-              [ngClass]="{
-                'opacity-50': viewMode() === 'reconcile' && isTransactionVerified(transaction.id),
-                'cursor-pointer': viewMode() === 'reconcile'
-              }"
-              (click)="viewMode() === 'reconcile' ? toggleTransactionVerified(transaction.id) : null"
-            >
+            <div class="transaction-item">
               <div class="transaction-info" style="display: flex; align-items: center; gap: 8px;">
-                <!-- Verified Checkmark (Reconcile Mode) -->
-                @if (viewMode() === 'reconcile') {
-                  <div class="flex-shrink-0">
-                    @if (isTransactionVerified(transaction.id)) {
-                      <lucide-angular [img]="CheckCircle2" [size]="20" class="text-green-600" />
-                    } @else {
-                      <lucide-angular [img]="Circle" [size]="20" class="text-slate-300" />
-                    }
-                  </div>
-                }
                 <div style="flex: 1;">
                   <div class="transaction-description">
                   <div class="flex items-center gap-2 flex-wrap">
                     <span>{{ transaction.description }}</span>
-                    <!-- Bucket Badge -->
-                    <span 
-                      [ngClass]="getBucketBadgeClass(getTransactionBucket(transaction))"
-                      class="inline-block px-2 py-0.5 text-xs rounded font-medium border">
-                      {{ getBucketLabel(getTransactionBucket(transaction)) }}
-                    </span>
+                    <!-- Bucket Badge (skip Direct Expense) -->
+                    @if (getTransactionBucket(transaction) !== 'direct') {
+                      <span 
+                        [ngClass]="getBucketBadgeClass(getTransactionBucket(transaction))"
+                        class="inline-block px-2 py-0.5 text-xs rounded font-medium border">
+                        {{ getBucketLabel(getTransactionBucket(transaction)) }}
+                      </span>
+                    }
                     <!-- Virtual Transaction Indicator -->
                     @if (transaction.isVirtual) {
                       <span class="inline-block px-2 py-0.5 text-xs rounded font-medium bg-slate-100 text-slate-600 border border-slate-200">
@@ -1037,9 +963,7 @@
                         }"
                         class="inline-block px-2 py-0.5 text-xs rounded font-semibold">
                         📅 {{ getInstallmentProgress(transaction) }}
-                        @if (transaction.isPaid) {
-                          ✓ Paid
-                        } @else if (isInstallmentCompleted(transaction)) {
+                        @if (isInstallmentCompleted(transaction)) {
                           ✓ Complete
                         }
                       </span>
@@ -1098,6 +1022,9 @@
                     } @else if (!multiProfileMode() && transaction.profileId !== activeProfile()?.id) {
                       • {{ getProfileName(transaction.profileId) }}'s transaction
                     }
+                    @if (transaction.notes) {
+                      • {{ transaction.notes }}
+                    }
                   </div>
                 </div>
               </div>
@@ -1106,18 +1033,8 @@
                 {{ transaction.type === 'income' ? '+' : '-' }}₱{{ transaction.amount.toLocaleString() }}
               </div>
               <div class="transaction-actions">
-                <button 
-                  type="button" 
-                  class="icon-btn" 
-                  (click)="onMarkPaid(transaction, $event)" 
-                  [title]="transaction.isPaid ? 'Mark as Unpaid' : 'Mark as Paid'"
-                  [ngClass]="{'text-green-600': transaction.isPaid, 'text-slate-400': !transaction.isPaid}"
-                >
-                  @if (transaction.isPaid) {
-                    <lucide-angular [img]="CheckCircle2" [size]="18" />
-                  } @else {
-                    <lucide-angular [img]="Circle" [size]="18" />
-                  }
+                <button type="button" class="icon-btn" (click)="onCloneTransaction(transaction, $event)" title="Clone">
+                  <lucide-angular [img]="Copy" [size]="18" />
                 </button>
                 <button type="button" class="icon-btn" (click)="onEditTransaction(transaction, $event)" title="Edit">
                   <lucide-angular [img]="Edit2" [size]="18" />
@@ -1146,6 +1063,45 @@
       </div>
     </div>
   }
+
+  <!-- Delete Recurring Transaction Modal -->
+  <app-modal
+    [isOpen]="deleteRecurringModal().isOpen"
+    title="Delete Recurring Transaction"
+    (onClose)="closeDeleteRecurringModal()"
+  >
+    <div class="space-y-4">
+      <p class="text-slate-700">
+        This is a recurring transaction: <strong>{{ deleteRecurringModal().transactionDescription }}</strong>
+      </p>
+      <p class="text-sm text-slate-600">
+        What would you like to delete?
+      </p>
+      <div class="flex flex-col gap-3">
+        <button
+          type="button"
+          (click)="deleteRecurringTransaction(false)"
+          class="btn btn-secondary w-full text-left"
+        >
+          Delete just this instance
+        </button>
+        <button
+          type="button"
+          (click)="deleteRecurringTransaction(true)"
+          class="w-full px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors text-left"
+        >
+          Delete this instance and all future instances
+        </button>
+        <button
+          type="button"
+          (click)="closeDeleteRecurringModal()"
+          class="btn btn-ghost w-full"
+        >
+          Cancel
+        </button>
+      </div>
+    </div>
+  </app-modal>
 
   <!-- Skipped Transactions Modal -->
   <app-modal

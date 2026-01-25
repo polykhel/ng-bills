@@ -1,6 +1,10 @@
 import { effect, inject, Injectable, signal } from '@angular/core';
 import {
+  addDays,
   addMonths,
+  addQuarters,
+  addWeeks,
+  addYears,
   differenceInCalendarMonths,
   endOfMonth,
   format,
@@ -110,6 +114,17 @@ export class TransactionService {
       // Auto-link to credit card bill if applicable
       if (transaction.paymentMethod === 'card' && transaction.cardId) {
         await this.autoCreateOrUpdateBill(transaction);
+      }
+
+      // Auto-generate future transactions for recurring subscriptions/custom (not installments)
+      if (
+        transaction.isRecurring &&
+        transaction.recurringRule &&
+        (transaction.recurringRule.type === 'subscription' || transaction.recurringRule.type === 'custom') &&
+        transaction.recurringRule.nextDate &&
+        transaction.recurringRule.frequency
+      ) {
+        await this.generateFutureRecurringTransactions(transaction);
       }
     }
   }
@@ -1254,6 +1269,81 @@ export class TransactionService {
     }
 
     return virtualTransactions;
+  }
+
+  /**
+   * Generate future transactions for recurring subscriptions/custom transactions
+   * Creates transactions for the next 12 months based on frequency
+   */
+  private async generateFutureRecurringTransactions(parent: Transaction): Promise<void> {
+    if (!parent.recurringRule || !parent.recurringRule.nextDate || !parent.recurringRule.frequency) {
+      return;
+    }
+
+    const { frequency, nextDate } = parent.recurringRule;
+    const startDate = parseISO(nextDate);
+    const today = startOfDay(new Date());
+    const endDate = addYears(today, 1); // Generate for next 12 months
+
+    const futureTransactions: Transaction[] = [];
+    let currentDate = startDate;
+    let occurrence = 1;
+
+    // Generate transactions until we reach 12 months ahead
+    while (isAfter(endDate, currentDate) && occurrence <= 52) { // Max 52 occurrences (weekly for a year)
+      if (isAfter(currentDate, today) || format(currentDate, 'yyyy-MM-dd') === format(today, 'yyyy-MM-dd')) {
+        // Only create future transactions (not the first one which is already created)
+        if (occurrence > 1) {
+          const futureTx: Transaction = {
+            ...parent,
+            id: crypto.randomUUID(),
+            date: format(currentDate, 'yyyy-MM-dd'),
+            isEstimate: true, // Mark as estimate since it's in the future
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+            recurringRule: {
+              ...parent.recurringRule,
+              lastDate: undefined, // Clear lastDate for future transactions
+            },
+          };
+
+          futureTransactions.push(futureTx);
+        }
+      }
+
+      // Calculate next date based on frequency
+      switch (frequency) {
+        case 'weekly':
+          currentDate = addWeeks(currentDate, 1);
+          break;
+        case 'biweekly':
+          currentDate = addWeeks(currentDate, 2);
+          break;
+        case 'monthly':
+          currentDate = addMonths(currentDate, 1);
+          break;
+        case 'quarterly':
+          currentDate = addQuarters(currentDate, 1);
+          break;
+        case 'yearly':
+          currentDate = addYears(currentDate, 1);
+          break;
+        default:
+          return; // Unknown frequency, stop generating
+      }
+
+      occurrence++;
+    }
+
+    // Add all future transactions
+    for (const futureTx of futureTransactions) {
+      this.transactionsSignal.update((prev) => [...prev, futureTx]);
+
+      // Auto-link to credit card bill if applicable
+      if (futureTx.paymentMethod === 'card' && futureTx.cardId) {
+        await this.autoCreateOrUpdateBill(futureTx);
+      }
+    }
   }
 
   /**

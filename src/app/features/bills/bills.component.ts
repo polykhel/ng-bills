@@ -38,9 +38,8 @@ interface BillWithDetails {
   cardName: string;
   bankName: string;
   color: string;
-  dueDate: Date;
+  dueDate: Date; // Payment due date (uses manualPaymentDate override if set)
   settlementDate: Date; // Calculated settlement date
-  paymentDate: Date; // Calculated payment date
   amount: number;
   isPaid: boolean;
   paidAmount: number;
@@ -254,11 +253,23 @@ export class BillsComponent {
             return parseISO(a.date).getTime() - parseISO(b.date).getTime();
           });
 
+        // Calculate due/payment date (they're the same)
+        // Check for manual override first, then customDueDate, then calculate from monthStr
         let dueDate: Date;
-        if (statement?.customDueDate) {
-            dueDate = parseISO(statement.customDueDate);
+        if (statement?.manualPaymentDate) {
+          // Use manual payment date override
+          dueDate = parseISO(statement.manualPaymentDate);
+        } else if (statement?.customDueDate) {
+          // Legacy: use customDueDate if no manual override
+          dueDate = parseISO(statement.customDueDate);
         } else {
-            dueDate = new Date(`${monthStr}-${String(card.paymentDay).padStart(2, '0')}`);
+          // Calculate from payment month (monthStr) and paymentDay
+          const paymentMonthDate = parseISO(`${monthStr}-01`);
+          const paymentYear = paymentMonthDate.getFullYear();
+          const paymentMonthIndex = paymentMonthDate.getMonth();
+          const lastDayOfPaymentMonth = getDate(lastDayOfMonth(paymentMonthDate));
+          const finalPaymentDay = Math.min(card.paymentDay, lastDayOfPaymentMonth);
+          dueDate = new Date(paymentYear, paymentMonthIndex, finalPaymentDay);
         }
 
         let amount = statement?.amount || transactions.reduce((sum, t) => sum + t.amount, 0);
@@ -275,18 +286,14 @@ export class BillsComponent {
             }
         }
 
-        // Calculate settlement and payment dates
+        // Calculate settlement date
         // Use the first transaction date or current month start as reference
         const referenceDate = transactions.length > 0 
           ? parseISO(transactions[0].date)
           : parseISO(`${monthStr}-01`);
         
-        // Get settlement and payment dates using TransactionBucketService
         const settlementDay = card.settlementDay;
-        const paymentDay = card.paymentDay;
-        
         let settlementDate: Date;
-        let paymentDate: Date;
         
         // Check for manual overrides
         if (statement?.manualSettlementDate) {
@@ -302,17 +309,6 @@ export class BillsComponent {
           const sd = Math.min(settlementDay, lastDayOfSettlementMonth);
           settlementDate = new Date(settlementYear, settlementMonthIndex, sd);
         }
-        
-        if (statement?.manualPaymentDate) {
-          paymentDate = parseISO(statement.manualPaymentDate);
-        } else {
-          // Calculate payment date using TransactionBucketService logic
-          paymentDate = this.transactionBucketService.getAssignedPaymentDate(referenceDate, {
-            settlementDay: card.settlementDay,
-            paymentDay: card.paymentDay,
-            id: card.id
-          });
-        }
 
         const bill: BillWithDetails = {
           statement,
@@ -320,9 +316,8 @@ export class BillsComponent {
           cardName: card.cardName,
           bankName: card.bankName,
           color: card.color,
-          dueDate,
+          dueDate, // dueDate is already calculated above and matches payment date
           settlementDate,
-          paymentDate,
           amount,
           isPaid: statement?.isPaid || false,
           paidAmount: statement?.paidAmount || 0,
@@ -588,14 +583,14 @@ export class BillsComponent {
     const form = this.billFormState();
     const profile = this.activeProfile();
 
-    if (!profile || !form.cardId || !form.amount) {
+    if (!profile || !form.cardId) {
       alert('Please fill in all required fields');
       return;
     }
 
     try {
       const amount = parseFloat(form.amount);
-      if (isNaN(amount) || amount <= 0) {
+      if (isNaN(amount) || amount < 0) {
         alert('Please enter a valid amount');
         return;
       }
@@ -741,33 +736,36 @@ export class BillsComponent {
     statement: Statement | null;
     cardId: string;
     cardName: string;
+    monthStr: string;
     settlementDate: string;
-    paymentDate: string;
+    dueDate: string; // Renamed from paymentDate for consistency
     field: 'settlement' | 'payment' | null;
   }>({
     isOpen: false,
     statement: null,
     cardId: '',
     cardName: '',
+    monthStr: '',
     settlementDate: '',
-    paymentDate: '',
+    dueDate: '',
     field: null,
   });
 
   protected openDateOverrideModal(bill: BillWithDetails, field: 'settlement' | 'payment'): void {
-    if (!bill.statement) return;
-
+    const monthStr = format(this.viewDate(), 'yyyy-MM');
+    
     this.dateOverrideModal.set({
       isOpen: true,
-      statement: bill.statement,
+      statement: bill.statement || null,
       cardId: bill.cardId,
       cardName: `${bill.bankName} ${bill.cardName}`,
-      settlementDate: bill.statement.manualSettlementDate 
+      monthStr, // Store monthStr for creating statement if needed
+      settlementDate: bill.statement?.manualSettlementDate 
         ? bill.statement.manualSettlementDate.split('T')[0]
         : format(bill.settlementDate, 'yyyy-MM-dd'),
-      paymentDate: bill.statement.manualPaymentDate
+      dueDate: bill.statement?.manualPaymentDate
         ? bill.statement.manualPaymentDate.split('T')[0]
-        : format(bill.paymentDate, 'yyyy-MM-dd'),
+        : format(bill.dueDate, 'yyyy-MM-dd'),
       field,
     });
   }
@@ -782,7 +780,7 @@ export class BillsComponent {
 
   protected async saveDateOverride(): Promise<void> {
     const modal = this.dateOverrideModal();
-    if (!modal.statement || !modal.field) return;
+    if (!modal.field || !modal.cardId || !modal.monthStr) return;
 
     try {
       const updates: Partial<Statement> = {};
@@ -790,12 +788,13 @@ export class BillsComponent {
       if (modal.field === 'settlement') {
         updates.manualSettlementDate = modal.settlementDate || null;
       } else if (modal.field === 'payment') {
-        updates.manualPaymentDate = modal.paymentDate || null;
+        updates.manualPaymentDate = modal.dueDate || null;
       }
 
+      // updateStatement will create the statement if it doesn't exist
       this.statementService.updateStatement(
-        modal.statement.cardId,
-        modal.statement.monthStr,
+        modal.cardId,
+        modal.monthStr,
         updates
       );
 
@@ -825,12 +824,16 @@ export class BillsComponent {
 
   protected clearDateOverrideAndClose(): void {
     const modal = this.dateOverrideModal();
-    if (!modal.statement || !modal.field) return;
+    if (!modal.field || !modal.cardId || !modal.monthStr) return;
 
-    const bill = this.billsWithDetails().find(b => b.cardId === modal.cardId);
-    if (bill) {
-      this.clearDateOverride(bill, modal.field);
+    const updates: Partial<Statement> = {};
+    if (modal.field === 'settlement') {
+      updates.manualSettlementDate = null;
+    } else if (modal.field === 'payment') {
+      updates.manualPaymentDate = null;
     }
+
+    this.statementService.updateStatement(modal.cardId, modal.monthStr, updates);
     this.closeDateOverrideModal();
   }
 }

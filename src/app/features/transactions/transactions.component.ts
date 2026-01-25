@@ -9,6 +9,7 @@ import {
   CheckCircle2,
   ChevronDown,
   Circle,
+  Copy,
   Edit2,
   FileText,
   Filter,
@@ -41,8 +42,10 @@ import {
   differenceInCalendarMonths,
   endOfMonth,
   format,
+  isAfter,
   parseISO,
   setDate,
+  startOfDay,
   startOfMonth,
   subMonths
 } from 'date-fns';
@@ -208,6 +211,7 @@ export class TransactionsComponent {
   readonly FileText = FileText;
   readonly Edit2 = Edit2;
   readonly Trash2 = Trash2;
+  readonly Copy = Copy;
   readonly X = X;
   readonly Building2 = Building2;
   readonly Search = Search;
@@ -331,7 +335,17 @@ export class TransactionsComponent {
   protected showAllTransactions = signal<boolean>(false);
   protected filterFromDate = signal<string | ''>('');
   protected filterToDate = signal<string | ''>('');
-  protected hidePaidTransactions = signal<boolean>(false);
+
+  // Delete confirmation modal for recurring transactions
+  protected deleteRecurringModal = signal<{
+    isOpen: boolean;
+    transactionId: string | null;
+    transactionDescription: string;
+  }>({
+    isOpen: false,
+    transactionId: null,
+    transactionDescription: '',
+  });
   // Search and sort state
   protected searchQuery = signal<string>('');
   protected sortField = signal<'date' | 'amount' | 'description'>('date');
@@ -353,6 +367,7 @@ export class TransactionsComponent {
       .reduce((sum, t) => sum + t.amount, 0);
 
     const totalExpenses = transactions
+      .filter((t) => t.type === 'expense')
       .reduce((sum, t) => sum + t.amount, 0);
 
     return {
@@ -367,11 +382,6 @@ export class TransactionsComponent {
   private transactionBucketService = inject(TransactionBucketService);
   private utils = inject(UtilsService);
 
-  // View mode: 'spending' or 'reconcile'
-  protected viewMode = signal<'spending' | 'reconcile'>('spending');
-
-  // Reconcile mode: verified transaction IDs (UI state only, not persisted)
-  protected verifiedTransactionIds = signal<Set<string>>(new Set());
 
   // Buffer calculation
   protected bufferInfo = computed(() => {
@@ -397,9 +407,8 @@ export class TransactionsComponent {
   // In multi-profile mode: shows transactions from selected profiles
   // View mode affects what transactions are shown:
   // - Spending Mode: Shows transactions where date <= today (immediate reality)
-  // - Reconcile Mode: Shows transactions grouped by statement cycle
+  // Always shows transactions for the current month
   protected filteredTransactions = computed(() => {
-    const viewMode = this.viewMode();
     const multiMode = this.multiProfileMode();
     const selectedIds = this.selectedProfileIds();
     const profile = this.activeProfile();
@@ -476,36 +485,6 @@ export class TransactionsComponent {
       relevantTransactions = relevantTransactions.filter((t) => {
           return t.date >= monthStart && t.date <= monthEnd;
       });
-    }
-
-    // Filter out paid transactions if hidePaidTransactions is enabled
-    const hidePaid = this.hidePaidTransactions();
-    if (hidePaid) {
-      relevantTransactions = relevantTransactions.filter((t) => {
-        // Hide if transaction is marked as paid
-        if (t.isPaid) return false;
-        // Hide if it's a completed installment
-        if (this.isInstallment(t) && this.isInstallmentCompleted(t)) return false;
-        return true;
-      });
-    }
-
-    // View mode filtering
-    if (viewMode === 'spending') {
-      // Spending Mode: Only show transactions where date <= today (immediate reality)
-      const today = format(new Date(), 'yyyy-MM-dd');
-      relevantTransactions = relevantTransactions.filter((t) => {
-        // Only show transactions up to today
-        if (t.date > today) return false;
-        // Include if it's budget impacting (default true if not set)
-        if (t.isBudgetImpacting === false) return false;
-        // Exclude parent transactions (they're for net worth tracking only)
-        return !this.transactionBucketService.isParentTransaction(t);
-      });
-    } else {
-      // Reconcile Mode: Show transactions grouped by statement cycle
-      // Include all transactions, grouping will be done in template
-      // Filter by statement period using TransactionBucketService
     }
 
     // Apply search filter
@@ -612,7 +591,9 @@ export class TransactionsComponent {
   // Memoized lookups for performance
   private cardNameCache = computed(() => {
     const cardsMap = new Map<string, string>();
-    this.cards().forEach((card) => {
+    // Get all cards from all profiles to handle cross-profile transactions
+    const allCards = this.cardService.cards();
+    allCards.forEach((card) => {
       cardsMap.set(card.id, `${card.bankName} ${card.cardName}`);
     });
     return cardsMap;
@@ -1426,7 +1407,6 @@ export class TransactionsComponent {
     this.showAllTransactions.set(false);
     this.filterFromDate.set('');
     this.filterToDate.set('');
-    this.hidePaidTransactions.set(false);
     this.searchQuery.set('');
     this.sortField.set('date');
     this.sortDirection.set('desc');
@@ -1449,22 +1429,32 @@ export class TransactionsComponent {
   }
 
   /**
-   * Mark a transaction as paid
+   * Clone a transaction
    */
-  protected async onMarkPaid(transaction: Transaction, event?: Event): Promise<void> {
+  protected async onCloneTransaction(transaction: Transaction, event?: Event): Promise<void> {
     if (event) {
       event.stopPropagation();
     }
 
     try {
-      if (transaction.isPaid) {
-        await this.transactionService.markTransactionUnpaid(transaction.id);
-      } else {
-        await this.transactionService.markTransactionPaid(transaction.id);
-      }
+      // Create a new transaction based on the existing one
+      const clonedTransaction: Transaction = {
+        ...transaction,
+        id: crypto.randomUUID(),
+        date: new Date().toISOString().split('T')[0], // Use today's date
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        // Remove payment-related fields
+        isPaid: false,
+        paidDate: undefined,
+        paidAmount: undefined,
+      };
+
+      await this.transactionService.addTransaction(clonedTransaction);
+      this.notificationService.success('Success', 'Transaction cloned successfully');
     } catch (error) {
-      console.error('Error marking transaction as paid/unpaid:', error);
-      alert('Failed to update transaction status');
+      console.error('Error cloning transaction:', error);
+      this.notificationService.error('Error', 'Failed to clone transaction');
     }
   }
 
@@ -1568,33 +1558,6 @@ export class TransactionsComponent {
     }
   }
 
-  /**
-   * Toggle transaction verified state (for reconcile mode)
-   */
-  protected toggleTransactionVerified(transactionId: string): void {
-    const current = this.verifiedTransactionIds();
-    const next = new Set(current);
-    if (next.has(transactionId)) {
-      next.delete(transactionId);
-    } else {
-      next.add(transactionId);
-    }
-    this.verifiedTransactionIds.set(next);
-  }
-
-  /**
-   * Check if transaction is verified
-   */
-  protected isTransactionVerified(transactionId: string): boolean {
-    return this.verifiedTransactionIds().has(transactionId);
-  }
-
-  /**
-   * Clear all verified transactions
-   */
-  protected clearVerifiedTransactions(): void {
-    this.verifiedTransactionIds.set(new Set());
-  }
 
   protected async onSubmitTransaction(): Promise<void> {
     if (!this.validateForm()) {
@@ -1887,7 +1850,22 @@ export class TransactionsComponent {
       return;
     }
 
-    // Standard delete for non-installment transactions
+    // Check if this is a recurring transaction (subscription or custom)
+    if (
+      transaction.isRecurring &&
+      transaction.recurringRule &&
+      (transaction.recurringRule.type === 'subscription' || transaction.recurringRule.type === 'custom')
+    ) {
+      // Show modal to ask if they want to delete just this instance or all future instances
+      this.deleteRecurringModal.set({
+        isOpen: true,
+        transactionId: id,
+        transactionDescription: transaction.description,
+      });
+      return;
+    }
+
+    // Standard delete for non-recurring transactions
     if (!confirm('Delete this transaction?')) return;
 
     try {
@@ -1895,6 +1873,65 @@ export class TransactionsComponent {
     } catch (error) {
       console.error('Error deleting transaction:', error);
       alert('Failed to delete transaction');
+    }
+  }
+
+  protected closeDeleteRecurringModal(): void {
+    this.deleteRecurringModal.set({
+      isOpen: false,
+      transactionId: null,
+      transactionDescription: '',
+    });
+  }
+
+  protected async deleteRecurringTransaction(deleteAll: boolean): Promise<void> {
+    const modal = this.deleteRecurringModal();
+    if (!modal.transactionId) return;
+
+    const transaction = this.transactionService.getTransaction(modal.transactionId);
+    if (!transaction || !transaction.recurringRule) return;
+
+    try {
+      if (deleteAll) {
+        // Delete all future instances of this recurring transaction
+        await this.deleteAllFutureRecurringTransactions(transaction);
+      } else {
+        // Delete just this instance
+        await this.transactionService.deleteTransaction(modal.transactionId);
+      }
+      this.closeDeleteRecurringModal();
+    } catch (error) {
+      console.error('Error deleting recurring transaction:', error);
+      alert('Failed to delete transaction');
+    }
+  }
+
+  private async deleteAllFutureRecurringTransactions(transaction: Transaction): Promise<void> {
+    if (!transaction.recurringRule) return;
+
+    const allTransactions = this.transactionService.transactions();
+    const transactionDate = parseISO(transaction.date);
+    const recurringRule = transaction.recurringRule;
+
+    // Find all future transactions that match this recurring pattern
+    // Match by: same description, same recurringRule type/frequency, same amount, same profileId
+    const matchingTransactions = allTransactions.filter((t) => {
+      if (t.id === transaction.id) return true; // Include the current one
+      if (!t.isRecurring || !t.recurringRule) return false;
+      if (t.profileId !== transaction.profileId) return false;
+      if (t.description !== transaction.description) return false;
+      if (t.amount !== transaction.amount) return false;
+      if (t.recurringRule.type !== recurringRule.type) return false;
+      if (t.recurringRule.frequency !== recurringRule.frequency) return false;
+      
+      // Only delete future transactions (date >= current transaction date)
+      const tDate = parseISO(t.date);
+      return !isAfter(transactionDate, tDate); // t.date >= transaction.date
+    });
+
+    // Delete all matching transactions
+    for (const tx of matchingTransactions) {
+      await this.transactionService.deleteTransaction(tx.id);
     }
   }
 
