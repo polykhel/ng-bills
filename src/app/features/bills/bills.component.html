@@ -328,7 +328,14 @@
                       @for (transaction of bill.transactions; track transaction.id) {
                         <div class="transaction-item">
                           <div class="flex-1">
-                            <div class="font-medium text-slate-900">{{ transaction.description }}</div>
+                            <div class="font-medium text-slate-900">
+                              {{ transaction.description }}
+                              @if (transaction.recurringRule?.type === 'installment' && transaction.recurringRule?.currentTerm && transaction.recurringRule?.totalTerms) {
+                                <span class="text-xs font-normal text-slate-500 ml-1">
+                                  ({{ transaction.recurringRule?.currentTerm }}/{{ transaction.recurringRule?.totalTerms }})
+                                </span>
+                              }
+                            </div>
                             <div class="text-xs text-slate-500 mt-0.5">
                               {{ formatDate(transaction.date) }}
                               @if (transaction.notes) {
