@@ -1145,19 +1145,12 @@ export class TransactionService {
         customDueDate: format(dueDate, 'yyyy-MM-dd'),
       });
 
-      console.log(
-        `✅ Bill auto-created: ${card.cardName} - ${monthStr} (settlement: ${settlementDay}) - $${amountToApply} ${transaction.type === 'income' ? '(refund)' : ''}`,
-      );
     } else {
       // UPDATE: Add/subtract from existing bill
       const newAmount = (existingStatement.amount || 0) + amountToApply;
       this.statementService.updateStatement(cardId, monthStr, {
         amount: newAmount,
       });
-
-      console.log(
-        `✅ Bill updated: ${card.cardName} - ${monthStr} - New total: $${newAmount} ${transaction.type === 'income' ? '(refund applied)' : ''}`,
-      );
     }
   }
 

@@ -507,15 +507,6 @@ export class TransactionsComponent {
       // Include all transactions, grouping will be done in template
       // Filter by statement period using TransactionBucketService
     }
-    relevantTransactions
-      .filter((a) => {
-        return (
-          a.cardId === '915caa53-553d-4dad-af17-69b6f1f6bfbc' &&
-          a.recurringRule?.type === 'installment' &&
-          a.description.toLowerCase().includes('recliner')
-        );
-      })
-      .forEach((a) => console.log(a));
 
     // Apply search filter
     const searchQuery = this.searchQuery().trim().toLowerCase();
