@@ -49,8 +49,8 @@ export class CardFormModalComponent implements OnInit {
     this.form = this.fb.group({
       bankName: ['', [Validators.required]],
       cardName: ['', [Validators.required]],
-      dueDay: [15, [Validators.required, Validators.min(1), Validators.max(31)]],
-      cutoffDay: [10, [Validators.required, Validators.min(1), Validators.max(31)]],
+      settlementDay: [10, [Validators.required, Validators.min(1), Validators.max(31)]],
+      paymentDay: [15, [Validators.required, Validators.min(1), Validators.max(31)]],
       color: ['#334155', [Validators.required]],
       isCashCard: [false]
     });

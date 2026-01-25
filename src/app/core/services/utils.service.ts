@@ -32,14 +32,6 @@ export class UtilsService {
   }
 
   /**
-   * Round a number to 2 decimal places (for currency)
-   * Uses Math.round to avoid floating point precision issues
-   */
-  roundCurrency(amount: number): number {
-    return Math.round(amount * 100) / 100;
-  }
-
-  /**
    * Format a number as currency
    */
   formatCurrency(amount: number): string {
@@ -64,125 +56,149 @@ export class UtilsService {
   }
 
   /**
-   * Evaluate a mathematical expression (supports +, -, *, /)
-   * If the input is just a number, returns that number
-   * If the input is an expression like "5000+4000-2000", evaluates it
-   */
-  evaluateMathExpression(expression: string): number | null {
-    // Handle null/undefined input
-    if (!expression) {
-      return null;
-    }
-    
-    // Remove spaces
-    const cleaned = expression.trim().replace(/\s/g, '');
-    
-    if (!cleaned) {
-      return null;
-    }
-
-    // Check if it's just a simple number
-    const simpleNumber = parseFloat(cleaned);
-    if (!isNaN(simpleNumber) && /^-?\d+\.?\d*$/.test(cleaned)) {
-      return simpleNumber;
-    }
-
-    // Validate expression contains only numbers and operators
-    if (!/^[\d+\-*/().]+$/.test(cleaned)) {
-      return null;
-    }
-
-    try {
-      // Use Function constructor for safe evaluation
-      // This is safer than eval() as it doesn't have access to local scope
-      const result = new Function('return ' + cleaned)();
-      
-      if (typeof result === 'number' && !isNaN(result) && isFinite(result)) {
-        return result;
-      }
-      
-      return null;
-    } catch {
-      return null;
-    }
-  }
-
-  /**
-   * Get the statement month date for a transaction based on cutoff-aware logic
+   * Get the payment month date for a transaction based on Settlement Date (SD) and Payment Date (PD) logic
    * Uses postingDate if available, otherwise falls back to transaction date
    * 
    * @param transaction Transaction with date and optional postingDate
-   * @param cutoffDay The card's cutoff day (1-31)
-   * @returns Date representing the start of the statement month
+   * @param settlementDay The card's settlement day (1-31)
+   * @param paymentDay The card's payment day (1-31)
+   * @returns Date representing the start of the payment month
    */
-  getStatementMonthForTransaction(transaction: { description: string, date: string; postingDate?: string; recurringRule?: { type: string } }, cutoffDay: number): Date {
-    // Use postingDate for cutoff calculation if available
-    if (transaction.postingDate) {
-      return this.getStatementMonth(parseISO(transaction.postingDate), cutoffDay, true);
-    }
+  getPaymentMonthForTransaction(transaction: { description: string, date: string; postingDate?: string; recurringRule?: { type: string } }, settlementDay: number, paymentDay: number): Date {
+    // Use postingDate for settlement calculation if available
+    const dateToUse = transaction.postingDate ? parseISO(transaction.postingDate) : parseISO(transaction.date);
+    const isPostingDate = !!transaction.postingDate;
 
-    // For installments, if no posting date is present, treat the transaction date as the posting date.
-    // This ensures that if the date equals the cutoff day, it is included in the current billing cycle
-    // (similar to how posting dates behave) rather than being pushed to the next cycle.
     if (transaction.recurringRule?.type === 'installment') {
       return startOfMonth(parseISO(transaction.date));
     }
 
-    return this.getStatementMonth(parseISO(transaction.date), cutoffDay, false);
+    return this.getPaymentMonth(dateToUse, settlementDay, paymentDay, isPostingDate);
   }
 
   /**
-   * Get the statement month date based on cutoff-aware logic
+   * @deprecated Use getPaymentMonthForTransaction instead. This method is kept for backward compatibility.
+   * Get the statement month date for a transaction based on settlement-aware logic
+   * Uses postingDate if available, otherwise falls back to transaction date
+   * 
+   * @param transaction Transaction with date and optional postingDate
+   * @param settlementDay The card's settlement day (1-31) - replaces cutoffDay
+   * @returns Date representing the start of the statement month
+   */
+  getStatementMonthForTransaction(transaction: { description: string, date: string; postingDate?: string; recurringRule?: { type: string } }, settlementDay: number): Date {
+    // Use postingDate for settlement calculation if available
+    if (transaction.postingDate) {
+      return this.getStatementMonth(parseISO(transaction.postingDate), settlementDay, true);
+    }
+
+    if (transaction.recurringRule?.type === 'installment') {
+      return startOfMonth(parseISO(transaction.date));
+    }
+
+    return this.getStatementMonth(parseISO(transaction.date), settlementDay, false);
+  }
+
+  /**
+   * Get the payment month date based on Settlement Date (SD) and Payment Date (PD) logic
    * 
    * Logic:
-   * - If transaction day >= cutoffDay: belongs to NEXT month's statement (Payment Month logic)
-   * - If transaction day < cutoffDay: belongs to THIS month's statement (Payment Month logic)
+   * 1. Determine Cycle Shift: If dayOfMonth >= settlementDay, cycleShift = 1 (belongs to next month's settlement). Otherwise, cycleShift = 0.
+   * 2. Determine Payment Offset: If paymentDay < settlementDay, paymentShift = 1 (pays the following month). Otherwise, paymentShift = 0 (pays the same month).
+   * 3. Return Value: addMonths(startOfMonth(date), cycleShift + paymentShift)
    * 
-   * @param dateForCutoff The date to use for cutoff calculation (transaction date or posting date)
-   * @param cutoffDay The card's cutoff day (1-31)
+   * Examples:
+   * - Card A (SD 21, PD 12): Dec 22 -> (1+1) -> Feb
+   * - Card B (SD 9, PD 27): Jan 10 -> (1+0) -> Feb
+   * 
+   * @param dateForSettlement The date to use for settlement calculation (transaction date or posting date)
+   * @param settlementDay The card's settlement day (1-31)
+   * @param paymentDay The card's payment day (1-31) - required for new logic
+   * @param isPostingDate Whether the date is a posting date (affects boundary condition)
+   * @returns Date representing the start of the payment month
+   */
+  getPaymentMonth(dateForSettlement: Date, settlementDay: number, paymentDay: number, isPostingDate: boolean = false): Date {
+    const dayOfMonth = dateForSettlement.getDate();
+    
+    // Determine Cycle Shift: If dayOfMonth >= settlementDay, cycleShift = 1, else cycleShift = 0
+    // For posting dates, use > instead of >= (boundary condition)
+    const cycleShift = isPostingDate 
+      ? (dayOfMonth > settlementDay ? 1 : 0)
+      : (dayOfMonth >= settlementDay ? 1 : 0);
+
+    // Determine Payment Offset: If paymentDay < settlementDay, paymentShift = 1, else paymentShift = 0
+    const paymentShift = paymentDay < settlementDay ? 1 : 0;
+
+    // Return: addMonths(startOfMonth(date), cycleShift + paymentShift)
+    return addMonths(startOfMonth(dateForSettlement), cycleShift + paymentShift);
+  }
+
+  /**
+   * @deprecated Use getPaymentMonth instead. This method is kept for backward compatibility.
+   * Get the statement month date based on settlement-aware logic
+   * 
+   * Logic:
+   * - If transaction day >= settlementDay: belongs to NEXT month's statement (Payment Month logic)
+   * - If transaction day < settlementDay: belongs to THIS month's statement (Payment Month logic)
+   * 
+   * @param dateForSettlement The date to use for settlement calculation (transaction date or posting date)
+   * @param settlementDay The card's settlement day (1-31) - replaces cutoffDay
    * @param isPostingDate Whether the date is a posting date (affects boundary condition)
    * @returns Date representing the start of the statement month
    */
-  getStatementMonth(dateForCutoff: Date, cutoffDay: number, isPostingDate: boolean = false): Date {
-    const dayOfMonth = dateForCutoff.getDate();
+  getStatementMonth(dateForSettlement: Date, settlementDay: number, isPostingDate: boolean = false): Date {
+    const dayOfMonth = dateForSettlement.getDate();
     
     // Determine if transaction falls into the next billing cycle
     let isNextCycle: boolean;
     
     if (isPostingDate) {
       // If using Posting Date:
-      // - Posting Date == Cutoff Day -> Included in CURRENT cycle (due next month)
-      // - Posting Date > Cutoff Day -> Included in NEXT cycle (due in 2 months)
-      isNextCycle = dayOfMonth > cutoffDay;
+      // - Posting Date == Settlement Day -> Included in CURRENT cycle (due next month)
+      // - Posting Date > Settlement Day -> Included in NEXT cycle (due in 2 months)
+      isNextCycle = dayOfMonth > settlementDay;
     } else {
       // If using Transaction Date (default/fallback):
-      // - Transaction Date == Cutoff Day -> Assumed to post later -> NEXT cycle (due in 2 months)
-      // - Transaction Date < Cutoff Day -> Included in CURRENT cycle (due next month)
-      isNextCycle = dayOfMonth >= cutoffDay;
+      // - Transaction Date == Settlement Day -> Assumed to post later -> NEXT cycle (due in 2 months)
+      // - Transaction Date < Settlement Day -> Included in CURRENT cycle (due next month)
+      isNextCycle = dayOfMonth >= settlementDay;
     }
 
     if (isNextCycle) {
-      // Transaction is at or after cutoff (or assumed to be) → belongs to NEXT month's statement (due in 2 months)
-      // Example: Dec 22 (cutoff 21) -> Bill Period Dec 21-Jan 20 -> Due Feb 10
+      // Transaction is at or after settlement (or assumed to be) → belongs to NEXT month's statement (due in 2 months)
+      // Example: Dec 22 (settlement 21) -> Bill Period Dec 21-Jan 20 -> Due Feb 10
       // We want to return "Feb" (Payment Month)
-      return addMonths(startOfMonth(dateForCutoff), 2);
+      return addMonths(startOfMonth(dateForSettlement), 2);
     } else {
-      // Transaction is before cutoff → belongs to THIS month's statement (due next month)
-      // Example: Jan 10 (cutoff 21) -> Bill Period Dec 21-Jan 20 -> Due Feb 10
+      // Transaction is before settlement → belongs to THIS month's statement (due next month)
+      // Example: Jan 10 (settlement 21) -> Bill Period Dec 21-Jan 20 -> Due Feb 10
       // We want to return "Feb" (Payment Month)
-      return addMonths(startOfMonth(dateForCutoff), 1);
+      return addMonths(startOfMonth(dateForSettlement), 1);
     }
   }
 
   /**
+   * Get the payment month string (yyyy-MM format) for a transaction
+   * 
+   * @param transaction Transaction with date and optional postingDate
+   * @param settlementDay The card's settlement day (1-31)
+   * @param paymentDay The card's payment day (1-31)
+   * @returns Payment month string in 'yyyy-MM' format
+   */
+  getPaymentMonthStrForTransaction(transaction: { description: string, date: string; postingDate?: string; recurringRule?: { type: string } }, settlementDay: number, paymentDay: number): string {
+    const paymentMonth = this.getPaymentMonthForTransaction(transaction, settlementDay, paymentDay);
+    return format(paymentMonth, 'yyyy-MM');
+  }
+
+  /**
+   * @deprecated Use getPaymentMonthStrForTransaction instead. This method is kept for backward compatibility.
    * Get the statement month string (yyyy-MM format) for a transaction
    * 
    * @param transaction Transaction with date and optional postingDate
-   * @param cutoffDay The card's cutoff day (1-31)
+   * @param settlementDay The card's settlement day (1-31) - replaces cutoffDay
    * @returns Statement month string in 'yyyy-MM' format
    */
-  getStatementMonthStrForTransaction(transaction: { description: string, date: string; postingDate?: string; recurringRule?: { type: string } }, cutoffDay: number): string {
-    const statementMonth = this.getStatementMonthForTransaction(transaction, cutoffDay);
+  getStatementMonthStrForTransaction(transaction: { description: string, date: string; postingDate?: string; recurringRule?: { type: string } }, settlementDay: number): string {
+    const statementMonth = this.getStatementMonthForTransaction(transaction, settlementDay);
     return format(statementMonth, 'yyyy-MM');
   }
 }

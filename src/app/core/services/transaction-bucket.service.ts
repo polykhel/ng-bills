@@ -1,8 +1,6 @@
 import { inject, Injectable } from '@angular/core';
-import { TransactionService } from './transaction.service';
 import { CardService } from './card.service';
 import { StatementService } from './statement.service';
-import { BankBalanceService } from './bank-balance.service';
 import { ProfileService } from './profile.service';
 import type { StatementPeriod, Transaction, TransactionBucket } from '@shared/types';
 import {
@@ -30,10 +28,8 @@ import {
   providedIn: 'root',
 })
 export class TransactionBucketService {
-  private transactionService = inject(TransactionService);
   private cardService = inject(CardService);
   private statementService = inject(StatementService);
-  private bankBalanceService = inject(BankBalanceService);
   private profileService = inject(ProfileService);
 
   /**
@@ -77,7 +73,7 @@ export class TransactionBucketService {
   }
 
   /**
-   * Get statement period for a card based on cutoff day
+   * Get statement period for a card based on settlement day
    * Returns the period (start/end dates) for a given month string
    */
   getStatementPeriod(cardId: string, monthStr: string): StatementPeriod | null {
@@ -87,25 +83,25 @@ export class TransactionBucketService {
     // Parse the month string (yyyy-MM)
     // monthStr is now the Payment Month (e.g. Feb)
     const [year, month] = monthStr.split('-').map(Number);
-    // Shift back to get the Cutoff Month (e.g. Jan) logic uses
+    // Shift back to get the Settlement Month (e.g. Jan) logic uses
     const monthStart = addMonths(new Date(year, month - 1, 1), -1);
 
-    // Statement period: from cutoff day of previous month to cutoff day - 1 of current month
-    // Example: If cutoff is 20, statement period for Feb is Jan 20 - Feb 19
+    // Statement period: from settlement day of previous month to settlement day - 1 of current month
+    // Example: If settlement is 20, statement period for Feb is Jan 20 - Feb 19
     const prevMonth = addMonths(monthStart, -1);
-    const cutoffDay = card.cutoffDay;
+    const settlementDay = card.settlementDay;
 
-    // Start: cutoff day of previous month
-    const periodStart = setDate(prevMonth, Math.min(cutoffDay, getDate(lastDayOfMonth(prevMonth))));
+    // Start: settlement day of previous month
+    const periodStart = setDate(prevMonth, Math.min(settlementDay, getDate(lastDayOfMonth(prevMonth))));
 
-    // End: cutoff day - 1 of current month
+    // End: settlement day - 1 of current month
     const periodEnd = setDate(
       monthStart,
-      Math.min(cutoffDay - 1, getDate(lastDayOfMonth(monthStart))),
+      Math.min(settlementDay - 1, getDate(lastDayOfMonth(monthStart))),
     );
 
-    // If cutoff is 1, end should be last day of previous month
-    if (cutoffDay === 1) {
+    // If settlement is 1, end should be last day of previous month
+    if (settlementDay === 1) {
       const lastDay = lastDayOfMonth(prevMonth);
       return {
         start: format(setDate(prevMonth, 1), 'yyyy-MM-dd'),
@@ -140,43 +136,6 @@ export class TransactionBucketService {
     });
   }
 
-  /**
-   * Calculate buffer: Total Balance - Total Credit Card Debt
-   * Returns negative value if debt exceeds balance (danger zone)
-   */
-  calculateBuffer(
-    profileId: string,
-    monthStr: string,
-  ): {
-    totalBalance: number;
-    totalCreditCardDebt: number;
-    buffer: number;
-    isDangerZone: boolean;
-  } {
-    // Get total bank balance
-    const totalBalance = this.bankBalanceService.getBankBalance(profileId, monthStr) || 0;
-
-    // Get all credit card statements for this month
-    const cards = this.cardService.getCardsForProfiles([profileId]);
-    let totalCreditCardDebt = 0;
-
-    for (const card of cards) {
-      const statement = this.statementService.getStatementForMonth(card.id, monthStr);
-      if (statement && !statement.isPaid) {
-        totalCreditCardDebt += statement.amount || 0;
-      }
-    }
-
-    const buffer = totalBalance - totalCreditCardDebt;
-    const isDangerZone = buffer < 0;
-
-    return {
-      totalBalance,
-      totalCreditCardDebt,
-      buffer,
-      isDangerZone,
-    };
-  }
 
   /**
    * Auto-increment current term for an installment based on start date
@@ -245,5 +204,101 @@ export class TransactionBucketService {
    */
   getTransactionsForMonth(transactions: Transaction[], monthStr: string): Transaction[] {
     return transactions.filter((t) => this.belongsToCurrentMonth(t, monthStr));
+  }
+
+  /**
+   * Get payment month for a transaction based on Settlement Date (SD) and Payment Date (PD) logic
+   * 
+   * Logic:
+   * 1. Determine Cycle Shift: If dayOfMonth >= settlementDay, cycleShift = 1 (belongs to next month's settlement). Otherwise, cycleShift = 0.
+   * 2. Determine Payment Offset: If paymentDay < settlementDay, paymentShift = 1 (pays the following month). Otherwise, paymentShift = 0 (pays the same month).
+   * 3. Return Value: addMonths(startOfMonth(date), cycleShift + paymentShift)
+   * 
+   * Examples:
+   * - Card A (SD 21, PD 12): Dec 22 -> (1+1) -> Feb
+   * - Card B (SD 9, PD 27): Jan 10 -> (1+0) -> Feb
+   * 
+   * @param date Transaction date
+   * @param card Card with settlementDay and paymentDay
+   * @returns Date representing the start of the payment month
+   */
+  getPaymentMonth(date: Date, card: { settlementDay: number; paymentDay: number }): Date {
+    const dayOfMonth = getDate(date);
+    const settlementDay = card.settlementDay;
+    const paymentDay = card.paymentDay;
+
+    // Determine Cycle Shift: If dayOfMonth >= settlementDay, cycleShift = 1, else cycleShift = 0
+    const cycleShift = dayOfMonth >= settlementDay ? 1 : 0;
+
+    // Determine Payment Offset: If paymentDay < settlementDay, paymentShift = 1, else paymentShift = 0
+    const paymentShift = paymentDay < settlementDay ? 1 : 0;
+
+    // Return: addMonths(startOfMonth(date), cycleShift + paymentShift)
+    return addMonths(startOfMonth(date), cycleShift + paymentShift);
+  }
+
+  /**
+   * Get assigned payment date for a transaction based on Settlement Date (SD) and Payment Date (PD) model
+   * 
+   * Step 1: Determine the Settlement Month
+   *   - If txnDate.day > card.settlementDay, settlement occurs in txnDate.month + 1
+   *   - Otherwise, it's txnDate.month
+   * 
+   * Step 2: Determine the Payment Month
+   *   - If card.paymentDay > card.settlementDay, payment is in the SAME month as settlement
+   *   - If card.paymentDay < card.settlementDay, payment is in the month AFTER settlement
+   * 
+   * Step 3: Check Overrides
+   *   - Query StatementService for a manual override for that specific Settlement Month/Year
+   *   - If found, return the manualPaymentDate
+   * 
+   * Step 4: Fallback
+   *   - Return the calculated date using the paymentDay and the determined Payment Month/Year
+   * 
+   * @param txnDate Transaction date
+   * @param card Card with settlementDay and paymentDay
+   * @returns Date when payment is due (ISO string)
+   */
+  getAssignedPaymentDate(txnDate: Date, card: { settlementDay: number; paymentDay: number; id: string }): Date {
+    // Step 1: Determine Settlement Month
+    const txnDay = getDate(txnDate);
+    const settlementDay = card.settlementDay;
+    let settlementMonth: Date;
+    
+    if (txnDay > settlementDay) {
+      // Settlement occurs in the next month
+      settlementMonth = addMonths(startOfMonth(txnDate), 1);
+    } else {
+      // Settlement occurs in the same month as transaction
+      settlementMonth = startOfMonth(txnDate);
+    }
+
+    // Step 2: Determine Payment Month
+    const paymentDay = card.paymentDay;
+    let paymentMonth: Date;
+    if (paymentDay > settlementDay) {
+      // Payment is in the SAME month as settlement
+      paymentMonth = settlementMonth;
+    } else {
+      // Payment is in the month AFTER settlement
+      paymentMonth = addMonths(settlementMonth, 1);
+    }
+
+    // Step 3: Check for manual overrides
+    const settlementMonthStr = format(settlementMonth, 'yyyy-MM');
+    const statement = this.statementService.getStatementForMonth(card.id, settlementMonthStr);
+    
+    if (statement?.manualPaymentDate) {
+      // Use manual override
+      return parseISO(statement.manualPaymentDate);
+    }
+
+    // Step 4: Calculate payment date using paymentDay and paymentMonth
+    const paymentYear = paymentMonth.getFullYear();
+    const paymentMonthIndex = paymentMonth.getMonth();
+    const lastDayOfPaymentMonth = getDate(lastDayOfMonth(paymentMonth));
+    const finalPaymentDay = Math.min(paymentDay, lastDayOfPaymentMonth);
+    
+    return new Date(paymentYear, paymentMonthIndex, finalPaymentDay);
   }
 }

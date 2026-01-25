@@ -280,8 +280,8 @@ export class TransactionsComponent {
     return undefined;
   });
 
-  // Computed: Cutoff preview badge info (Task 3)
-  // Uses cutoff-aware logic: day >= cutoff → next month's statement, else this month's
+  // Computed: Payment Date preview badge info
+  // Uses SD/PD logic to calculate when payment is due
   protected cutoffPreview = computed(() => {
     if (this.formData.paymentMethod !== 'card' || !this.formData.cardId || !this.formData.date) {
       return null;
@@ -291,10 +291,13 @@ export class TransactionsComponent {
       const card = this.cardService.getCardById(this.formData.cardId);
       if (!card) return null;
 
-      // Use shared utility function for cutoff-aware statement month calculation
+      // Use TransactionBucketService to get payment month and date
       const transactionDate = parseISO(this.formData.date);
-      const statementDate = this.utils.getStatementMonth(transactionDate, card.cutoffDay);
-      const monthStr = format(statementDate, 'yyyy-MM');
+      const paymentMonth = this.transactionBucketService.getPaymentMonth(transactionDate, {
+        settlementDay: card.settlementDay,
+        paymentDay: card.paymentDay,
+      });
+      const monthStr = format(paymentMonth, 'yyyy-MM');
 
       const period = this.transactionBucketService.getStatementPeriod(
         this.formData.cardId,
@@ -302,15 +305,18 @@ export class TransactionsComponent {
       );
       if (!period) return null;
 
-      // Calculate due date for the statement
-      const dueDate = new Date(period.monthStr + '-01');
-      const statementDueDate = new Date(dueDate.getFullYear(), dueDate.getMonth(), card.dueDay);
-      const isCurrentCycle = period.monthStr === format(this.viewDate(), 'yyyy-MM');
+      // Calculate payment date using TransactionBucketService
+      const paymentDate = this.transactionBucketService.getAssignedPaymentDate(transactionDate, {
+        settlementDay: card.settlementDay,
+        paymentDay: card.paymentDay,
+        id: card.id,
+      });
+      const isCurrentCycle = monthStr === format(this.viewDate(), 'yyyy-MM');
 
       return {
         period,
-        statementMonth: format(parseISO(period.monthStr + '-01'), 'MMM yyyy'),
-        dueDate: format(statementDueDate, 'MMM d'),
+        statementMonth: format(paymentMonth, 'MMM yyyy'),
+        paymentDate: format(paymentDate, 'MMM d, yyyy'),
         isCurrentCycle,
       };
     } catch {
@@ -374,7 +380,7 @@ export class TransactionsComponent {
       return { totalBalance: 0, totalCreditCardDebt: 0, buffer: 0, isDangerZone: false };
     }
     const monthStr = format(this.viewDate(), 'yyyy-MM');
-    return this.transactionBucketService.calculateBuffer(profile.id, monthStr);
+    return this.bankBalanceService.calculateBuffer(profile.id, monthStr);
   });
 
   // Viewable transactions: filters out parent installment transactions only
@@ -556,7 +562,7 @@ export class TransactionsComponent {
     const card = this.cardService.getCardById(cardId);
     if (!card) return undefined;
     const currentMonth = startOfMonth(this.viewDate());
-    const dueDate = setDate(currentMonth, card.dueDay);
+    const dueDate = setDate(currentMonth, card.paymentDay);
     return format(dueDate, 'yyyy-MM-dd');
   }
 
@@ -2256,29 +2262,4 @@ export class TransactionsComponent {
     return this.utils.formatCurrency(amount);
   }
 
-  /**
-   * Check if a credit card transaction's statement is paid
-   * Uses cutoff-aware logic to determine which statement the transaction belongs to
-   */
-  private isCreditCardStatementPaid(transaction: Transaction): boolean {
-    if (transaction.paymentMethod !== 'card' || !transaction.cardId) {
-      return true; // Not a credit card transaction, consider it "paid" (counts immediately)
-    }
-
-    const card = this.cardService.getCardById(transaction.cardId);
-    if (!card) {
-      return true; // Card not found, default to counting it
-    }
-
-    // Determine which statement month this transaction belongs to (cutoff-aware)
-    // Use shared utility function for consistent logic
-    const transactionDate = parseISO(transaction.date);
-    const statementDate = this.utils.getStatementMonth(transactionDate, card.cutoffDay);
-    const monthStr = format(statementDate, 'yyyy-MM');
-    const statement = this.statementService.getStatementForMonth(transaction.cardId, monthStr);
-
-    // If no statement exists yet, it's not paid (don't count it)
-    // If statement exists, check if it's paid
-    return statement ? statement.isPaid : false;
-  }
 }

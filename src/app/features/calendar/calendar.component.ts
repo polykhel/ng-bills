@@ -151,7 +151,7 @@ export class CalendarComponent {
         .filter(card => !card.isCashCard)
         .map(card => {
           const stmt = this.monthlyStatements.find(s => s.cardId === card.id);
-          let targetDate = setDate(this.viewDate, card.dueDay);
+          let targetDate = setDate(this.viewDate, card.paymentDay);
           if (stmt?.customDueDate) {
             const parsed = parseISO(stmt.customDueDate);
             if (isValid(parsed)) targetDate = parsed;

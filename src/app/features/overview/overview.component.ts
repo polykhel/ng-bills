@@ -139,10 +139,10 @@ export class OverviewComponent {
         if (statement.customDueDate) {
           dueDate = parseISO(statement.customDueDate);
           if (!isValid(dueDate)) {
-            dueDate = setDate(startOfMonth(parseISO(`${monthStr}-01`)), card.dueDay);
+            dueDate = setDate(startOfMonth(parseISO(`${monthStr}-01`)), card.paymentDay);
           }
         } else {
-          dueDate = setDate(startOfMonth(parseISO(`${monthStr}-01`)), card.dueDay);
+          dueDate = setDate(startOfMonth(parseISO(`${monthStr}-01`)), card.paymentDay);
         }
 
         const dueDateNormalized = startOfDay(dueDate);
@@ -245,10 +245,12 @@ export class OverviewComponent {
         if (t.paymentMethod === 'card' && t.cardId) {
           const card = allCards.find((c) => c.id === t.cardId);
           if (card) {
-            // Determine which statement month this transaction belongs to (cutoff-aware)
+            // Determine which payment month this transaction belongs to (SD/PD-aware)
             // Use shared utility function for consistent logic
-            const statementDate = this.utils.getStatementMonthForTransaction(t, card.cutoffDay);
-            const monthStr = format(statementDate, 'yyyy-MM');
+            const settlementDay = card.settlementDay;
+            const paymentDay = card.paymentDay;
+            const paymentMonth = this.utils.getPaymentMonthForTransaction(t, settlementDay, paymentDay);
+            const monthStr = format(paymentMonth, 'yyyy-MM');
             const statement = statements.find(
               (s) => s.cardId === t.cardId && s.monthStr === monthStr,
             );
@@ -324,10 +326,10 @@ export class OverviewComponent {
         dueDate = parseISO(statement.customDueDate);
         if (!isValid(dueDate)) {
           // Fallback to default if custom date is invalid
-          dueDate = setDate(monthDate, card.dueDay);
+          dueDate = setDate(monthDate, card.paymentDay);
         }
       } else {
-        dueDate = setDate(monthDate, card.dueDay);
+        dueDate = setDate(monthDate, card.paymentDay);
       }
 
       if (!isValid(dueDate)) continue;

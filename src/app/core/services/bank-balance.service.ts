@@ -3,6 +3,8 @@ import { IndexedDBService, STORES } from './indexeddb.service';
 import { ProfileService } from './profile.service';
 import { TransactionService } from './transaction.service';
 import { BankAccountService } from './bank-account.service';
+import { CardService } from './card.service';
+import { StatementService } from './statement.service';
 import { format, startOfMonth } from 'date-fns';
 import type { BankBalance } from '@shared/types';
 
@@ -18,6 +20,8 @@ export class BankBalanceService {
 
   private transactionService = inject(TransactionService);
   private bankAccountService = inject(BankAccountService);
+  private cardService = inject(CardService);
+  private statementService = inject(StatementService);
 
   constructor(
     private idb: IndexedDBService,
@@ -215,5 +219,43 @@ export class BankBalanceService {
     // Note: Bills due within 7 days are calculated in OverviewComponent
     // This method returns the base current liquid balance
     return currentLiquidBalance;
+  }
+
+  /**
+   * Calculate buffer: Total Balance - Total Credit Card Debt
+   * Returns negative value if debt exceeds balance (danger zone)
+   */
+  calculateBuffer(
+    profileId: string,
+    monthStr: string,
+  ): {
+    totalBalance: number;
+    totalCreditCardDebt: number;
+    buffer: number;
+    isDangerZone: boolean;
+  } {
+    // Get total bank balance
+    const totalBalance = this.getBankBalance(profileId, monthStr) || 0;
+
+    // Get all credit card statements for this month
+    const cards = this.cardService.getCardsForProfiles([profileId]);
+    let totalCreditCardDebt = 0;
+
+    for (const card of cards) {
+      const statement = this.statementService.getStatementForMonth(card.id, monthStr);
+      if (statement && !statement.isPaid) {
+        totalCreditCardDebt += statement.amount || 0;
+      }
+    }
+
+    const buffer = totalBalance - totalCreditCardDebt;
+    const isDangerZone = buffer < 0;
+
+    return {
+      totalBalance,
+      totalCreditCardDebt,
+      buffer,
+      isDangerZone,
+    };
   }
 }

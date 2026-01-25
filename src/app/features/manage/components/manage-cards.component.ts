@@ -62,10 +62,10 @@ export class ManageCardsComponent {
           return a.bankName.localeCompare(b.bankName) * dir;
         case 'cardName':
           return a.cardName.localeCompare(b.cardName) * dir;
-        case 'dueDay':
-          return (a.dueDay - b.dueDay) * dir;
-        case 'cutoffDay':
-          return (a.cutoffDay - b.cutoffDay) * dir;
+        case 'paymentDay':
+          return (a.paymentDay - b.paymentDay) * dir;
+        case 'settlementDay':
+          return (a.settlementDay - b.settlementDay) * dir;
         default:
           return 0;
       }

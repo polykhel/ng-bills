@@ -1,4 +1,4 @@
-import { effect, Injectable, signal } from '@angular/core';
+import { effect, inject, Injectable, signal } from '@angular/core';
 import {
   addMonths,
   differenceInCalendarMonths,
@@ -10,12 +10,14 @@ import {
   parseISO,
   setDate,
   startOfDay,
-  startOfMonth
+  startOfMonth,
+  subMonths
 } from 'date-fns';
 import { IndexedDBService, STORES } from './indexeddb.service';
 import { ProfileService } from './profile.service';
 import { CardService } from './card.service';
 import { StatementService } from './statement.service';
+import { TransactionBucketService } from './transaction-bucket.service';
 import { UtilsService } from './utils.service';
 import type { Transaction, TransactionFilter } from '@shared/types';
 
@@ -38,7 +40,9 @@ export class TransactionService {
   // Public signals
   transactions = this.transactionsSignal.asReadonly();
 
-  private previousCards: Map<string, number> = new Map(); // Track previous dueDay values
+  private previousCards: Map<string, number> = new Map(); // Track previous paymentDay values
+
+  private transactionBucketService = inject(TransactionBucketService);
 
   constructor(
     private idb: IndexedDBService,
@@ -515,25 +519,26 @@ export class TransactionService {
 
   /**
    * Get transactions that belong to a specific statement (card + month)
-   * Uses cutoff-aware logic to determine which transactions belong to the statement
-   * ⭐ IMPORTANT: Uses postingDate for cutoff calculation if available (same logic as autoCreateOrUpdateBill)
+   * Uses settlement-aware logic to determine which transactions belong to the statement
+   * ⭐ IMPORTANT: Uses postingDate for settlement calculation if available (same logic as autoCreateOrUpdateBill)
    */
-  getTransactionsForStatement(cardId: string, monthStr: string, cutoffDayOverride?: number): Transaction[] {
+  getTransactionsForStatement(cardId: string, monthStr: string, settlementDayOverride?: number): Transaction[] {
     const card = this.cardService.getCardSync(cardId);
     if (!card) return [];
 
     // Use override if provided, otherwise card default
-    const cutoffDay = cutoffDayOverride ?? card.cutoffDay;
+    const settlementDay = settlementDayOverride ?? card.settlementDay;
+    const paymentDay = card.paymentDay;
 
     // Get all card transactions
     const allCardTransactions = this.transactionsSignal().filter(
       (t) => t.paymentMethod === 'card' && t.cardId === cardId,
     );
 
-    // Filter transactions that belong to this statement month based on cutoff logic
+    // Filter transactions that belong to this payment month based on SD/PD logic
     return allCardTransactions.filter((t) => {
-      // ⭐ CUTOFF-AWARE: Use shared utility function (matches autoCreateOrUpdateBill logic)
-      const transactionMonthStr = this.utils.getStatementMonthStrForTransaction(t, cutoffDay);
+      // ⭐ SETTLEMENT-AWARE: Use shared utility function (matches autoCreateOrUpdateBill logic)
+      const transactionMonthStr = this.utils.getPaymentMonthStrForTransaction(t, settlementDay, paymentDay);
       return transactionMonthStr === monthStr;
     });
   }
@@ -824,7 +829,7 @@ export class TransactionService {
       const card = this.cardService.getCardSync(t.cardId!);
       if (!card) continue;
 
-      const dueDate = this.dueDateForMonth(parseISO(t.date), card.dueDay);
+      const dueDate = this.dueDateForMonth(parseISO(t.date), card.paymentDay);
       const newDateStr = format(dueDate, 'yyyy-MM-dd');
       if (t.date !== newDateStr) {
         wouldUpdate++;
@@ -870,7 +875,7 @@ export class TransactionService {
         continue;
       }
 
-      const dueDate = this.dueDateForMonth(parseISO(t.date), card.dueDay);
+      const dueDate = this.dueDateForMonth(parseISO(t.date), card.paymentDay);
       const newDateStr = format(dueDate, 'yyyy-MM-dd');
       if (t.date === newDateStr) {
         skipped++;
@@ -893,12 +898,12 @@ export class TransactionService {
   }
 
   /**
-   * Due date for a given month: same year/month, day = dueDay (clamped to last day of month).
+   * Due date for a given month: same year/month, day = paymentDay (clamped to last day of month).
    */
-  private dueDateForMonth(monthDate: Date, dueDay: number): Date {
+  private dueDateForMonth(monthDate: Date, paymentDay: number): Date {
     const start = startOfMonth(monthDate);
     const last = lastDayOfMonth(start);
-    const day = Math.min(dueDay, getDate(last));
+    const day = Math.min(paymentDay, getDate(last));
     return setDate(start, day);
   }
 
@@ -990,18 +995,55 @@ export class TransactionService {
 
     // 2. Card Statements (Bills due this month)
     // For forecasting, we care about cash outflow (bill payments), not individual charges
+    // Use payment dates (SD/PD model) to determine when bills are actually due
     const cards = this.cardService.getCardsForProfiles([profileId]);
+    
     for (const card of cards) {
-      // Get the statement that is due in this month (Payment Month)
-      const statement = this.statementService.getStatementForMonth(card.id, targetMonthStr);
+      // Check statements from multiple months (payment might be in target month even if statement is from different month)
+      // We'll check the current month and previous month to catch cross-month payments
+      const monthsToCheck = [targetMonthStr];
+      const prevMonth = subMonths(targetDate, 1);
+      monthsToCheck.push(format(prevMonth, 'yyyy-MM'));
       
-      if (statement && !statement.isPaid) {
-        const amount = statement.amount || 0;
-        const paid = statement.paidAmount || 0;
-        const remaining = Math.max(0, amount - paid);
+      for (const monthStr of monthsToCheck) {
+        const statement = this.statementService.getStatementForMonth(card.id, monthStr);
         
-        if (remaining > 0) {
-          committedExpenses += remaining;
+        if (statement && !statement.isPaid) {
+          // Calculate payment date using SD/PD model
+          const settlementDay = card.settlementDay;
+          const paymentDay = card.paymentDay;
+          
+          let paymentDate: Date;
+          if (statement.manualPaymentDate) {
+            // Use manual override
+            paymentDate = parseISO(statement.manualPaymentDate);
+          } else {
+            // Calculate using TransactionBucketService
+            // Use first transaction date or statement month start as reference
+            const transactions = this.getTransactionsForStatement(card.id, monthStr);
+            const referenceDate = transactions.length > 0
+              ? parseISO(transactions[0].date)
+              : parseISO(`${monthStr}-01`);
+            
+            paymentDate = this.transactionBucketService.getAssignedPaymentDate(referenceDate, {
+              settlementDay: card.settlementDay,
+              paymentDay: card.paymentDay,
+              id: card.id
+            });
+          }
+          
+          // Check if payment date falls within target month
+          const paymentDateStart = startOfDay(paymentDate);
+          if (!isAfter(paymentDateStart, monthEnd) && (isAfter(paymentDateStart, today) || paymentDateStart <= today)) {
+            // Payment is due in target month
+            const amount = statement.amount || 0;
+            const paid = statement.paidAmount || 0;
+            const remaining = Math.max(0, amount - paid);
+            
+            if (remaining > 0) {
+              committedExpenses += remaining;
+            }
+          }
         }
       }
     }
@@ -1026,17 +1068,17 @@ export class TransactionService {
     effect(() => {
       const cards = this.cardService.cards();
 
-      // Check each card for dueDay changes
+      // Check each card for paymentDay changes
       for (const card of cards) {
-        const previousDueDay = this.previousCards.get(card.id);
+        const previousPaymentDay = this.previousCards.get(card.id);
 
-        // If dueDay changed, sync installments
-        if (previousDueDay !== undefined && previousDueDay !== card.dueDay) {
-          void this.syncInstallmentsForCard(card.id, card.dueDay);
+        // If paymentDay changed, sync installments
+        if (previousPaymentDay !== undefined && previousPaymentDay !== card.paymentDay) {
+          void this.syncInstallmentsForCard(card.id, card.paymentDay);
         }
 
         // Update tracking
-        this.previousCards.set(card.id, card.dueDay);
+        this.previousCards.set(card.id, card.paymentDay);
       }
 
       // Remove cards that no longer exist
@@ -1059,28 +1101,30 @@ export class TransactionService {
 
   /**
    * CORE LOGIC: Auto-create or update bill based on transaction
-   * Handles cutoff-aware month calculation
+   * Handles settlement-aware month calculation
    *
    * Logic:
-   * - If transaction day >= cutoffDay: belongs to NEXT month
-   * - If transaction day < cutoffDay: belongs to THIS month
+   * - If transaction day >= settlementDay: belongs to NEXT month
+   * - If transaction day < settlementDay: belongs to THIS month
    *
    * @param transaction Transaction with paymentMethod='card' and cardId
    */
   private async autoCreateOrUpdateBill(transaction: Transaction): Promise<void> {
     const cardId = transaction.cardId!;
 
-    // Get card for cutoff and due day calculation
+    // Get card for settlement and due day calculation
     const card = this.cardService.getCardSync(cardId);
     if (!card) {
       console.error(`Card not found: ${cardId}`);
       return;
     }
 
-    // ⭐ CUTOFF-AWARE: Determine which statement month this transaction belongs to
-    // Use shared utility function for consistent cutoff-aware logic
-    const statementDate = this.utils.getStatementMonthForTransaction(transaction, card.cutoffDay);
-    const monthStr = format(statementDate, 'yyyy-MM');
+    // ⭐ SETTLEMENT-AWARE: Determine which payment month this transaction belongs to
+    // Use shared utility function for consistent SD/PD logic
+    const settlementDay = card.settlementDay;
+    const paymentDay = card.paymentDay;
+    const paymentMonth = this.utils.getPaymentMonthForTransaction(transaction, settlementDay, paymentDay);
+    const monthStr = format(paymentMonth, 'yyyy-MM');
 
     // Get existing statement or prepare to create new one
     const existingStatement = this.statementService.getStatementForMonth(cardId, monthStr);
@@ -1092,7 +1136,7 @@ export class TransactionService {
     if (!existingStatement) {
       // AUTO-CREATE: New monthly bill
       // For refunds (income), start with negative amount; for charges, positive
-      const dueDate = new Date(statementDate.getFullYear(), statementDate.getMonth(), card.dueDay);
+      const dueDate = new Date(paymentMonth.getFullYear(), paymentMonth.getMonth(), card.paymentDay);
 
       this.statementService.updateStatement(cardId, monthStr, {
         amount: amountToApply,
@@ -1102,7 +1146,7 @@ export class TransactionService {
       });
 
       console.log(
-        `✅ Bill auto-created: ${card.cardName} - ${monthStr} (cutoff: ${card.cutoffDay}) - $${amountToApply} ${transaction.type === 'income' ? '(refund)' : ''}`,
+        `✅ Bill auto-created: ${card.cardName} - ${monthStr} (settlement: ${settlementDay}) - $${amountToApply} ${transaction.type === 'income' ? '(refund)' : ''}`,
       );
     } else {
       // UPDATE: Add/subtract from existing bill
@@ -1128,10 +1172,12 @@ export class TransactionService {
     const card = this.cardService.getCardSync(transaction.cardId);
     if (!card) return;
 
-    // Calculate which statement month this belongs to
-    // Use shared utility function for consistent cutoff-aware logic
-    const statementDate = this.utils.getStatementMonthForTransaction(transaction, card.cutoffDay);
-    const monthStr = format(statementDate, 'yyyy-MM');
+    // Calculate which payment month this belongs to
+    // Use shared utility function for consistent SD/PD logic
+    const settlementDay = card.settlementDay;
+    const paymentDay = card.paymentDay;
+    const paymentMonth = this.utils.getPaymentMonthForTransaction(transaction, settlementDay, paymentDay);
+    const monthStr = format(paymentMonth, 'yyyy-MM');
     const statement = this.statementService.getStatementForMonth(transaction.cardId, monthStr);
 
     if (statement) {

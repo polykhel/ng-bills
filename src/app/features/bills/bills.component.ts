@@ -24,12 +24,13 @@ import {
   ProfileService,
   StatementService,
   TransactionService,
+  TransactionBucketService,
   UtilsService,
   CategoryService,
 } from '@services';
 import { EmptyStateComponent, MetricCardComponent } from '@components';
 import type { Statement, Transaction } from '@shared/types';
-import { format, parseISO, subMonths } from 'date-fns';
+import { format, parseISO, subMonths, addMonths, startOfMonth, getDate, lastDayOfMonth } from 'date-fns';
 
 interface BillWithDetails {
   statement: Statement | null;
@@ -38,6 +39,8 @@ interface BillWithDetails {
   bankName: string;
   color: string;
   dueDate: Date;
+  settlementDate: Date; // Calculated settlement date
+  paymentDate: Date; // Calculated payment date
   amount: number;
   isPaid: boolean;
   paidAmount: number;
@@ -158,7 +161,7 @@ export class BillsComponent {
     cardId: string;
     amount: string;
     dueDate: string;
-    cutoffDay: string;
+    settlementDay: string;
     notes: string;
     isEditing: boolean;
     editingMonthStr: string;
@@ -167,7 +170,7 @@ export class BillsComponent {
     cardId: '',
     amount: '',
     dueDate: '',
-    cutoffDay: '',
+    settlementDay: '',
     notes: '',
     isEditing: false,
     editingMonthStr: '',
@@ -216,6 +219,7 @@ export class BillsComponent {
     return { totalDue, unpaidCount, paidCount, totalPaid };
   });
   private transactionService = inject(TransactionService);
+  private transactionBucketService = inject(TransactionBucketService);
   private categoryService = inject(CategoryService);
   // Get all bills with details for current month
   protected billsWithDetails = computed(() => {
@@ -239,10 +243,12 @@ export class BillsComponent {
       .map((card) => {
         const statement = this.statementService.getStatementForMonth(card.id, monthStr) || null;
 
-        // Get transactions linked to this statement (cutoff-aware, not calendar month)
+        // Get transactions linked to this statement (settlement-aware, not calendar month)
         // Sort by date (oldest first)
+        // Use customCutoffDay for backward compatibility, otherwise use settlementDay
+        const settlementDayOverride = statement?.customCutoffDay ?? card.settlementDay;
         const transactions = this.transactionService
-          .getTransactionsForStatement(card.id, monthStr, statement?.customCutoffDay)
+          .getTransactionsForStatement(card.id, monthStr, settlementDayOverride)
           .filter((t) => profileIds.includes(t.profileId))
           .sort((a, b) => {
             return parseISO(a.date).getTime() - parseISO(b.date).getTime();
@@ -252,7 +258,7 @@ export class BillsComponent {
         if (statement?.customDueDate) {
             dueDate = parseISO(statement.customDueDate);
         } else {
-            dueDate = new Date(`${monthStr}-${String(card.dueDay).padStart(2, '0')}`);
+            dueDate = new Date(`${monthStr}-${String(card.paymentDay).padStart(2, '0')}`);
         }
 
         let amount = statement?.amount || transactions.reduce((sum, t) => sum + t.amount, 0);
@@ -269,6 +275,45 @@ export class BillsComponent {
             }
         }
 
+        // Calculate settlement and payment dates
+        // Use the first transaction date or current month start as reference
+        const referenceDate = transactions.length > 0 
+          ? parseISO(transactions[0].date)
+          : parseISO(`${monthStr}-01`);
+        
+        // Get settlement and payment dates using TransactionBucketService
+        const settlementDay = card.settlementDay;
+        const paymentDay = card.paymentDay;
+        
+        let settlementDate: Date;
+        let paymentDate: Date;
+        
+        // Check for manual overrides
+        if (statement?.manualSettlementDate) {
+          settlementDate = parseISO(statement.manualSettlementDate);
+        } else {
+          // Calculate settlement date based on settlementDay
+          const settlementMonth = referenceDate.getDate() > settlementDay
+            ? addMonths(startOfMonth(referenceDate), 1)
+            : startOfMonth(referenceDate);
+          const settlementYear = settlementMonth.getFullYear();
+          const settlementMonthIndex = settlementMonth.getMonth();
+          const lastDayOfSettlementMonth = getDate(lastDayOfMonth(settlementMonth));
+          const sd = Math.min(settlementDay, lastDayOfSettlementMonth);
+          settlementDate = new Date(settlementYear, settlementMonthIndex, sd);
+        }
+        
+        if (statement?.manualPaymentDate) {
+          paymentDate = parseISO(statement.manualPaymentDate);
+        } else {
+          // Calculate payment date using TransactionBucketService logic
+          paymentDate = this.transactionBucketService.getAssignedPaymentDate(referenceDate, {
+            settlementDay: card.settlementDay,
+            paymentDay: card.paymentDay,
+            id: card.id
+          });
+        }
+
         const bill: BillWithDetails = {
           statement,
           cardId: card.id,
@@ -276,6 +321,8 @@ export class BillsComponent {
           bankName: card.bankName,
           color: card.color,
           dueDate,
+          settlementDate,
+          paymentDate,
           amount,
           isPaid: statement?.isPaid || false,
           paidAmount: statement?.paidAmount || 0,
@@ -497,14 +544,14 @@ export class BillsComponent {
     const defaultCard = cards[0];
 
     if (defaultCard) {
-      const dueDate = `${monthStr}-${String(defaultCard.dueDay).padStart(2, '0')}`;
+      const dueDate = `${monthStr}-${String(defaultCard.paymentDay).padStart(2, '0')}`;
 
       this.billFormState.set({
         isOpen: true,
         cardId: defaultCard.id,
         amount: '',
         dueDate,
-        cutoffDay: defaultCard.cutoffDay.toString(),
+        settlementDay: defaultCard.settlementDay.toString(),
         notes: '',
         isEditing: false,
         editingMonthStr: '',
@@ -516,14 +563,14 @@ export class BillsComponent {
     if (!bill.statement) return;
 
     const card = this.availableCards.find((c) => c.id === bill.cardId);
-    const cutoffDay = bill.statement.customCutoffDay ?? card?.cutoffDay ?? '';
+    const settlementDay = bill.statement.customCutoffDay ?? card?.settlementDay ?? '';
 
     this.billFormState.set({
       isOpen: true,
       cardId: bill.cardId,
       amount: bill.statement.amount.toString(),
       dueDate: bill.statement.customDueDate || format(bill.dueDate, 'yyyy-MM-dd'),
-      cutoffDay: cutoffDay.toString(),
+      settlementDay: settlementDay.toString(),
       notes: bill.statement.notes || '',
       isEditing: true,
       editingMonthStr: bill.statement.monthStr,
@@ -554,8 +601,8 @@ export class BillsComponent {
       }
 
       const monthStr = form.isEditing ? form.editingMonthStr : format(this.viewDate(), 'yyyy-MM');
-      const cutoffDayInput = form.cutoffDay;
-      const cutoffDay = cutoffDayInput ? parseInt(cutoffDayInput, 10) : undefined;
+      const settlementDayInput = form.settlementDay;
+      const settlementDay = settlementDayInput ? parseInt(settlementDayInput, 10) : undefined;
       const card = this.availableCards.find((c) => c.id === form.cardId);
       
       // Build update object conditionally
@@ -566,12 +613,12 @@ export class BillsComponent {
         isEstimated: true,
       };
 
-      // Handle customCutoffDay:
-      // - If cutoff day is provided and differs from card default, save it
-      // - If cutoff day matches card default or is empty, clear any previous custom value
-      if (cutoffDay && card) {
-        if (cutoffDay !== card.cutoffDay) {
-          updates.customCutoffDay = cutoffDay;
+      // Handle customCutoffDay (legacy field name, but stores settlementDay override):
+      // - If settlement day is provided and differs from card default, save it
+      // - If settlement day matches card default or is empty, clear any previous custom value
+      if (settlementDay && card) {
+        if (settlementDay !== card.settlementDay) {
+          updates.customCutoffDay = settlementDay;
         } else {
           // Matches default, clear custom value
           updates.customCutoffDay = undefined;
@@ -612,12 +659,12 @@ export class BillsComponent {
     if (!card) return;
 
     const monthStr = format(this.viewDate(), 'yyyy-MM');
-    const dueDate = `${monthStr}-${String(card.dueDay).padStart(2, '0')}`;
+    const dueDate = `${monthStr}-${String(card.paymentDay).padStart(2, '0')}`;
 
     this.billFormState.update((state) => ({
       ...state,
       dueDate,
-      cutoffDay: card.cutoffDay.toString(),
+      settlementDay: card.settlementDay.toString(),
     }));
   }
 
@@ -686,5 +733,104 @@ export class BillsComponent {
     const bills = this.billsWithDetails();
     const selected = this.selectedBills();
     return bills.length > 0 && bills.every((b) => selected.has(b.cardId));
+  }
+
+  // Date override modal state
+  protected dateOverrideModal = signal<{
+    isOpen: boolean;
+    statement: Statement | null;
+    cardId: string;
+    cardName: string;
+    settlementDate: string;
+    paymentDate: string;
+    field: 'settlement' | 'payment' | null;
+  }>({
+    isOpen: false,
+    statement: null,
+    cardId: '',
+    cardName: '',
+    settlementDate: '',
+    paymentDate: '',
+    field: null,
+  });
+
+  protected openDateOverrideModal(bill: BillWithDetails, field: 'settlement' | 'payment'): void {
+    if (!bill.statement) return;
+
+    this.dateOverrideModal.set({
+      isOpen: true,
+      statement: bill.statement,
+      cardId: bill.cardId,
+      cardName: `${bill.bankName} ${bill.cardName}`,
+      settlementDate: bill.statement.manualSettlementDate 
+        ? bill.statement.manualSettlementDate.split('T')[0]
+        : format(bill.settlementDate, 'yyyy-MM-dd'),
+      paymentDate: bill.statement.manualPaymentDate
+        ? bill.statement.manualPaymentDate.split('T')[0]
+        : format(bill.paymentDate, 'yyyy-MM-dd'),
+      field,
+    });
+  }
+
+  protected closeDateOverrideModal(): void {
+    this.dateOverrideModal.update((state) => ({
+      ...state,
+      isOpen: false,
+      field: null,
+    }));
+  }
+
+  protected async saveDateOverride(): Promise<void> {
+    const modal = this.dateOverrideModal();
+    if (!modal.statement || !modal.field) return;
+
+    try {
+      const updates: Partial<Statement> = {};
+      
+      if (modal.field === 'settlement') {
+        updates.manualSettlementDate = modal.settlementDate || null;
+      } else if (modal.field === 'payment') {
+        updates.manualPaymentDate = modal.paymentDate || null;
+      }
+
+      this.statementService.updateStatement(
+        modal.statement.cardId,
+        modal.statement.monthStr,
+        updates
+      );
+
+      this.closeDateOverrideModal();
+    } catch (error) {
+      console.error('Error saving date override:', error);
+      alert('Failed to save date override');
+    }
+  }
+
+  protected clearDateOverride(bill: BillWithDetails, field: 'settlement' | 'payment'): void {
+    if (!bill.statement) return;
+
+    const updates: Partial<Statement> = {};
+    if (field === 'settlement') {
+      updates.manualSettlementDate = null;
+    } else if (field === 'payment') {
+      updates.manualPaymentDate = null;
+    }
+
+    this.statementService.updateStatement(
+      bill.statement.cardId,
+      bill.statement.monthStr,
+      updates
+    );
+  }
+
+  protected clearDateOverrideAndClose(): void {
+    const modal = this.dateOverrideModal();
+    if (!modal.statement || !modal.field) return;
+
+    const bill = this.billsWithDetails().find(b => b.cardId === modal.cardId);
+    if (bill) {
+      this.clearDateOverride(bill, modal.field);
+    }
+    this.closeDateOverrideModal();
   }
 }

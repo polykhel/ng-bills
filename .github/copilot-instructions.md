@@ -43,7 +43,7 @@ Focused guidance for contributing productively to ng-bills (Angular 21, Tailwind
 ## Environment & Build
 - Env variables are injected via `@ngx-env/builder` (see [angular.json](../angular.json)), prefix `NG_APP_`. Firebase config is read in [src/environments/firebase.ts](../src/environments/firebase.ts).
 - Required keys for Firebase Cloud Sync: `NG_APP_FIREBASE_API_KEY`, `NG_APP_FIREBASE_AUTH_DOMAIN`, `NG_APP_FIREBASE_PROJECT_ID`, `NG_APP_FIREBASE_STORAGE_BUCKET`, `NG_APP_FIREBASE_MESSAGING_SENDER_ID`, `NG_APP_FIREBASE_APP_ID`.
-- Commands: start `npm start`, build `npm run build`, test `npm test`. Dev build uses Vite via Angular CLI.
+- Commands: start `bun start`, build `bun run build`, test `bun test`. Dev build uses Vite via Angular CLI.
 
 ## Developer Workflows
 - Convert inline templates to external HTML with [scripts/extract-templates.js](../scripts/extract-templates.js) (`node scripts/extract-templates.js`).
@@ -63,10 +63,7 @@ Focused guidance for contributing productively to ng-bills (Angular 21, Tailwind
 - Cloud sync settings live under `users/{uid}/settings/app` in Firestore via `FirebaseSyncService`.
 
 ## Testing & Quality
-- Unit tests run with Karma/Jasmine (`npm test`). Keep signal-based logic in services with small pure helpers (e.g., `UtilsService`) to ease testing.
 - Prettier config lives in [package.json](../package.json). Format with `npx prettier --write .`.
 
-If any conventions here are unclear or you need deeper context (e.g., storage migration paths or sync edge cases), tell me which section to expand and I’ll update this doc.
-
 Don't create summary documents.
-When working on the ROADMAP, update the status of each Phase as you complete tasks.
+Always run bun run build before you finish a prompt to ensure build passes.

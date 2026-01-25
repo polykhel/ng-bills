@@ -261,7 +261,7 @@
                 [(ngModel)]="formData.date"
                 style="flex: 1;"
               />
-              <!-- Cutoff Preview Badge (Task 3) -->
+              <!-- Payment Date Preview Badge -->
               @if (cutoffPreview()) {
                 <span 
                   [ngClass]="{
@@ -271,7 +271,7 @@
                   class="px-2 py-1 text-xs font-medium rounded border"
                   style="white-space: nowrap;"
                 >
-                  Bill: {{ cutoffPreview()!.statementMonth }} (Due {{ cutoffPreview()!.dueDate }})
+                  Payment Month: {{ cutoffPreview()!.statementMonth }} (Payment Date: {{ cutoffPreview()!.paymentDate }})
                 </span>
               }
             </div>

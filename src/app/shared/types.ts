@@ -8,8 +8,8 @@ export interface CreditCard {
   profileId: string;
   bankName: string;
   cardName: string;
-  dueDay: number;
-  cutoffDay: number;
+  settlementDay: number; // SD: Settlement Date
+  paymentDay: number; // PD: Payment Date (when payment is due)
   color: string;
   isCashCard?: boolean;
 }
@@ -29,7 +29,9 @@ export interface Statement {
   payments?: Payment[];
   dueDate?: string;
   customDueDate?: string;
-  customCutoffDay?: number;
+  customCutoffDay?: number; // Legacy field - kept for backward compatibility
+  manualSettlementDate?: string | null; // ISO date string - manual override for settlement date
+  manualPaymentDate?: string | null; // ISO date string - manual override for payment date
   isUnbilled?: boolean;
   adjustedAmount?: number;
   isEstimated?: boolean;

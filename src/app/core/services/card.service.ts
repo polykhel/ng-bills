@@ -80,11 +80,15 @@ export class CardService {
     let cardsChanged = false;
 
     const migratedCards = loadedCards.map((c) => {
+      let card = c;
+      
+      // Migrate profileId if missing
       if (!c.profileId) {
         cardsChanged = true;
-        return { ...c, profileId: activeProfileId };
+        card = { ...card, profileId: activeProfileId };
       }
-      return c;
+
+      return card;
     });
 
     if (cardsChanged) {
